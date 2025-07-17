@@ -1,0 +1,3 @@
+
+[lb_servers]
+test-lb-1 ansible_host=192.168.0.115 ansible_user=rocky ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
