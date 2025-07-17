@@ -6,6 +6,7 @@ import yaml
 from datetime import datetime
 import threading
 import time
+import hcl2
 
 # ssh 추가 해야함. 
 
@@ -15,6 +16,36 @@ app = Flask(__name__)
 TERRAFORM_DIR = 'terraform'
 ANSIBLE_DIR = 'ansible'
 PROJECTS_DIR = 'projects'
+TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars')
+
+# terraform.tfvars의 servers map 읽기
+def read_servers_from_tfvars():
+    with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
+        data = f.read()
+        obj = hcl2.loads(data)
+        return obj.get('servers', {})
+
+# terraform.tfvars의 servers map 저장
+def write_servers_to_tfvars(servers, other_vars=None):
+    with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
+        data = f.read()
+        obj = hcl2.loads(data)
+    obj['servers'] = servers
+    # 나머지 변수 보존
+    if other_vars:
+        obj.update(other_vars)
+    # HCL 포맷으로 저장 (간단히 json.dumps로 예시, 실제로는 hcl 포맷 라이브러리 권장)
+    with open(TFVARS_PATH, 'w', encoding='utf-8') as f:
+        import json
+        f.write('servers = ' + json.dumps(servers, indent=2) + '\n')
+        for k, v in obj.items():
+            if k != 'servers':
+                if isinstance(v, str):
+                    f.write(f'{k} = "{v}"\n')
+                elif isinstance(v, list):
+                    f.write(f'{k} = {json.dumps(v)}\n')
+                else:
+                    f.write(f'{k} = {v}\n')
 
 # 서버 역할 정의
 # 1. 서버 역할 정의에 OS별 패키지 추가
@@ -70,6 +101,31 @@ SERVER_ROLES = {
 def index():
     return render_template('index.html', roles=SERVER_ROLES)
 
+@app.route('/projects', methods=['GET'])
+def list_projects():
+    """프로젝트(서버 그룹) 리스트 반환"""
+    try:
+        projects = [d for d in os.listdir(PROJECTS_DIR) if os.path.isdir(os.path.join(PROJECTS_DIR, d))]
+        return jsonify({'projects': projects})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/delete_project/<project_name>', methods=['POST'])
+def delete_project(project_name):
+    """프로젝트(서버 그룹) 삭제"""
+    project_path = os.path.join(PROJECTS_DIR, project_name)
+    if not os.path.exists(project_path):
+        return jsonify({'success': False, 'error': 'Project not found'}), 404
+    try:
+        # terraform destroy 실행
+        subprocess.run(['terraform', 'destroy', '-auto-approve'], cwd=project_path, check=True)
+        # 디렉토리 삭제
+        import shutil
+        shutil.rmtree(project_path)
+        return jsonify({'success': True, 'message': f'{project_name} 프로젝트가 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/create_server', methods=['POST'])
 def create_server():
     try:
@@ -86,9 +142,11 @@ def create_server():
             'project_name': request.form.get('project_name', f'project_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
         }
         
-        # 프로젝트 디렉토리 생성
+        # 프로젝트 디렉토리 생성 (이미 존재하면 에러 반환)
         project_path = os.path.join(PROJECTS_DIR, server_config['project_name'])
-        os.makedirs(project_path, exist_ok=True)
+        if os.path.exists(project_path):
+            return jsonify({'success': False, 'error': '동일한 프로젝트명이 이미 존재합니다. 다른 이름을 사용하세요.'}), 400
+        os.makedirs(project_path, exist_ok=False)
         
         # Terraform 파일 생성
         create_terraform_files(project_path, server_config)
@@ -109,6 +167,55 @@ def create_server():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/servers', methods=['GET'])
+def list_servers():
+    servers = read_servers_from_tfvars()
+    return jsonify({'servers': servers})
+
+def run_terraform_apply():
+    import subprocess
+    result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+    return result.returncode == 0, result.stdout, result.stderr
+
+def run_ansible_playbook():
+    # 실제 환경에 맞게 inventory, playbook 경로 조정 필요
+    import subprocess
+    result = subprocess.run(['ansible-playbook', '-i', 'inventory', 'playbook.yml'], cwd=ANSIBLE_DIR, capture_output=True, text=True)
+    return result.returncode == 0, result.stdout, result.stderr
+
+@app.route('/add_server', methods=['POST'])
+def add_server():
+    data = request.json
+    servers = read_servers_from_tfvars()
+    server_name = data['name']
+    servers[server_name] = data
+    write_servers_to_tfvars(servers)
+    ok, out, err = run_terraform_apply()
+    if not ok:
+        return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+    # Ansible 실행 (옵션)
+    # ans_ok, ans_out, ans_err = run_ansible_playbook()
+    # if not ans_ok:
+    #     return jsonify({'success': False, 'error': 'Ansible 실패', 'stdout': ans_out, 'stderr': ans_err}), 500
+    return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
+
+@app.route('/delete_server/<server_name>', methods=['POST'])
+def delete_server(server_name):
+    servers = read_servers_from_tfvars()
+    if server_name in servers:
+        del servers[server_name]
+        write_servers_to_tfvars(servers)
+        ok, out, err = run_terraform_apply()
+        if not ok:
+            return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+        # Ansible 실행 (옵션)
+        # ans_ok, ans_out, ans_err = run_ansible_playbook()
+        # if not ans_ok:
+        #     return jsonify({'success': False, 'error': 'Ansible 실패', 'stdout': ans_out, 'stderr': ans_err}), 500
+        return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
+    else:
+        return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
 
 def create_terraform_files(project_path, config):
     """Terraform 파일 생성 - OS별 템플릿 ID 지원"""

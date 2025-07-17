@@ -1,549 +1,109 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>서버 자동 생성 시스템</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 40px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 300;
-        }
-
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
-
-        .form-container {
-            padding: 40px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #333;
-            font-size: 1.1em;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: #4facfe;
-            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
-        }
-
-        .form-row {
-            display: flex;
-            gap: 20px;
-        }
-
-        .form-row .form-group {
-            flex: 1;
-        }
-
-        .dynamic-fields {
-            border: 2px dashed #e0e0e0;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 10px;
-        }
-
-        .dynamic-field {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .dynamic-field:last-child {
-            margin-bottom: 0;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            width: 100%;
-            padding: 16px;
-            font-size: 18px;
-            border-radius: 12px;
-            margin-top: 20px;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-secondary {
-            background: #f8f9fa;
-            color: #6c757d;
-            border: 2px solid #e0e0e0;
-        }
-
-        .btn-secondary:hover {
-            background: #e9ecef;
-            border-color: #6c757d;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .role-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 10px;
-        }
-
-        .role-card {
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .role-card:hover {
-            border-color: #4facfe;
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.2);
-        }
-
-        .role-card.selected {
-            border-color: #4facfe;
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-        }
-
-        .role-card input[type="radio"] {
-            display: none;
-        }
-
-        .role-card h3 {
-            margin-bottom: 10px;
-            font-size: 1.2em;
-        }
-
-        .role-card p {
-            font-size: 0.9em;
-            opacity: 0.8;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .loading.active {
-            display: block;
-        }
-
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4facfe;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .alert.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .alert.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .alert.active {
-            display: block;
-        }
-
-        /* OS 선택 카드 스타일 추가 */
-        .os-selection {
-            display: flex;
-            gap: 20px;
-            margin-top: 10px;
-        }
-
-        .os-card {
-            flex: 1;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .os-card:hover {
-            border-color: #4facfe;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.2);
-        }
-
-        .os-card.selected {
-            border-color: #4facfe;
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-        }
-
-        .os-card input[type="radio"] {
-            display: none;
-        }
-
-        .os-icon {
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
-
-        .os-card h3 {
-            margin-bottom: 8px;
-            font-size: 1.1em;
-        }
-
-        .os-card p {
-            font-size: 0.9em;
-            opacity: 0.8;
-        }
-        
-    </style>
+  <meta charset="UTF-8">
+  <title>Proxmox 서버 관리</title>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <style>
+    .server-form { border:1px solid #ccc; padding:10px; margin-bottom:10px; }
+    .server-actions { display: flex; gap: 8px; }
+    .server-list-table { width:100%; border-collapse:collapse; margin-top:30px; }
+    .server-list-table th, .server-list-table td { border:1px solid #ccc; padding:6px; text-align:center; }
+    .server-list-table tr.selected { background:#e0f7fa; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 서버 자동 생성 시스템</h1>
-            <p>Terraform + Ansible로 인프라를 자동으로 구성해보세요</p>
-        </div>
+  <h2>서버 역할 선택</h2>
+  <select id="role-select" multiple="multiple" style="width:300px;">
+    {% for key, role in roles.items() %}
+      <option value="{{ key }}">{{ role.name }}</option>
+    {% endfor %}
+  </select>
 
-        <div class="form-container">
-            <div id="alert" class="alert"></div>
-            
-            <form id="serverForm">
-                <div class="form-group">
-                    <label>프로젝트 이름</label>
-                    <input type="text" class="form-control" name="project_name" placeholder="예: my-web-project" required>
-                </div>
+  <div id="server-forms"></div>
 
-                <div class="form-group">
-                    <label>서버 역할 선택</label>
-                    <div class="role-cards">
-                        {% for role_key, role_info in roles.items() %}
-                        <div class="role-card" onclick="selectRole('{{ role_key }}')">
-                            <input type="radio" name="role" value="{{ role_key }}" id="role_{{ role_key }}">
-                            <h3>{{ role_info.name }}</h3>
-                            <p>{{ role_info.packages | join(', ') }}</p>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
+  <button id="create-servers-btn">서버 생성</button>
 
-                <div class="form-group">
-                    <label>운영체제 선택</label>
-                    <div class="os-selection">
-                        <div class="os-card" onclick="selectOS('ubuntu')">
-                            <input type="radio" name="os_type" value="ubuntu" id="os_ubuntu" checked>
-                            <div class="os-icon">🐧</div>
-                            <h3>Ubuntu 20.04</h3>
-                            <p>APT 패키지 관리자</p>
-                        </div>
-                        <div class="os-card selected" onclick="selectOS('rocky')">
-                            <input type="radio" name="os_type" value="rocky" id="os_rocky">
-                            <div class="os-icon">🗻</div>
-                            <h3>Rocky Linux 8</h3>
-                            <p>YUM/DNF 패키지 관리자</p>
-                        </div>
-                    </div>
-                </div>
+  <h2>활성화된 서버 리스트</h2>
+  <table class="server-list-table" id="active-server-table">
+    <thead>
+      <tr><th>이름</th><th>역할</th><th>IP</th><th>상태</th><th>액션</th></tr>
+    </thead>
+    <tbody>
+      <!-- 서버 리스트 동적 렌더링 -->
+    </tbody>
+  </table>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>서버 개수</label>
-                        <input type="number" class="form-control" name="count" min="1" max="10" value="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label>CPU 코어 수</label>
-                        <input type="number" class="form-control" name="cpu" min="1" max="16" value="2" required>
-                    </div>
-                </div>
+  <script>
+  $(document).ready(function() {
+    $('#role-select').select2({ placeholder: '역할을 선택/검색하세요' });
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>메모리 (MB)</label>
-                        <input type="number" class="form-control" name="memory" min="512" max="32768" value="2048" required>
-                    </div>
-                    <div class="form-group">
-                        <label>네트워크 디바이스 수</label>
-                        <input type="number" class="form-control" name="network_devices" min="1" max="4" value="1" required>
-                    </div>
-                </div>
+    // 역할 선택 시 서버 폼 동적 생성
+    $('#role-select').on('change', function() {
+      const selectedRoles = $(this).val() || [];
+      let html = '';
+      selectedRoles.forEach(function(role) {
+        html += `<div class="server-form" data-role="${role}">
+          <h4>${role} 서버 정보</h4>
+          <label>이름: <input type="text" name="name_${role}" required></label><br>
+          <label>CPU: <input type="number" name="cpu_${role}" value="2" min="1"></label><br>
+          <label>메모리(MB): <input type="number" name="memory_${role}" value="2048" min="512"></label><br>
+          <label>디스크(GB, 콤마로 구분): <input type="text" name="disks_${role}" value="20"></label><br>
+          <label>네트워크(bridge,ip 콤마로 구분): <input type="text" name="networks_${role}" value="vmbr0,192.168.0.100"></label><br>
+        </div>`;
+      });
+      $('#server-forms').html(html);
+    });
 
-                <div class="form-group">
-                    <label>디스크 설정 (GB)</label>
-                    <div class="dynamic-fields" id="diskFields">
-                        <div class="dynamic-field">
-                            <input type="number" class="form-control" name="disk" min="10" max="1000" value="20" placeholder="디스크 크기 (GB)" required>
-                            <button type="button" class="btn btn-secondary" onclick="addDisk()">+ 추가</button>
-                        </div>
-                    </div>
-                </div>
+    // 서버 생성 버튼 클릭
+    $('#create-servers-btn').on('click', function() {
+      // 폼 데이터 수집 및 서버 생성 API 호출 (구현 필요)
+      alert('서버 생성 로직은 JS에서 API 연동 필요!');
+    });
 
-                <div class="form-group">
-                    <label>IP 주소 설정</label>
-                    <div class="dynamic-fields" id="ipFields">
-                        <div class="dynamic-field">
-                            <input type="text" class="form-control" name="ip_address" placeholder="예: 192.168.1.100" pattern="^(\d{1,3}\.){3}\d{1,3}$" required>
-                            <button type="button" class="btn btn-secondary" onclick="addIP()">+ 추가</button>
-                        </div>
-                    </div>
-                </div>
-                
-
-                <button type="submit" class="btn btn-primary">🚀 서버 생성 시작</button>
-            </form>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>서버를 생성 중입니다... 잠시만 기다려주세요.</p>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        function selectRole(role) {
-            // 모든 카드에서 selected 클래스 제거
-            document.querySelectorAll('.role-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            
-            // 선택된 카드에 selected 클래스 추가
-            event.currentTarget.classList.add('selected');
-            
-            // 라디오 버튼 선택
-            document.getElementById('role_' + role).checked = true;
+    // 활성화된 서버 리스트 불러오기
+    function loadActiveServers() {
+      $.get('/servers', function(res) {
+        let html = '';
+        for (const [name, s] of Object.entries(res.servers)) {
+          html += `<tr data-server="${name}">
+            <td>${s.name}</td>
+            <td>${s.role}</td>
+            <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
+            <td>활성</td>
+            <td class="server-actions">
+              <button class="stop-btn">중지</button>
+              <button class="reboot-btn">리부팅</button>
+              <button class="delete-btn">삭제</button>
+            </td>
+          </tr>`;
         }
+        $('#active-server-table tbody').html(html);
+      });
+    }
+    loadActiveServers();
 
-        function addDisk() {
-            const diskFields = document.getElementById('diskFields');
-            const newField = document.createElement('div');
-            newField.className = 'dynamic-field';
-            newField.innerHTML = `
-                <input type="number" class="form-control" name="disk" min="10" max="1000" placeholder="디스크 크기 (GB)" required>
-                <button type="button" class="btn btn-danger" onclick="removeDisk(this)">삭제</button>
-            `;
-            diskFields.appendChild(newField);
-        }
-
-        function removeDisk(button) {
-            button.parentElement.remove();
-        }
-
-        function addIP() {
-            const ipFields = document.getElementById('ipFields');
-            const newField = document.createElement('div');
-            newField.className = 'dynamic-field';
-            newField.innerHTML = `
-                <input type="text" class="form-control" name="ip_address" placeholder="예: 192.168.1.101" pattern="^(\d{1,3}\.){3}\d{1,3}$" required>
-                <button type="button" class="btn btn-danger" onclick="removeIP(this)">삭제</button>
-            `;
-            ipFields.appendChild(newField);
-        }
-
-        function removeIP(button) {
-            button.parentElement.remove();
-        }
-
-        function showAlert(message, type = 'success') {
-            const alert = document.getElementById('alert');
-            alert.textContent = message;
-            alert.className = `alert ${type} active`;
-            setTimeout(() => {
-                alert.classList.remove('active');
-            }, 5000);
-        }
-
-        document.getElementById('serverForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const loading = document.getElementById('loading');
-            
-            // 로딩 표시
-            loading.classList.add('active');
-            this.style.display = 'none';
-            
-            try {
-                const response = await fetch('/create_server', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert(`서버 생성이 시작되었습니다! 프로젝트: ${result.project_name}`, 'success');
-                    this.reset();
-                    document.querySelectorAll('.role-card').forEach(card => {
-                        card.classList.remove('selected');
-                    });
-                } else {
-                    showAlert(`오류가 발생했습니다: ${result.error}`, 'error');
-                }
-            } catch (error) {
-                showAlert(`네트워크 오류가 발생했습니다: ${error.message}`, 'error');
-            } finally {
-                loading.classList.remove('active');
-                this.style.display = 'block';
-            }
+    // 서버 액션 버튼 이벤트 (API 연동 필요)
+    $('#active-server-table').on('click', '.stop-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      alert(name + ' 중지 API 연동 필요');
+    });
+    $('#active-server-table').on('click', '.reboot-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      alert(name + ' 리부팅 API 연동 필요');
+    });
+    $('#active-server-table').on('click', '.delete-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      if(confirm(name + ' 서버를 삭제하시겠습니까?')) {
+        $.post('/delete_server/' + name, function(res) {
+          alert(res.message);
+          loadActiveServers();
         });
-        
-        // JavaScript 함수 추가
-        function selectOS(osType) {
-            // 모든 OS 카드에서 selected 클래스 제거
-            document.querySelectorAll('.os-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            
-            // 선택된 카드에 selected 클래스 추가
-            event.currentTarget.classList.add('selected');
-            
-            // 라디오 버튼 선택
-            document.getElementById('os_' + osType).checked = true;
-            
-            // 선택된 OS에 따라 역할 정보 업데이트 (선택사항)
-            updateRoleInfo(osType);
-        }
-
-        function updateRoleInfo(osType) {
-            // OS별로 역할 카드의 패키지 정보 업데이트
-            const rolePackages = {
-                'ubuntu': {
-                    'web': 'nginx, certbot',
-                    'db': 'mysql-server, mysql-client',
-                    'app': 'python3, nodejs, npm',
-                    'cache': 'redis-server',
-                    'lb': 'nginx'
-                },
-                'rocky': {
-                    'web': 'nginx, certbot',
-                    'db': 'mysql-server, mysql',
-                    'app': 'python3, nodejs, npm',
-                    'cache': 'redis',
-                    'lb': 'nginx'
-                }
-            };
-            
-            // 역할 카드의 패키지 정보 업데이트
-            document.querySelectorAll('.role-card').forEach(card => {
-                const roleInput = card.querySelector('input[type="radio"]');
-                if (roleInput) {
-                    const role = roleInput.value;
-                    const packageInfo = card.querySelector('p');
-                    if (packageInfo && rolePackages[osType] && rolePackages[osType][role]) {
-                        packageInfo.textContent = rolePackages[osType][role];
-                    }
-                }
-            });
-        }        
-
-        // 서버 개수에 따라 IP 필드 자동 조정
-        document.querySelector('input[name="count"]').addEventListener('change', function() {
-            const count = parseInt(this.value);
-            const ipFields = document.getElementById('ipFields');
-            const currentIPs = ipFields.querySelectorAll('.dynamic-field').length;
-            
-            if (count > currentIPs) {
-                for (let i = currentIPs; i < count; i++) {
-                    addIP();
-                }
-            } else if (count < currentIPs) {
-                const fieldsToRemove = ipFields.querySelectorAll('.dynamic-field');
-                for (let i = count; i < fieldsToRemove.length; i++) {
-                    fieldsToRemove[i].remove();
-                }
-            }
-        });
-    </script>
+      }
+    });
+  });
+  </script>
 </body>
 </html>
