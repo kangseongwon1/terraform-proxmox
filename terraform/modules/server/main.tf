@@ -26,13 +26,6 @@ variable "vm_password" { type = string }
 variable "ssh_keys" { type = list(string) }
 variable "gateway" { type = string }
 
-provider "proxmox" {
-  endpoint = var.proxmox_endpoint
-  username = var.proxmox_username
-  password = var.proxmox_password
-  insecure = true
-}
-
 resource "proxmox_virtual_environment_vm" "this" {
   name  = var.name
   node_name = var.proxmox_node
