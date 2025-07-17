@@ -162,6 +162,8 @@ def list_servers():
 
 def run_terraform_apply():
     import subprocess
+    # terraform init 먼저 실행
+    subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
     result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
     return result.returncode == 0, result.stdout, result.stderr
 
