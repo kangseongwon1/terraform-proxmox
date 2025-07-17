@@ -6,7 +6,7 @@ import yaml
 from datetime import datetime
 import threading
 import time
-import hcl2
+import hcl
 
 # ssh 추가 해야함. 
 
@@ -21,15 +21,13 @@ TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars')
 # terraform.tfvars의 servers map 읽기
 def read_servers_from_tfvars():
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        data = f.read()
-        obj = hcl2.loads(data)
+        obj = hcl.load(f)
         return obj.get('servers', {})
 
 # terraform.tfvars의 servers map 저장
 def write_servers_to_tfvars(servers, other_vars=None):
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        data = f.read()
-        obj = hcl2.loads(data)
+        obj = hcl.load(f)
     obj['servers'] = servers
     # 나머지 변수 보존
     if other_vars:
