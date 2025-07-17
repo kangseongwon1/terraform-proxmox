@@ -21,13 +21,15 @@ TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars')
 # terraform.tfvars의 servers map 읽기
 def read_servers_from_tfvars():
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        obj = hcl.load(f)
+        data = f.read()
+        obj = hcl.loads(data)
         return obj.get('servers', {})
 
 # terraform.tfvars의 servers map 저장
 def write_servers_to_tfvars(servers, other_vars=None):
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        obj = hcl.load(f)
+        data = f.read()
+        obj = hcl.loads(data)
     obj['servers'] = servers
     # 나머지 변수 보존
     if other_vars:
