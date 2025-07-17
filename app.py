@@ -16,36 +16,23 @@ app = Flask(__name__)
 TERRAFORM_DIR = 'terraform'
 ANSIBLE_DIR = 'ansible'
 PROJECTS_DIR = 'projects'
-TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars')
+TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
 
-# terraform.tfvars의 servers map 읽기
+# terraform.tfvars.json의 servers map 읽기
+
 def read_servers_from_tfvars():
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        data = f.read()
-        obj = hcl.loads(data)
+        obj = json.load(f)
         return obj.get('servers', {})
 
-# terraform.tfvars의 servers map 저장
 def write_servers_to_tfvars(servers, other_vars=None):
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        data = f.read()
-        obj = hcl.loads(data)
+        obj = json.load(f)
     obj['servers'] = servers
-    # 나머지 변수 보존
     if other_vars:
         obj.update(other_vars)
-    # HCL 포맷으로 저장 (간단히 json.dumps로 예시, 실제로는 hcl 포맷 라이브러리 권장)
     with open(TFVARS_PATH, 'w', encoding='utf-8') as f:
-        import json
-        f.write('servers = ' + json.dumps(servers, indent=2) + '\n')
-        for k, v in obj.items():
-            if k != 'servers':
-                if isinstance(v, str):
-                    f.write(f'{k} = "{v}"\n')
-                elif isinstance(v, list):
-                    f.write(f'{k} = {json.dumps(v)}\n')
-                else:
-                    f.write(f'{k} = {v}\n')
+        json.dump(obj, f, indent=2, ensure_ascii=False)
 
 # 서버 역할 정의
 # 1. 서버 역할 정의에 OS별 패키지 추가
@@ -189,15 +176,15 @@ def add_server():
     data = request.json
     servers = read_servers_from_tfvars()
     server_name = data['name']
+    if not server_name:
+        return jsonify({'success': False, 'error': '서버 이름(name)을 입력해야 합니다.'}), 400
+    if server_name in servers:
+        return jsonify({'success': False, 'error': f'이미 동일한 이름({server_name})의 서버가 존재합니다.'}), 400
     servers[server_name] = data
     write_servers_to_tfvars(servers)
     ok, out, err = run_terraform_apply()
     if not ok:
         return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-    # Ansible 실행 (옵션)
-    # ans_ok, ans_out, ans_err = run_ansible_playbook()
-    # if not ans_ok:
-    #     return jsonify({'success': False, 'error': 'Ansible 실패', 'stdout': ans_out, 'stderr': ans_err}), 500
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
