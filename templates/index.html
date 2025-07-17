@@ -59,8 +59,41 @@
 
     // 서버 생성 버튼 클릭
     $('#create-servers-btn').on('click', function() {
-      // 폼 데이터 수집 및 서버 생성 API 호출 (구현 필요)
-      alert('서버 생성 로직은 JS에서 API 연동 필요!');
+      const selectedRoles = $('#role-select').val() || [];
+      let created = 0, failed = 0;
+      selectedRoles.forEach(function(role) {
+        const name = $(`input[name='name_${role}']`).val();
+        const cpu = parseInt($(`input[name='cpu_${role}']`).val());
+        const memory = parseInt($(`input[name='memory_${role}']`).val());
+        const disks = $(`input[name='disks_${role}']`).val().split(',').map((v,i)=>({size:parseInt(v.trim()),interface:`scsi${i}`}));
+        const networks = $(`input[name='networks_${role}']`).val().split(';').map((v)=>{
+          const [bridge,ip] = v.split(',');
+          return {bridge:bridge.trim(), ip_address:ip.trim()};
+        });
+        // 기본값 예시, 실제로는 폼에서 받거나 서버에서 결정
+        const template_vm_id = (role==='web') ? 9000 : 8000;
+        const data = {
+          name, role, cpu, memory, disks, network_devices: networks, template_vm_id
+        };
+        $.ajax({
+          url: '/add_server',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(data),
+          success: function(res) {
+            created++;
+            if (created+failed === selectedRoles.length) {
+              alert('서버 생성 완료!');
+              loadActiveServers();
+            }
+          },
+          error: function(xhr) {
+            failed++;
+            alert('서버 생성 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
+            if (created+failed === selectedRoles.length) loadActiveServers();
+          }
+        });
+      });
     });
 
     // 활성화된 서버 리스트 불러오기
@@ -88,11 +121,21 @@
     // 서버 액션 버튼 이벤트 (API 연동 필요)
     $('#active-server-table').on('click', '.stop-btn', function() {
       const name = $(this).closest('tr').data('server');
-      alert(name + ' 중지 API 연동 필요');
+      $.post('/stop_server/' + name, function(res) {
+        alert(res.message);
+        loadActiveServers();
+      }).fail(function(xhr){
+        alert('중지 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
+      });
     });
     $('#active-server-table').on('click', '.reboot-btn', function() {
       const name = $(this).closest('tr').data('server');
-      alert(name + ' 리부팅 API 연동 필요');
+      $.post('/reboot_server/' + name, function(res) {
+        alert(res.message);
+        loadActiveServers();
+      }).fail(function(xhr){
+        alert('리부팅 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
+      });
     });
     $('#active-server-table').on('click', '.delete-btn', function() {
       const name = $(this).closest('tr').data('server');

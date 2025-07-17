@@ -215,6 +215,39 @@ def delete_server(server_name):
     else:
         return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
 
+@app.route('/stop_server/<server_name>', methods=['POST'])
+def stop_server(server_name):
+    # Proxmox CLI 또는 ansible-playbook 등으로 중지 구현 (예시)
+    # 여기서는 ansible-playbook 예시
+    try:
+        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=stop"
+        result = subprocess.run([
+            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
+            '--extra-vars', f"target={server_name} action=stop"
+        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': result.stderr}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/reboot_server/<server_name>', methods=['POST'])
+def reboot_server(server_name):
+    # Proxmox CLI 또는 ansible-playbook 등으로 리부팅 구현 (예시)
+    try:
+        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=reboot"
+        result = subprocess.run([
+            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
+            '--extra-vars', f"target={server_name} action=reboot"
+        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': result.stderr}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def create_terraform_files(project_path, config):
     """Terraform 파일 생성 - OS별 템플릿 ID 지원"""
     # OS별 템플릿 ID 매핑
