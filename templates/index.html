@@ -665,9 +665,10 @@
                   <select id="role-select" class="form-select">
                     <option value="">(선택 안 함)</option>
                     {% for key, role in roles.items() %}
-                      <option value="{{ key }}">{{ role.name }}</option>
+                      <option value="{{ key }}" title="{{ role.description }}">{{ role.name }}</option>
                     {% endfor %}
                   </select>
+                  <div id="role-desc" class="form-text text-info mt-1"></div>
                   <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다. (한 가지만 선택 가능)</small>
                 </div>
                 <div class="text-center mt-4">
@@ -1279,6 +1280,14 @@
     }
     $(window).on('hashchange', handleHash);
     handleHash();
+
+    // 역할 설명 동적 표시
+    $('#role-select').on('change', function() {
+      var desc = $('#role-select option:selected').attr('title') || '';
+      $('#role-desc').text(desc);
+    });
+    // 페이지 로드시 초기화
+    $('#role-select').trigger('change');
   });
   </script>
 </body>

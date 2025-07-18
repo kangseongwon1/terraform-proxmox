@@ -39,47 +39,28 @@ def write_servers_to_tfvars(servers, other_vars=None):
 # 1. 서버 역할 정의에 OS별 패키지 추가
 SERVER_ROLES = {
     'web': {
-        'name': 'Web Server',
-        'packages': {
-            'ubuntu': ['nginx', 'certbot'],
-            'rocky': ['nginx']
-        },
-        'services': ['nginx']
+        'name': '웹서버(Nginx)',
+        'description': 'Nginx 웹서버를 설치합니다.'
+    },
+    'was': {
+        'name': 'WAS(Python3.12)',
+        'description': 'Python 3.12 환경을 설치합니다.'
+    },
+    'java': {
+        'name': 'JAVA(17.0.7)',
+        'description': 'OpenJDK 17.0.7 환경을 설치합니다.'
+    },
+    'search': {
+        'name': '검색(Elasticsearch7)',
+        'description': 'Elasticsearch 7.17.10 및 OpenJDK 17.0.7을 설치합니다.'
+    },
+    'ftp': {
+        'name': 'FTP(vsftpd)',
+        'description': 'vsftpd FTP 서버를 설치합니다.'
     },
     'db': {
-        'name': 'Database Server', 
-        'packages': {
-            'ubuntu': ['mysql-server', 'mysql-client'],
-            'rocky': ['mysql-server', 'mysql']
-        },
-        'services': ['mysqld']  # Rocky에서는 mysqld
-    },
-    'app': {
-        'name': 'Application Server',
-        'packages': {
-            'ubuntu': ['python3', 'python3-pip', 'nodejs', 'npm'],
-            'rocky': ['python3', 'python3-pip', 'nodejs', 'npm']
-        },
-        'services': []
-    },
-    'cache': {
-        'name': 'Cache Server',
-        'packages': {
-            'ubuntu': ['redis-server'],
-            'rocky': ['redis']
-        },
-        'services': {
-            'ubuntu': ['redis-server'],
-            'rocky': ['redis']
-        }
-    },
-    'lb': {
-        'name': 'Load Balancer',
-        'packages': {
-            'ubuntu': ['nginx'],
-            'rocky': ['nginx']
-        },
-        'services': ['nginx']
+        'name': 'DB(MariaDB10.11)',
+        'description': 'MariaDB 10.11을 설치하고 root 비밀번호를 초기화합니다.'
     }
 }
 
