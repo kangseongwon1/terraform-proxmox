@@ -768,6 +768,24 @@
     <!-- (추후 네트워크 등 다른 페이지도 같은 방식으로 추가 가능) -->
   </div>
 
+  <!-- 로그 모달 추가 -->
+  <div class="modal fade" id="log-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>실행 로그</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="log-modal-content" style="max-height:60vh; background:#222; color:#eee; padding:1rem; border-radius:8px; font-size:0.95em; overflow:auto;"></pre>
+          <div class="mt-2 text-end">
+            <a id="log-modal-download" href="#" class="btn btn-outline-secondary btn-sm" download target="_blank"><i class="fas fa-download me-1"></i>로그 다운로드</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
   $(document).ready(function() {
     $('#role-select').select2({
@@ -1411,7 +1429,7 @@
       }
     });
 
-    // 역할 적용/삭제 이벤트
+    // 역할 적용/삭제 이벤트 (서버 목록)
     $('#active-server-table').off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
       const tr = $(this).closest('tr');
       const server = tr.data('server');
@@ -1420,7 +1438,45 @@
         showNotification('success', '역할이 적용되었습니다.');
         loadActiveServers();
       }).fail(function(xhr) {
-        showNotification('error', xhr.responseJSON?.error || '역할 적용 실패');
+        let log = '';
+        if (xhr.responseJSON) {
+          log += 'STDOUT:\n' + (xhr.responseJSON.stdout || '') + '\n\n';
+          log += 'STDERR:\n' + (xhr.responseJSON.stderr || '') + '\n';
+        } else {
+          log = xhr.statusText;
+        }
+        $('#log-modal-content').text(log);
+        if (xhr.responseJSON && xhr.responseJSON.log_path) {
+          $('#log-modal-download').attr('href', '/'+xhr.responseJSON.log_path).show();
+        } else {
+          $('#log-modal-download').hide();
+        }
+        $('#log-modal').modal('show');
+      });
+    });
+    // 상세 모달 내 역할 적용도 동일하게 로그 모달 처리
+    $('body').on('click', '.server-detail-role-apply', function() {
+      const name = $('#server-detail-modal .modal-title').text().replace('서버 상세 정보','').trim();
+      const role = $('#server-detail-body .server-detail-role-select').val();
+      $.post(`/assign_role/${name}`, { role }, function(res) {
+        showNotification('success', '역할이 적용되었습니다.');
+        $('#server-detail-modal').modal('hide');
+        loadActiveServers();
+      }).fail(function(xhr) {
+        let log = '';
+        if (xhr.responseJSON) {
+          log += 'STDOUT:\n' + (xhr.responseJSON.stdout || '') + '\n\n';
+          log += 'STDERR:\n' + (xhr.responseJSON.stderr || '') + '\n';
+        } else {
+          log = xhr.statusText;
+        }
+        $('#log-modal-content').text(log);
+        if (xhr.responseJSON && xhr.responseJSON.log_path) {
+          $('#log-modal-download').attr('href', '/'+xhr.responseJSON.log_path).show();
+        } else {
+          $('#log-modal-download').hide();
+        }
+        $('#log-modal').modal('show');
       });
     });
     $('#active-server-table').off('click', '.server-role-remove').on('click', '.server-role-remove', function() {

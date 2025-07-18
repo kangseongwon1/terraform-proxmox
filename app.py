@@ -10,7 +10,6 @@ import hcl
 import logging
 import tempfile
 
-# ssh 추가 해야함. 
 
 app = Flask(__name__)
 
@@ -1008,6 +1007,13 @@ def assign_role(server_name):
     servers[server_name] = server
     write_servers_to_tfvars(servers)
     # 임시 인벤토리 파일 생성
+    import datetime
+    import os
+    import tempfile
+    now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_dir = os.path.join('logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
     with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
         f.write(f'{server_name} ansible_host={ip} ansible_user={server.get("vm_username", "ubuntu")} ansible_ssh_pass={server.get("vm_password", "ubuntu123")}\n')
         inventory_path = f.name
@@ -1018,10 +1024,16 @@ def assign_role(server_name):
             '-e', f'role={role}'
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         os.unlink(inventory_path)
+        # 로그 파일 저장
+        with open(log_path, 'w', encoding='utf-8') as logf:
+            logf.write('=== STDOUT ===\n')
+            logf.write(result.stdout)
+            logf.write('\n=== STDERR ===\n')
+            logf.write(result.stderr)
         if result.returncode == 0:
-            return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.'})
+            return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path})
         else:
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            return jsonify({'success': False, 'error': 'Ansible 실행 실패', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path}), 500
     except Exception as e:
         if os.path.exists(inventory_path):
             os.unlink(inventory_path)
