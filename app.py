@@ -7,6 +7,7 @@ from datetime import datetime
 import threading
 import time
 import hcl
+import logging
 
 # ssh 추가 해야함. 
 
@@ -176,40 +177,46 @@ def run_ansible_playbook():
 @app.route('/add_server', methods=['POST'])
 def add_server():
     data = request.json
+    logger.info(f"[add_server] 요청: {data}")
     servers = read_servers_from_tfvars()
     server_name = data['name']
     if not server_name:
+        logger.error("[add_server] 서버 이름 누락")
         return jsonify({'success': False, 'error': '서버 이름(name)을 입력해야 합니다.'}), 400
     if server_name in servers:
+        logger.error(f"[add_server] 중복 서버 이름: {server_name}")
         return jsonify({'success': False, 'error': f'이미 동일한 이름({server_name})의 서버가 존재합니다.'}), 400
     servers[server_name] = data
     write_servers_to_tfvars(servers)
     ok, out, err = run_terraform_apply()
+    logger.info(f"[add_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
     if not ok:
+        logger.error(f"[add_server] Terraform apply 실패: {err}")
         return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+    logger.info(f"[add_server] 서버 추가 및 적용 완료: {server_name}")
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
 def delete_server(server_name):
+    logger.info(f"[delete_server] 요청: {server_name}")
     servers = read_servers_from_tfvars()
     if server_name in servers:
         del servers[server_name]
         write_servers_to_tfvars(servers)
         ok, out, err = run_terraform_apply()
+        logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
         if not ok:
+            logger.error(f"[delete_server] Terraform apply 실패: {err}")
             return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-        # Ansible 실행 (옵션)
-        # ans_ok, ans_out, ans_err = run_ansible_playbook()
-        # if not ans_ok:
-        #     return jsonify({'success': False, 'error': 'Ansible 실패', 'stdout': ans_out, 'stderr': ans_err}), 500
+        logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
         return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
     else:
+        logger.error(f"[delete_server] 서버를 찾을 수 없음: {server_name}")
         return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
 def stop_server(server_name):
-    # Proxmox CLI 또는 ansible-playbook 등으로 중지 구현 (예시)
-    # 여기서는 ansible-playbook 예시
+    logger.info(f"[stop_server] 요청: {server_name}")
     try:
         # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=stop"
         result = subprocess.run([
@@ -217,15 +224,18 @@ def stop_server(server_name):
             '--extra-vars', f"target={server_name} action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
+            logger.info(f"[stop_server] VM 중지 요청: vmid={target_vm['vmid']}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
+            logger.error(f"[stop_server] 중지 실패: {result.stderr}")
             return jsonify({'success': False, 'error': result.stderr}), 500
     except Exception as e:
+        logger.exception(f"[stop_server] 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/reboot_server/<server_name>', methods=['POST'])
 def reboot_server(server_name):
-    # Proxmox CLI 또는 ansible-playbook 등으로 리부팅 구현 (예시)
+    logger.info(f"[reboot_server] 요청: {server_name}")
     try:
         # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=reboot"
         result = subprocess.run([
@@ -233,10 +243,13 @@ def reboot_server(server_name):
             '--extra-vars', f"target={server_name} action=reboot"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
+            logger.info(f"[reboot_server] VM 리부팅 요청: vmid={target_vm['vmid']}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
         else:
+            logger.error(f"[reboot_server] 리부팅 실패: {result.stderr}")
             return jsonify({'success': False, 'error': result.stderr}), 500
     except Exception as e:
+        logger.exception(f"[reboot_server] 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/server_status/<server_name>', methods=['GET'])
@@ -418,7 +431,7 @@ def get_all_server_status():
 
 @app.route('/proxmox_storage', methods=['GET'])
 def proxmox_storage():
-    """Proxmox 스토리지 용량 정보 반환"""
+    logger.info("[proxmox_storage] 스토리지 정보 요청")
     try:
         import requests
         import urllib3
@@ -448,7 +461,9 @@ def proxmox_storage():
         # 스토리지 정보 조회
         storage_url = f"{proxmox_url}/api2/json/nodes/{node}/storage"
         storage_response = requests.get(storage_url, headers=headers, verify=False)
+        logger.info(f"[proxmox_storage] Proxmox 응답: {storage_response.status_code}, {storage_response.text}")
         if storage_response.status_code != 200:
+            logger.error("[proxmox_storage] 스토리지 정보를 가져올 수 없습니다")
             return {'error': '스토리지 정보를 가져올 수 없습니다'}, 500
         storages = storage_response.json().get('data', [])
         # 용량 정보만 추출
@@ -461,8 +476,10 @@ def proxmox_storage():
                     'total': s.get('total', 0),
                     'used': s.get('used', 0)
                 })
+        logger.info(f"[proxmox_storage] 반환: {result}")
         return {'storages': result}
     except Exception as e:
+        logger.exception(f"[proxmox_storage] 예외 발생: {e}")
         return {'error': str(e)}, 500
 
 def create_terraform_files(project_path, config):
@@ -954,6 +971,17 @@ def get_status(project_name):
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler('app.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
