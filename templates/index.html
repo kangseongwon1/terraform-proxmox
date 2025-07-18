@@ -304,6 +304,120 @@
       border-color: var(--primary-color);
       box-shadow: 0 0 0 0.2rem rgba(0, 115, 170, 0.25);
     }
+
+    /* Disk and Network Items */
+    .disk-item, .network-item {
+      background: var(--light-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .disk-item:hover, .network-item:hover {
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 4px rgba(0, 115, 170, 0.1);
+    }
+
+    .disk-container, .network-container {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* Progress Bar */
+    .progress {
+      height: 8px;
+      border-radius: 4px;
+      background-color: var(--light-bg);
+    }
+
+    .progress-bar {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    }
+
+    /* Notifications */
+    .alert {
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .alert-success {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+    }
+
+    .alert-danger {
+      background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+      color: white;
+    }
+
+    .alert-info {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+      color: white;
+    }
+
+    /* Button Improvements */
+    .btn-group .btn {
+      border-radius: 4px;
+      margin-right: 2px;
+    }
+
+    .btn-group .btn:last-child {
+      margin-right: 0;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Form Improvements */
+    .input-group-text {
+      background-color: var(--light-bg);
+      border-color: var(--border-color);
+      color: var(--text-muted);
+    }
+
+    /* Table Improvements */
+    .table th {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    .table td {
+      vertical-align: middle;
+    }
+
+    /* Badge Improvements */
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+    }
+
+    /* Responsive Improvements */
+    @media (max-width: 768px) {
+      .disk-item .row, .network-item .row {
+        flex-direction: column;
+      }
+      
+      .disk-item .col-md-4, .network-item .col-md-4 {
+        margin-bottom: 1rem;
+      }
+      
+      .btn-group {
+        flex-direction: column;
+        width: 100%;
+      }
+      
+      .btn-group .btn {
+        margin-bottom: 0.25rem;
+        margin-right: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -447,6 +561,16 @@
             <div id="server-forms"></div>
             
             <div class="text-center mt-4">
+              <div id="creation-status" class="mb-3" style="display: none;">
+                <div class="alert alert-info">
+                  <i class="fas fa-spinner fa-spin me-2"></i>
+                  <span id="status-message">서버 생성 중...</span>
+                </div>
+                <div class="progress mb-2">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                       id="creation-progress" role="progressbar" style="width: 0%"></div>
+                </div>
+              </div>
               <button id="create-servers-btn" class="btn btn-primary btn-lg">
                 <i class="fas fa-plus-circle me-2"></i>서버 생성
               </button>
@@ -465,11 +589,13 @@
               <table class="table table-hover" id="active-server-table">
                 <thead>
                   <tr>
-                    <th>이름</th>
-                    <th>역할</th>
-                    <th>IP</th>
-                    <th>상태</th>
-                    <th>액션</th>
+                    <th><i class="fas fa-server me-1"></i>서버명</th>
+                    <th><i class="fas fa-tag me-1"></i>역할</th>
+                    <th><i class="fas fa-microchip me-1"></i>CPU</th>
+                    <th><i class="fas fa-memory me-1"></i>메모리</th>
+                    <th><i class="fas fa-network-wired me-1"></i>IP 주소</th>
+                    <th><i class="fas fa-circle me-1"></i>상태</th>
+                    <th><i class="fas fa-cogs me-1"></i>액션</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -532,33 +658,222 @@
       let html = '';
       selectedRoles.forEach(function(role) {
         html += `<div class="server-form" data-role="${role}">
-          <h5>${role} 서버 정보</h5>
-          <div class="row">
+          <h5><i class="fas fa-server me-2"></i>${role} 서버 정보</h5>
+          
+          <!-- 기본 정보 -->
+          <div class="row mb-4">
             <div class="col-md-6 mb-3">
-              <label class="form-label">이름</label>
-              <input type="text" class="form-control" name="name_${role}" required>
+              <label class="form-label"><i class="fas fa-tag me-1"></i>서버 이름</label>
+              <input type="text" class="form-control" name="name_${role}" placeholder="예: web-server-01" required>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">CPU</label>
-              <input type="number" class="form-control" name="cpu_${role}" value="2" min="1">
+              <label class="form-label"><i class="fas fa-microchip me-1"></i>CPU 코어</label>
+              <div class="input-group">
+                <input type="number" class="form-control" name="cpu_${role}" value="2" min="1" max="32">
+                <span class="input-group-text">코어</span>
+              </div>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">메모리 (MB)</label>
-              <input type="number" class="form-control" name="memory_${role}" value="2048" min="512">
+              <label class="form-label"><i class="fas fa-memory me-1"></i>메모리</label>
+              <div class="input-group">
+                <input type="number" class="form-control" name="memory_${role}" value="2048" min="512" step="512">
+                <span class="input-group-text">MB</span>
+              </div>
             </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label">디스크 (GB, 콤마로 구분)</label>
-              <input type="text" class="form-control" name="disks_${role}" value="20">
+          </div>
+
+          <!-- 디스크 설정 -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <label class="form-label mb-0"><i class="fas fa-hdd me-1"></i>디스크 설정</label>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addDisk('${role}')">
+                <i class="fas fa-plus me-1"></i>디스크 추가
+              </button>
             </div>
-            <div class="col-12 mb-3">
-              <label class="form-label">네트워크 (bridge,ip 콤마로 구분)</label>
-              <input type="text" class="form-control" name="networks_${role}" value="vmbr0,192.168.0.100">
+            <div class="disk-container" id="disk-container-${role}">
+              <div class="disk-item mb-3">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label class="form-label">디스크 크기</label>
+                    <div class="input-group">
+                      <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
+                      <span class="input-group-text">GB</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">인터페이스</label>
+                    <select class="form-select disk-interface">
+                      <option value="scsi0">SCSI 0</option>
+                      <option value="scsi1">SCSI 1</option>
+                      <option value="scsi2">SCSI 2</option>
+                      <option value="scsi3">SCSI 3</option>
+                      <option value="sata0">SATA 0</option>
+                      <option value="sata1">SATA 1</option>
+                      <option value="virtio0">VirtIO 0</option>
+                      <option value="virtio1">VirtIO 1</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeDisk(this)" disabled>
+                      <i class="fas fa-trash me-1"></i>삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 네트워크 설정 -->
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <label class="form-label mb-0"><i class="fas fa-network-wired me-1"></i>네트워크 설정</label>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNetwork('${role}')">
+                <i class="fas fa-plus me-1"></i>네트워크 추가
+              </button>
+            </div>
+            <div class="network-container" id="network-container-${role}">
+              <div class="network-item mb-3">
+                <div class="row">
+                  <div class="col-md-4">
+                    <label class="form-label">브리지</label>
+                    <select class="form-select network-bridge">
+                      <option value="vmbr0">vmbr0</option>
+                      <option value="vmbr1">vmbr1</option>
+                      <option value="vmbr2">vmbr2</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">IP 주소</label>
+                    <input type="text" class="form-control network-ip" placeholder="192.168.1.100">
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)" disabled>
+                      <i class="fas fa-trash me-1"></i>삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>`;
       });
       $('#server-forms').html(html);
     });
+
+    // 디스크 추가 함수
+    window.addDisk = function(role) {
+      const container = $(`#disk-container-${role}`);
+      const diskCount = container.find('.disk-item').length;
+      const newDisk = $(`
+        <div class="disk-item mb-3">
+          <div class="row">
+            <div class="col-md-4">
+              <label class="form-label">디스크 크기</label>
+              <div class="input-group">
+                <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
+                <span class="input-group-text">GB</span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">인터페이스</label>
+              <select class="form-select disk-interface">
+                <option value="scsi0">SCSI 0</option>
+                <option value="scsi1">SCSI 1</option>
+                <option value="scsi2">SCSI 2</option>
+                <option value="scsi3">SCSI 3</option>
+                <option value="sata0">SATA 0</option>
+                <option value="sata1">SATA 1</option>
+                <option value="virtio0">VirtIO 0</option>
+                <option value="virtio1">VirtIO 1</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeDisk(this)">
+                <i class="fas fa-trash me-1"></i>삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      `);
+      
+      // 인터페이스 중복 방지
+      const usedInterfaces = [];
+      container.find('.disk-interface').each(function() {
+        usedInterfaces.push($(this).val());
+      });
+      
+      newDisk.find('.disk-interface option').each(function() {
+        if (usedInterfaces.includes($(this).val())) {
+          $(this).prop('disabled', true);
+        }
+      });
+      
+      container.append(newDisk);
+      
+      // 첫 번째 디스크의 삭제 버튼 활성화
+      if (container.find('.disk-item').length > 1) {
+        container.find('.disk-item:first .btn-outline-danger').prop('disabled', false);
+      }
+    };
+
+    // 디스크 삭제 함수
+    window.removeDisk = function(button) {
+      const diskItem = $(button).closest('.disk-item');
+      const container = diskItem.closest('.disk-container');
+      diskItem.remove();
+      
+      // 마지막 하나 남았을 때 삭제 버튼 비활성화
+      if (container.find('.disk-item').length === 1) {
+        container.find('.disk-item:first .btn-outline-danger').prop('disabled', true);
+      }
+    };
+
+    // 네트워크 추가 함수
+    window.addNetwork = function(role) {
+      const container = $(`#network-container-${role}`);
+      const newNetwork = $(`
+        <div class="network-item mb-3">
+          <div class="row">
+            <div class="col-md-4">
+              <label class="form-label">브리지</label>
+              <select class="form-select network-bridge">
+                <option value="vmbr0">vmbr0</option>
+                <option value="vmbr1">vmbr1</option>
+                <option value="vmbr2">vmbr2</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">IP 주소</label>
+              <input type="text" class="form-control network-ip" placeholder="192.168.1.100">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)">
+                <i class="fas fa-trash me-1"></i>삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      `);
+      
+      container.append(newNetwork);
+      
+      // 첫 번째 네트워크의 삭제 버튼 활성화
+      if (container.find('.network-item').length > 1) {
+        container.find('.network-item:first .btn-outline-danger').prop('disabled', false);
+      }
+    };
+
+    // 네트워크 삭제 함수
+    window.removeNetwork = function(button) {
+      const networkItem = $(button).closest('.network-item');
+      const container = networkItem.closest('.network-container');
+      networkItem.remove();
+      
+      // 마지막 하나 남았을 때 삭제 버튼 비활성화
+      if (container.find('.network-item').length === 1) {
+        container.find('.network-item:first .btn-outline-danger').prop('disabled', true);
+      }
+    };
 
     // OS 선택 시 역할 폼 업데이트
     $('#os-select').on('change', function() {
@@ -577,6 +892,7 @@
     $('#create-servers-btn').on('click', function() {
       const selectedRoles = $('#role-select').val() || [];
       const selectedOS = $('#os-select').val();
+      
       if (!selectedOS) {
         alert('OS를 선택해주세요.');
         return;
@@ -585,20 +901,69 @@
         alert('역할을 선택해주세요.');
         return;
       }
-      let created = 0, failed = 0;
+      
+      // 입력 검증
+      let hasError = false;
       selectedRoles.forEach(function(role) {
+        const name = $(`input[name='name_${role}']`).val();
+        if (!name || name.trim() === '') {
+          alert(`${role} 서버의 이름을 입력해주세요.`);
+          hasError = true;
+          return false;
+        }
+        
+        // IP 주소 검증
+        $(`#network-container-${role}`).find('.network-ip').each(function() {
+          const ip = $(this).val();
+          if (!ip || ip.trim() === '') {
+            alert(`${role} 서버의 IP 주소를 입력해주세요.`);
+            hasError = true;
+            return false;
+          }
+        });
+      });
+      
+      if (hasError) return;
+      
+      // UI 상태 변경
+      const btn = $(this);
+      const originalText = btn.html();
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
+      
+      $('#creation-status').show();
+      $('#status-message').text('서버 생성 준비 중...');
+      $('#creation-progress').css('width', '0%');
+      
+      let created = 0, failed = 0;
+      const totalServers = selectedRoles.length;
+      
+      selectedRoles.forEach(function(role, index) {
         const name = $(`input[name='name_${role}']`).val();
         const cpu = parseInt($(`input[name='cpu_${role}']`).val());
         const memory = parseInt($(`input[name='memory_${role}']`).val());
-        const disks = $(`input[name='disks_${role}']`).val().split(',').map((v,i)=>({size:parseInt(v.trim()),interface:`scsi${i}`}));
-        const networks = $(`input[name='networks_${role}']`).val().split(';').map((v)=>{
-          const [bridge,ip] = v.split(',');
-          return {bridge:bridge.trim(), ip_address:ip.trim()};
-        });
+        
+        const disks = $(`#disk-container-${role}`).find('.disk-item').map(function() {
+          return {
+            size: parseInt($(this).find('.disk-size').val()),
+            interface: $(this).find('.disk-interface').val()
+          };
+        }).get();
+        
+        const networks = $(`#network-container-${role}`).find('.network-item').map(function() {
+          return {
+            bridge: $(this).find('.network-bridge').val(),
+            ip_address: $(this).find('.network-ip').val()
+          };
+        }).get();
+        
         const template_vm_id = osTemplateMapping[selectedOS] || 8000;
         const data = {
           name, role, cpu, memory, disks, network_devices: networks, template_vm_id
         };
+        
+        // 진행률 업데이트
+        $('#status-message').text(`${name} 서버 생성 중... (${index + 1}/${totalServers})`);
+        
         $.ajax({
           url: '/add_server',
           method: 'POST',
@@ -606,15 +971,43 @@
           data: JSON.stringify(data),
           success: function(res) {
             created++;
-            if (created+failed === selectedRoles.length) {
-              alert('서버 생성 완료!');
-              loadActiveServers();
+            const progress = Math.round((created + failed) / totalServers * 100);
+            $('#creation-progress').css('width', progress + '%');
+            
+            if (created + failed === totalServers) {
+              $('#status-message').text(`서버 생성 완료! (성공: ${created}, 실패: ${failed})`);
+              setTimeout(function() {
+                $('#creation-status').hide();
+                btn.prop('disabled', false).html(originalText);
+                loadActiveServers();
+                
+                if (failed === 0) {
+                  alert('모든 서버가 성공적으로 생성되었습니다!');
+                } else {
+                  alert(`서버 생성 완료!\n성공: ${created}개\n실패: ${failed}개`);
+                }
+              }, 2000);
             }
           },
           error: function(xhr) {
             failed++;
-            alert('서버 생성 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
-            if (created+failed === selectedRoles.length) loadActiveServers();
+            const progress = Math.round((created + failed) / totalServers * 100);
+            $('#creation-progress').css('width', progress + '%');
+            
+            if (created + failed === totalServers) {
+              $('#status-message').text(`서버 생성 완료! (성공: ${created}, 실패: ${failed})`);
+              setTimeout(function() {
+                $('#creation-status').hide();
+                btn.prop('disabled', false).html(originalText);
+                loadActiveServers();
+                
+                if (failed === 0) {
+                  alert('모든 서버가 성공적으로 생성되었습니다!');
+                } else {
+                  alert(`서버 생성 완료!\n성공: ${created}개\n실패: ${failed}개`);
+                }
+              }, 2000);
+            }
           }
         });
       });
@@ -647,6 +1040,8 @@
           html += `<tr data-server="${name}">
             <td><strong>${s.name}</strong></td>
             <td><span class="badge bg-primary">${s.role}</span></td>
+            <td>${s.cpu || 0}코어</td>
+            <td>${s.memory || 0}MB</td>
             <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
             <td>${statusBadge}</td>
             <td>
@@ -682,6 +1077,8 @@
             html += `<tr data-server="${name}">
               <td><strong>${s.name}</strong></td>
               <td><span class="badge bg-primary">${s.role}</span></td>
+              <td>${s.cpu || 0}코어</td>
+              <td>${s.memory || 0}MB</td>
               <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
               <td><span class="badge bg-success">활성</span></td>
               <td>
@@ -714,31 +1111,82 @@
     // 서버 액션 버튼 이벤트
     $('#active-server-table').on('click', '.stop-btn', function() {
       const name = $(this).closest('tr').data('server');
-      $.post('/stop_server/' + name, function(res) {
-        alert(res.message);
-        loadActiveServers();
-      }).fail(function(xhr){
-        alert('중지 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
-      });
-    });
-    $('#active-server-table').on('click', '.reboot-btn', function() {
-      const name = $(this).closest('tr').data('server');
-      $.post('/reboot_server/' + name, function(res) {
-        alert(res.message);
-        loadActiveServers();
-      }).fail(function(xhr){
-        alert('리부팅 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
-      });
-    });
-    $('#active-server-table').on('click', '.delete-btn', function() {
-      const name = $(this).closest('tr').data('server');
-      if(confirm(name + ' 서버를 삭제하시겠습니까?')) {
-        $.post('/delete_server/' + name, function(res) {
-          alert(res.message);
+      const btn = $(this);
+      const originalText = btn.html();
+      
+      if (confirm(`${name} 서버를 중지하시겠습니까?`)) {
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
+        
+        $.post('/stop_server/' + name, function(res) {
+          btn.prop('disabled', false).html(originalText);
           loadActiveServers();
+          // 성공 메시지 표시
+          showNotification('success', `${name} 서버가 중지되었습니다.`);
+        }).fail(function(xhr){
+          btn.prop('disabled', false).html(originalText);
+          showNotification('error', `중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
         });
       }
     });
+    
+    $('#active-server-table').on('click', '.reboot-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      const btn = $(this);
+      const originalText = btn.html();
+      
+      if (confirm(`${name} 서버를 리부팅하시겠습니까?`)) {
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
+        
+        $.post('/reboot_server/' + name, function(res) {
+          btn.prop('disabled', false).html(originalText);
+          loadActiveServers();
+          showNotification('success', `${name} 서버가 리부팅되었습니다.`);
+        }).fail(function(xhr){
+          btn.prop('disabled', false).html(originalText);
+          showNotification('error', `리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        });
+      }
+    });
+    
+    $('#active-server-table').on('click', '.delete-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      const btn = $(this);
+      const originalText = btn.html();
+      
+      if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
+        
+        $.post('/delete_server/' + name, function(res) {
+          btn.prop('disabled', false).html(originalText);
+          loadActiveServers();
+          showNotification('success', `${name} 서버가 삭제되었습니다.`);
+        }).fail(function(xhr){
+          btn.prop('disabled', false).html(originalText);
+          showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        });
+      }
+    });
+    
+    // 알림 표시 함수
+    function showNotification(type, message) {
+      const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+      const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+      
+      const notification = $(`
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+          <i class="fas ${icon} me-2"></i>${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `);
+      
+      $('body').append(notification);
+      
+      // 5초 후 자동 제거
+      setTimeout(function() {
+        notification.alert('close');
+      }, 5000);
+    }
   });
   </script>
 </body>
