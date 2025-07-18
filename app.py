@@ -177,6 +177,10 @@ def add_server():
     # 역할 값이 없으면 빈 값으로 저장
     if 'role' not in data or not data['role']:
         data['role'] = ''
+    # OS별 계정/비밀번호 저장
+    os_type = data.get('os_type', 'rocky')
+    data['vm_username'] = get_default_username(os_type)
+    data['vm_password'] = get_default_password(os_type)
     # disks의 모든 요소에 datastore_id가 반드시 포함되도록 보정
     if 'disks' in data:
         for disk in data['disks']:
@@ -995,13 +999,15 @@ def assign_role(server_name):
     servers = read_servers_from_tfvars()
     if server_name not in servers:
         return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
-    # 서버 IP 추출
+    # 서버 IP/계정/비번 추출
     server = servers[server_name]
     ip = None
     if 'network_devices' in server and server['network_devices']:
         ip = server['network_devices'][0].get('ip_address')
     if not ip:
         return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
+    username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
+    password = server.get('vm_password', get_default_password(server.get('os_type', 'rocky')))
     # 역할 변경
     server['role'] = role
     servers[server_name] = server
@@ -1015,7 +1021,7 @@ def assign_role(server_name):
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
     with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
-        f.write(f'{server_name} ansible_host={ip} ansible_user={server.get("vm_username", "ubuntu")} ansible_ssh_pass={server.get("vm_password", "ubuntu123")}\n')
+        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_pass={password} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
         inventory_path = f.name
     # ansible-playbook 실행
     try:
