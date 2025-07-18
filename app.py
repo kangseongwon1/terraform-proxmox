@@ -410,6 +410,13 @@ def get_all_server_status():
                     # terraform.tfvars.json에 있는 서버만 필터링
                     servers = read_servers_from_tfvars()
                     if vm['name'] in servers:
+                        server_data = servers[vm['name']]
+                        # IP 정보 추출 (network_devices 또는 ip_addresses)
+                        ip_list = []
+                        if 'network_devices' in server_data and server_data['network_devices']:
+                            ip_list = [nd.get('ip_address') for nd in server_data['network_devices'] if nd.get('ip_address')]
+                        elif 'ip_addresses' in server_data and server_data['ip_addresses']:
+                            ip_list = server_data['ip_addresses']
                         status_info = {
                             'name': vm['name'],
                             'status': vm['status'],  # running, stopped, paused 등
@@ -421,7 +428,8 @@ def get_all_server_status():
                             'uptime': vm.get('uptime', 0),
                             'disk': vm.get('disk', 0),
                             'maxdisk': vm.get('maxdisk', 0),
-                            'role': servers[vm['name']].get('role', 'unknown')
+                            'role': server_data.get('role', 'unknown'),
+                            'ip_addresses': ip_list
                         }
                         all_servers[vm['name']] = status_info
                         
