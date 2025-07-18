@@ -455,6 +455,12 @@
 
           <!-- Server List Tab -->
           <div class="tab-pane fade" id="list" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
+              <button class="btn btn-outline-primary btn-sm" onclick="loadActiveServers()">
+                <i class="fas fa-sync-alt me-1"></i>새로고침
+              </button>
+            </div>
             <div class="table-responsive">
               <table class="table table-hover" id="active-server-table">
                 <thead>
@@ -488,6 +494,35 @@
       theme: 'bootstrap-5',
       placeholder: 'OS를 선택하세요',
       width: '100%'
+    });
+
+    // 자동 새로고침 타이머
+    let refreshTimer;
+    
+    // 서버 상태 자동 새로고침 시작
+    function startAutoRefresh() {
+      refreshTimer = setInterval(function() {
+        if ($('#list-tab').hasClass('active')) {
+          loadActiveServers();
+        }
+      }, 30000); // 30초마다 새로고침
+    }
+    
+    // 자동 새로고침 중지
+    function stopAutoRefresh() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+    }
+    
+    // 탭 변경 시 자동 새로고침 제어
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+      if (e.target.id === 'list-tab') {
+        loadActiveServers();
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
     });
 
     // 역할 선택 시 서버 폼 동적 생성
@@ -587,22 +622,39 @@
 
     // 활성화된 서버 리스트 불러오기
     function loadActiveServers() {
-      $.get('/servers', function(res) {
+      $.get('/all_server_status', function(res) {
         let html = '';
-        let totalMemory = 0;
         for (const [name, s] of Object.entries(res.servers)) {
-          totalMemory += s.memory || 0;
+          // 상태별 배지 색상 결정
+          let statusBadge = '';
+          switch(s.status) {
+            case 'running':
+              statusBadge = '<span class="badge bg-success">실행 중</span>';
+              break;
+            case 'stopped':
+              statusBadge = '<span class="badge bg-secondary">중지됨</span>';
+              break;
+            case 'paused':
+              statusBadge = '<span class="badge bg-warning">일시정지</span>';
+              break;
+            case 'suspended':
+              statusBadge = '<span class="badge bg-info">일시중단</span>';
+              break;
+            default:
+              statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
+          }
+          
           html += `<tr data-server="${name}">
             <td><strong>${s.name}</strong></td>
             <td><span class="badge bg-primary">${s.role}</span></td>
             <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
-            <td><span class="badge bg-success">활성</span></td>
+            <td>${statusBadge}</td>
             <td>
               <div class="btn-group" role="group">
-                <button class="btn btn-info btn-sm stop-btn" title="중지">
+                <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
                   <i class="fas fa-pause"></i> 중지
                 </button>
-                <button class="btn btn-warning btn-sm reboot-btn" title="리부팅">
+                <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" ${s.status === 'stopped' ? 'disabled' : ''}>
                   <i class="fas fa-redo"></i> 리부팅
                 </button>
                 <button class="btn btn-danger btn-sm delete-btn" title="삭제">
@@ -615,10 +667,46 @@
         $('#active-server-table tbody').html(html);
         
         // 통계 업데이트
-        $('#total-servers').text(Object.keys(res.servers).length);
-        $('#running-servers').text(Object.keys(res.servers).length);
-        $('#stopped-servers').text(0);
-        $('#total-memory').text(Math.round(totalMemory / 1024));
+        $('#total-servers').text(res.stats.total_servers);
+        $('#running-servers').text(res.stats.running_servers);
+        $('#stopped-servers').text(res.stats.stopped_servers);
+        $('#total-memory').text(res.stats.total_memory_gb);
+      }).fail(function(xhr) {
+        console.error('서버 상태 로드 실패:', xhr.responseText);
+        // 실패 시 기존 방식으로 폴백
+        $.get('/servers', function(res) {
+          let html = '';
+          let totalMemory = 0;
+          for (const [name, s] of Object.entries(res.servers)) {
+            totalMemory += s.memory || 0;
+            html += `<tr data-server="${name}">
+              <td><strong>${s.name}</strong></td>
+              <td><span class="badge bg-primary">${s.role}</span></td>
+              <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
+              <td><span class="badge bg-success">활성</span></td>
+              <td>
+                <div class="btn-group" role="group">
+                  <button class="btn btn-info btn-sm stop-btn" title="중지">
+                    <i class="fas fa-pause"></i> 중지
+                  </button>
+                  <button class="btn btn-warning btn-sm reboot-btn" title="리부팅">
+                    <i class="fas fa-redo"></i> 리부팅
+                  </button>
+                  <button class="btn btn-danger btn-sm delete-btn" title="삭제">
+                    <i class="fas fa-trash"></i> 삭제
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+          }
+          $('#active-server-table tbody').html(html);
+          
+          // 통계 업데이트
+          $('#total-servers').text(Object.keys(res.servers).length);
+          $('#running-servers').text(Object.keys(res.servers).length);
+          $('#stopped-servers').text(0);
+          $('#total-memory').text(Math.round(totalMemory / 1024));
+        });
       });
     }
     loadActiveServers();

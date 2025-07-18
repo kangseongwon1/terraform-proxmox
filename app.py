@@ -239,6 +239,183 @@ def reboot_server(server_name):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/server_status/<server_name>', methods=['GET'])
+def get_server_status(server_name):
+    """특정 서버의 상태를 Proxmox에서 가져오기"""
+    try:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Proxmox API 설정
+        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
+        username = "root@pam"
+        password = "dmc1234)(*&"
+        
+        # API 인증
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {
+            'username': username,
+            'password': password
+        }
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return jsonify({'error': 'Proxmox 인증 실패'}), 401
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return jsonify({'error': '인증 토큰을 가져올 수 없습니다'}), 401
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        # VM 목록 가져오기
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        # 모든 노드에서 VM 검색
+        nodes_url = f"{proxmox_url}/api2/json/nodes"
+        nodes_response = requests.get(nodes_url, headers=headers, verify=False)
+        
+        if nodes_response.status_code != 200:
+            return jsonify({'error': '노드 정보를 가져올 수 없습니다'}), 500
+        
+        nodes = nodes_response.json().get('data', [])
+        
+        # 모든 노드에서 VM 검색
+        for node in nodes:
+            node_name = node['node']
+            vms_url = f"{proxmox_url}/api2/json/nodes/{node_name}/qemu"
+            vms_response = requests.get(vms_url, headers=headers, verify=False)
+            
+            if vms_response.status_code == 200:
+                vms = vms_response.json().get('data', [])
+                for vm in vms:
+                    if vm['name'] == server_name:
+                        # VM 상태 정보 반환
+                        status_info = {
+                            'name': vm['name'],
+                            'status': vm['status'],  # running, stopped, paused 등
+                            'vmid': vm['vmid'],
+                            'node': node_name,
+                            'cpu': vm.get('cpu', 0),
+                            'memory': vm.get('mem', 0),
+                            'maxmem': vm.get('maxmem', 0),
+                            'uptime': vm.get('uptime', 0),
+                            'disk': vm.get('disk', 0),
+                            'maxdisk': vm.get('maxdisk', 0)
+                        }
+                        return jsonify(status_info)
+        
+        return jsonify({'error': f'서버 {server_name}을 찾을 수 없습니다'}), 404
+        
+    except Exception as e:
+        return jsonify({'error': f'서버 상태 확인 실패: {str(e)}'}), 500
+
+@app.route('/all_server_status', methods=['GET'])
+def get_all_server_status():
+    """모든 서버의 상태를 Proxmox에서 가져오기"""
+    try:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Proxmox API 설정
+        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
+        username = "root@pam"
+        password = "dmc1234)(*&"
+        
+        # API 인증
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {
+            'username': username,
+            'password': password
+        }
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return jsonify({'error': 'Proxmox 인증 실패'}), 401
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return jsonify({'error': '인증 토큰을 가져올 수 없습니다'}), 401
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        # VM 목록 가져오기
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        # 모든 노드에서 VM 검색
+        nodes_url = f"{proxmox_url}/api2/json/nodes"
+        nodes_response = requests.get(nodes_url, headers=headers, verify=False)
+        
+        if nodes_response.status_code != 200:
+            return jsonify({'error': '노드 정보를 가져올 수 없습니다'}), 500
+        
+        nodes = nodes_response.json().get('data', [])
+        
+        all_servers = {}
+        total_memory = 0
+        running_count = 0
+        stopped_count = 0
+        
+        # 모든 노드에서 VM 검색
+        for node in nodes:
+            node_name = node['node']
+            vms_url = f"{proxmox_url}/api2/json/nodes/{node_name}/qemu"
+            vms_response = requests.get(vms_url, headers=headers, verify=False)
+            
+            if vms_response.status_code == 200:
+                vms = vms_response.json().get('data', [])
+                for vm in vms:
+                    # terraform.tfvars.json에 있는 서버만 필터링
+                    servers = read_servers_from_tfvars()
+                    if vm['name'] in servers:
+                        status_info = {
+                            'name': vm['name'],
+                            'status': vm['status'],  # running, stopped, paused 등
+                            'vmid': vm['vmid'],
+                            'node': node_name,
+                            'cpu': vm.get('cpu', 0),
+                            'memory': vm.get('mem', 0),
+                            'maxmem': vm.get('maxmem', 0),
+                            'uptime': vm.get('uptime', 0),
+                            'disk': vm.get('disk', 0),
+                            'maxdisk': vm.get('maxdisk', 0),
+                            'role': servers[vm['name']].get('role', 'unknown')
+                        }
+                        all_servers[vm['name']] = status_info
+                        
+                        # 통계 계산
+                        if vm['status'] == 'running':
+                            running_count += 1
+                            total_memory += vm.get('maxmem', 0)
+                        else:
+                            stopped_count += 1
+        
+        # 통계 정보 추가
+        stats = {
+            'total_servers': len(all_servers),
+            'running_servers': running_count,
+            'stopped_servers': stopped_count,
+            'total_memory_gb': round(total_memory / (1024 * 1024 * 1024), 1)
+        }
+        
+        return jsonify({
+            'servers': all_servers,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'서버 상태 확인 실패: {str(e)}'}), 500
+
 def create_terraform_files(project_path, config):
     """Terraform 파일 생성 - OS별 템플릿 ID 지원"""
     # OS별 템플릿 ID 매핑
