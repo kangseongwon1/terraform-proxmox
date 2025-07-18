@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "~> 0.40"
+    }
+  }
+}
+
 variable "name" { type = string }
 variable "role" { type = string }
 variable "cpu" { type = number }
