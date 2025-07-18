@@ -22,6 +22,15 @@
     {% endfor %}
   </select>
 
+  <h2>OS 선택</h2>
+  <select id="os-select" style="width:300px;">
+    <option value="">OS를 선택하세요</option>
+    <option value="ubuntu">Ubuntu 20.04</option>
+    <option value="rocky">Rocky Linux 8</option>
+    <option value="centos">CentOS 8</option>
+    <option value="debian">Debian 11</option>
+  </select>
+
   <div id="server-forms"></div>
 
   <button id="create-servers-btn">서버 생성</button>
@@ -39,10 +48,12 @@
   <script>
   $(document).ready(function() {
     $('#role-select').select2({ placeholder: '역할을 선택/검색하세요' });
+    $('#os-select').select2({ placeholder: 'OS를 선택하세요' });
 
     // 역할 선택 시 서버 폼 동적 생성
     $('#role-select').on('change', function() {
       const selectedRoles = $(this).val() || [];
+      const selectedOS = $('#os-select').val();
       let html = '';
       selectedRoles.forEach(function(role) {
         html += `<div class="server-form" data-role="${role}">
@@ -57,9 +68,31 @@
       $('#server-forms').html(html);
     });
 
+    // OS 선택 시 역할 폼 업데이트
+    $('#os-select').on('change', function() {
+      $('#role-select').trigger('change');
+    });
+
+    // OS별 template_vm_id 매핑
+    const osTemplateMapping = {
+      'ubuntu': 9000,
+      'rocky': 8000,
+      'centos': 8001,
+      'debian': 9001
+    };
+
     // 서버 생성 버튼 클릭
     $('#create-servers-btn').on('click', function() {
       const selectedRoles = $('#role-select').val() || [];
+      const selectedOS = $('#os-select').val();
+      if (!selectedOS) {
+        alert('OS를 선택해주세요.');
+        return;
+      }
+      if (selectedRoles.length === 0) {
+        alert('역할을 선택해주세요.');
+        return;
+      }
       let created = 0, failed = 0;
       selectedRoles.forEach(function(role) {
         const name = $(`input[name='name_${role}']`).val();
@@ -70,8 +103,7 @@
           const [bridge,ip] = v.split(',');
           return {bridge:bridge.trim(), ip_address:ip.trim()};
         });
-        // 기본값 예시, 실제로는 폼에서 받거나 서버에서 결정
-        const template_vm_id = (role==='web') ? 9000 : 8000;
+        const template_vm_id = osTemplateMapping[selectedOS] || 8000;
         const data = {
           name, role, cpu, memory, disks, network_devices: networks, template_vm_id
         };
