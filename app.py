@@ -208,34 +208,202 @@ def delete_server(server_name):
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
 def stop_server(server_name):
-    # Proxmox CLI 또는 ansible-playbook 등으로 중지 구현 (예시)
-    # 여기서는 ansible-playbook 예시
+    """서버 중지 - Proxmox API 직접 호출"""
     try:
-        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=stop"
-        result = subprocess.run([
-            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={server_name} action=stop"
-        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
-        if result.returncode == 0:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Proxmox API 설정
+        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
+        username = "root@pam"
+        password = "dmc1234)(*&"
+        node = "prox"
+        
+        # API 인증
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {
+            'username': username,
+            'password': password
+        }
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Proxmox 인증 실패'}), 401
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return jsonify({'success': False, 'error': '인증 토큰을 가져올 수 없습니다'}), 401
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        # VM 목록 가져오기
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+        vms_response = requests.get(vms_url, headers=headers, verify=False)
+        
+        if vms_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'VM 목록을 가져올 수 없습니다'}), 500
+        
+        vms = vms_response.json().get('data', [])
+        target_vm = None
+        
+        for vm in vms:
+            if vm['name'] == server_name:
+                target_vm = vm
+                break
+        
+        if not target_vm:
+            return jsonify({'success': False, 'error': f'서버 {server_name}을 찾을 수 없습니다'}), 404
+        
+        # VM 중지
+        stop_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{target_vm['vmid']}/status/stop"
+        stop_response = requests.post(stop_url, headers=headers, verify=False)
+        
+        if stop_response.status_code == 200:
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            return jsonify({'success': False, 'error': f'중지 실패: {stop_response.text}'}), 500
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/reboot_server/<server_name>', methods=['POST'])
 def reboot_server(server_name):
-    # Proxmox CLI 또는 ansible-playbook 등으로 리부팅 구현 (예시)
+    """서버 리부팅 - Proxmox API 직접 호출"""
     try:
-        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=reboot"
-        result = subprocess.run([
-            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={server_name} action=reboot"
-        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
-        if result.returncode == 0:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Proxmox API 설정
+        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
+        username = "root@pam"
+        password = "dmc1234)(*&"
+        node = "prox"
+        
+        # API 인증
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {
+            'username': username,
+            'password': password
+        }
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Proxmox 인증 실패'}), 401
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return jsonify({'success': False, 'error': '인증 토큰을 가져올 수 없습니다'}), 401
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        # VM 목록 가져오기
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+        vms_response = requests.get(vms_url, headers=headers, verify=False)
+        
+        if vms_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'VM 목록을 가져올 수 없습니다'}), 500
+        
+        vms = vms_response.json().get('data', [])
+        target_vm = None
+        
+        for vm in vms:
+            if vm['name'] == server_name:
+                target_vm = vm
+                break
+        
+        if not target_vm:
+            return jsonify({'success': False, 'error': f'서버 {server_name}을 찾을 수 없습니다'}), 404
+        
+        # VM 리부팅
+        reboot_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{target_vm['vmid']}/status/reset"
+        reboot_response = requests.post(reboot_url, headers=headers, verify=False)
+        
+        if reboot_response.status_code == 200:
             return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
         else:
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            return jsonify({'success': False, 'error': f'리부팅 실패: {reboot_response.text}'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/start_server/<server_name>', methods=['POST'])
+def start_server(server_name):
+    """서버 시작 - Proxmox API 직접 호출"""
+    try:
+        import requests
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        # Proxmox API 설정
+        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
+        username = "root@pam"
+        password = "dmc1234)(*&"
+        node = "prox"
+        
+        # API 인증
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {
+            'username': username,
+            'password': password
+        }
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Proxmox 인증 실패'}), 401
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return jsonify({'success': False, 'error': '인증 토큰을 가져올 수 없습니다'}), 401
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        # VM 목록 가져오기
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+        vms_response = requests.get(vms_url, headers=headers, verify=False)
+        
+        if vms_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'VM 목록을 가져올 수 없습니다'}), 500
+        
+        vms = vms_response.json().get('data', [])
+        target_vm = None
+        
+        for vm in vms:
+            if vm['name'] == server_name:
+                target_vm = vm
+                break
+        
+        if not target_vm:
+            return jsonify({'success': False, 'error': f'서버 {server_name}을 찾을 수 없습니다'}), 404
+        
+        # VM 시작
+        start_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{target_vm['vmid']}/status/start"
+        start_response = requests.post(start_url, headers=headers, verify=False)
+        
+        if start_response.status_code == 200:
+            return jsonify({'success': True, 'message': f'{server_name} 서버가 시작되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': f'시작 실패: {start_response.text}'}), 500
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -1,0 +1,76 @@
+---
+- name: Proxmox VM Management
+  hosts: localhost
+  gather_facts: false
+  vars:
+    proxmox_host: "prox.dmcmedia.co.kr"
+    proxmox_port: "8006"
+    proxmox_user: "root@pam"
+    proxmox_password: "dmc1234)(*&"
+    proxmox_node: "prox"
+  
+  tasks:
+    - name: Get VM list from Proxmox
+      uri:
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu"
+        method: GET
+        user: "{{ proxmox_user }}"
+        password: "{{ proxmox_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: [200]
+      register: vm_list
+      
+    - name: Find target VM
+      set_fact:
+        target_vm: "{{ vm_list.json.data | selectattr('name', 'equalto', target) | list | first }}"
+      when: target is defined
+      
+    - name: Fail if VM not found
+      fail:
+        msg: "VM '{{ target }}' not found"
+      when: target_vm is not defined or target_vm is none
+      
+    - name: Stop VM
+      uri:
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/stop"
+        method: POST
+        user: "{{ proxmox_user }}"
+        password: "{{ proxmox_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: [200]
+      when: action == "stop"
+      register: stop_result
+      
+    - name: Reboot VM
+      uri:
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/reset"
+        method: POST
+        user: "{{ proxmox_user }}"
+        password: "{{ proxmox_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: [200]
+      when: action == "reboot"
+      register: reboot_result
+      
+    - name: Start VM
+      uri:
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/start"
+        method: POST
+        user: "{{ proxmox_user }}"
+        password: "{{ proxmox_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: [200]
+      when: action == "start"
+      register: start_result
+      
+    - name: Show result
+      debug:
+        msg: "{{ target }} VM {{ action }} completed successfully"
+      when: 
+        - action == "stop" and stop_result is defined
+        - or action == "reboot" and reboot_result is defined
+        - or action == "start" and start_result is defined 

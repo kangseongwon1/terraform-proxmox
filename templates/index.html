@@ -1046,6 +1046,9 @@
             <td>${statusBadge}</td>
             <td>
               <div class="btn-group" role="group">
+                <button class="btn btn-success btn-sm start-btn" title="시작" ${s.status === 'running' ? 'disabled' : ''}>
+                  <i class="fas fa-play"></i> 시작
+                </button>
                 <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
                   <i class="fas fa-pause"></i> 중지
                 </button>
@@ -1083,6 +1086,9 @@
               <td><span class="badge bg-success">활성</span></td>
               <td>
                 <div class="btn-group" role="group">
+                  <button class="btn btn-success btn-sm start-btn" title="시작">
+                    <i class="fas fa-play"></i> 시작
+                  </button>
                   <button class="btn btn-info btn-sm stop-btn" title="중지">
                     <i class="fas fa-pause"></i> 중지
                   </button>
@@ -1109,6 +1115,25 @@
     loadActiveServers();
 
     // 서버 액션 버튼 이벤트
+    $('#active-server-table').on('click', '.start-btn', function() {
+      const name = $(this).closest('tr').data('server');
+      const btn = $(this);
+      const originalText = btn.html();
+      
+      if (confirm(`${name} 서버를 시작하시겠습니까?`)) {
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
+        
+        $.post('/start_server/' + name, function(res) {
+          btn.prop('disabled', false).html(originalText);
+          loadActiveServers();
+          showNotification('success', `${name} 서버가 시작되었습니다.`);
+        }).fail(function(xhr){
+          btn.prop('disabled', false).html(originalText);
+          showNotification('error', `시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        });
+      }
+    });
+    
     $('#active-server-table').on('click', '.stop-btn', function() {
       const name = $(this).closest('tr').data('server');
       const btn = $(this);
