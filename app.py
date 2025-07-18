@@ -191,7 +191,10 @@ def add_server():
     ok, out, err = run_terraform_apply()
     logger.info(f"[add_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
     if not ok:
-        logger.error(f"[add_server] Terraform apply 실패: {err}")
+        # 실패한 서버 정보 삭제
+        del servers[server_name]
+        write_servers_to_tfvars(servers)
+        logger.info(f"[add_server] Terraform 실패로 서버 정보 삭제: {server_name}")
         return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
     logger.info(f"[add_server] 서버 추가 및 적용 완료: {server_name}")
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})

@@ -1032,6 +1032,9 @@
             failed++;
             const progress = Math.round((created + failed) / totalServers * 100);
             $('#creation-progress').css('width', progress + '%');
+            // 에러 메시지 추출 및 이쁘게 표시
+            const errMsg = xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText;
+            showNotification('error', `서버 생성 실패:<br><pre style="white-space:pre-wrap;">${errMsg}</pre>`);
             
             if (created + failed === totalServers) {
               $('#status-message').text(`서버 생성 완료! (성공: ${created}, 실패: ${failed})`);

@@ -53,7 +53,7 @@ resource "proxmox_virtual_environment_vm" "this" {
       interface    = disk.value.interface
       size         = disk.value.size
       file_format  = "qcow2"
-      datastore_id = var.proxmox_datastore
+      datastore_id = disk.value.datastore_id
     }
   }
 
