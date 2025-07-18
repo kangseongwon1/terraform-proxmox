@@ -671,7 +671,7 @@ def get_default_password(os_type):
 def generate_disk_blocks(disks):
     blocks = []
     for idx, disk in enumerate(disks):
-        iface = disk.get('interface', f'scsi{idx}')
+        iface = disk.get('interface') or f'scsi{idx}'
         size = disk.get('size', 20)
         datastore = disk.get('datastore_id', 'local-lvm')
         blocks.append(f'''
