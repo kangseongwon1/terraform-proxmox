@@ -454,7 +454,7 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="#storage">
+        <a class="nav-link" href="#storage" id="storage-tab" data-bs-toggle="tab" data-bs-target="#storage" type="button" role="tab">
           <i class="fas fa-hdd"></i>스토리지
         </a>
       </li>
@@ -604,6 +604,31 @@
               </table>
             </div>
           </div>
+
+          <!-- Storage Tab -->
+          <div class="tab-pane fade" id="storage" role="tabpanel">
+            <div class="card mb-3">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>스토리지 용량 정보</h5>
+              </div>
+              <div class="card-body">
+                <table class="table table-bordered" id="storage-table">
+                  <thead>
+                    <tr>
+                      <th>스토리지명</th>
+                      <th>타입</th>
+                      <th>총 용량(GB)</th>
+                      <th>사용 가능(GB)</th>
+                      <th>사용률</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- 스토리지 정보 동적 렌더링 -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -679,6 +704,13 @@
                 <input type="number" class="form-control" name="memory_${role}" value="2048" min="512" step="512">
                 <span class="input-group-text">MB</span>
               </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label"><i class="fas fa-database me-1"></i>스토리지 타입</label>
+              <select class="form-select datastore-select" name="datastore_${role}">
+                <option value="local-lvm" selected>HDD (local-lvm)</option>
+                <option value="ssd">SSD (ssd)</option>
+              </select>
             </div>
           </div>
 
@@ -945,7 +977,8 @@
         const disks = $(`#disk-container-${role}`).find('.disk-item').map(function() {
           return {
             size: parseInt($(this).find('.disk-size').val()),
-            interface: $(this).find('.disk-interface').val()
+            interface: $(this).find('.disk-interface').val(),
+            datastore_id: $(`select[name='datastore_${role}']`).val() // 각 디스크에 datastore_id 추가
           };
         }).get();
         
@@ -1212,6 +1245,32 @@
         notification.alert('close');
       }, 5000);
     }
+
+    // 스토리지 정보 불러오기
+    function loadStorageInfo() {
+      $.get('/proxmox_storage', function(res) {
+        let html = '';
+        res.storages.forEach(function(s) {
+          const usedPercent = s.total > 0 ? Math.round((s.used / s.total) * 100) : 0;
+          html += `<tr>
+            <td>${s.storage}</td>
+            <td>${s.type === 'lvmthin' ? 'HDD' : (s.type === 'dir' ? 'SSD' : s.type)}</td>
+            <td>${(s.total / 1024 / 1024 / 1024).toFixed(1)}</td>
+            <td>${((s.total - s.used) / 1024 / 1024 / 1024).toFixed(1)}</td>
+            <td>
+              <div class='progress' style='height: 16px;'>
+                <div class='progress-bar' role='progressbar' style='width: ${usedPercent}%;'>${usedPercent}%</div>
+              </div>
+            </td>
+          </tr>`;
+        });
+        $('#storage-table tbody').html(html);
+      });
+    }
+    // 스토리지 탭 진입 시 자동 로드
+    $('a[data-bs-toggle="tab"][href="#storage"]').on('shown.bs.tab', function() {
+      loadStorageInfo();
+    });
   });
   </script>
 </body>
