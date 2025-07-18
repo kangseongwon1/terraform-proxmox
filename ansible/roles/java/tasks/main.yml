@@ -1,9 +1,17 @@
 ---
-- name: Install OpenJDK 17.0.7
+- name: Install OpenJDK 17.0.7 (Debian/Ubuntu)
   ansible.builtin.apt:
     name: openjdk-17-jdk
     state: present
     update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install OpenJDK 17.0.7 (RedHat/Rocky/CentOS)
+  ansible.builtin.yum:
+    name: java-17-openjdk
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "RedHat"
 
 - name: Set JAVA_HOME in /etc/profile.d/java.sh
   ansible.builtin.copy:

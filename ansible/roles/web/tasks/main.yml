@@ -1,8 +1,17 @@
 ---
-- name: Install nginx
-  ansible.builtin.package:
+- name: Install nginx (Debian/Ubuntu)
+  ansible.builtin.apt:
     name: nginx
     state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install nginx (RedHat/Rocky/CentOS)
+  ansible.builtin.yum:
+    name: nginx
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "RedHat"
 
 - name: Ensure nginx is running
   ansible.builtin.service:

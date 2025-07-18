@@ -1,9 +1,17 @@
 ---
-- name: Install vsftpd
+- name: Install vsftpd (Debian/Ubuntu)
   ansible.builtin.apt:
     name: vsftpd
     state: present
     update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install vsftpd (RedHat/Rocky/CentOS)
+  ansible.builtin.yum:
+    name: vsftpd
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "RedHat"
 
 - name: Ensure vsftpd is running
   ansible.builtin.service:
