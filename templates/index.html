@@ -542,7 +542,7 @@
             <div class="tab-pane fade show active" id="create" role="tabpanel">
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">서버 역할 선택</label>
+                  <label class="form-label">서버 역할 선택 <span class="text-muted">(선택사항)</span></label>
                   <select id="role-select" class="form-select" multiple="multiple">
                     {% for key, role in roles.items() %}
                       <option value="{{ key }}">{{ role.name }}</option>
@@ -681,125 +681,16 @@
 
     // 역할 선택 시 서버 폼 동적 생성
     $('#role-select').on('change', function() {
-      const selectedRoles = $(this).val() || [];
-      const selectedOS = $('#os-select').val();
-      let html = '';
-      selectedRoles.forEach(function(role) {
-        html += `<div class="server-form" data-role="${role}">
-          <h5><i class="fas fa-server me-2"></i>${role} 서버 정보</h5>
-          
-          <!-- 기본 정보 -->
-          <div class="row mb-4">
-            <div class="col-md-6 mb-3">
-              <label class="form-label"><i class="fas fa-tag me-1"></i>서버 이름</label>
-              <input type="text" class="form-control" name="name_${role}" placeholder="예: web-server-01" required>
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label"><i class="fas fa-microchip me-1"></i>CPU 코어</label>
-              <div class="input-group">
-                <input type="number" class="form-control" name="cpu_${role}" value="2" min="1" max="32">
-                <span class="input-group-text">코어</span>
-              </div>
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label"><i class="fas fa-memory me-1"></i>메모리</label>
-              <div class="input-group">
-                <input type="number" class="form-control" name="memory_${role}" value="2048" min="512" step="512">
-                <span class="input-group-text">MB</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 디스크 설정 -->
-          <div class="mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <label class="form-label mb-0"><i class="fas fa-hdd me-1"></i>디스크 설정</label>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addDisk('${role}')">
-                <i class="fas fa-plus me-1"></i>디스크 추가
-              </button>
-            </div>
-            <div class="disk-container" id="disk-container-${role}">
-              <div class="disk-item mb-3">
-                <div class="row">
-                  <div class="col-md-4">
-                    <label class="form-label">디스크 크기</label>
-                    <div class="input-group">
-                      <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
-                      <span class="input-group-text">GB</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">인터페이스</label>
-                    <select class="form-select disk-interface">
-                      <option value="scsi0">SCSI 0</option>
-                      <option value="scsi1">SCSI 1</option>
-                      <option value="scsi2">SCSI 2</option>
-                      <option value="scsi3">SCSI 3</option>
-                      <option value="sata0">SATA 0</option>
-                      <option value="sata1">SATA 1</option>
-                      <option value="virtio0">VirtIO 0</option>
-                      <option value="virtio1">VirtIO 1</option>
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">스토리지 타입</label>
-                    <select class="form-select disk-datastore">
-                      <option value="local-lvm" selected>HDD (local-lvm)</option>
-                      <option value="ssd">SSD (ssd)</option>
-                    </select>
-                    <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
-                      <i class="fas fa-trash me-1"></i>삭제
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 네트워크 설정 -->
-          <div class="mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <label class="form-label mb-0"><i class="fas fa-network-wired me-1"></i>네트워크 설정</label>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNetwork('${role}')">
-                <i class="fas fa-plus me-1"></i>네트워크 추가
-              </button>
-            </div>
-            <div class="network-container" id="network-container-${role}">
-              <div class="network-item mb-3">
-                <div class="row">
-                  <div class="col-md-3">
-                    <label class="form-label">브리지</label>
-                    <select class="form-select network-bridge">
-                      <option value="vmbr0">vmbr0</option>
-                      <option value="vmbr1">vmbr1</option>
-                      <option value="vmbr2">vmbr2</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">IP 주소</label>
-                    <input type="text" class="form-control network-ip" placeholder="192.168.1.100">
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">서브넷</label>
-                    <input type="text" class="form-control network-subnet" placeholder="24" value="24">
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">게이트웨이</label>
-                    <input type="text" class="form-control network-gateway" placeholder="192.168.1.1">
-                  </div>
-                  <div class="col-md-1 d-flex align-items-end">
-                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)" disabled>
-                      <i class="fas fa-trash me-1"></i>삭제
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>`;
-      });
+      // 기존: 역할별로 여러 서버 폼 생성
+      // 변경: 역할과 무관하게 단일 서버 폼만 생성
+      let html = `<div class="server-form" data-role="">
+        <h5><i class="fas fa-server me-2"></i>서버 정보</h5>
+        <!-- 이하 기존 서버 폼 내용(이름, CPU, 메모리, 디스크, 네트워크 등) 그대로 -->
+      </div>`;
       $('#server-forms').html(html);
     });
+    // 페이지 로드 시에도 서버 폼이 항상 보이도록 트리거
+    $('#role-select').trigger('change');
 
     // 디스크 추가 함수
     window.addDisk = function(role) {

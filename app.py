@@ -193,6 +193,9 @@ def add_server():
     if server_name in servers:
         logger.error(f"[add_server] 중복 서버 이름: {server_name}")
         return jsonify({'success': False, 'error': f'이미 동일한 이름({server_name})의 서버가 존재합니다.'}), 400
+    # 역할 값이 없으면 빈 값으로 저장
+    if 'role' not in data or not data['role']:
+        data['role'] = ''
     # disks의 모든 요소에 datastore_id가 반드시 포함되도록 보정
     if 'disks' in data:
         for disk in data['disks']:
