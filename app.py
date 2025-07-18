@@ -191,6 +191,13 @@ def add_server():
         for disk in data['disks']:
             if 'datastore_id' not in disk or not disk['datastore_id']:
                 disk['datastore_id'] = 'local-lvm'
+    # network_devices의 각 요소에 subnet, gateway가 누락되면 기본값 보정 (예: subnet=24, gateway='')
+    if 'network_devices' in data:
+        for net in data['network_devices']:
+            if 'subnet' not in net or not net['subnet']:
+                net['subnet'] = '24'
+            if 'gateway' not in net:
+                net['gateway'] = ''
     servers[server_name] = data
     write_servers_to_tfvars(servers)
     ok, out, err = run_terraform_apply()

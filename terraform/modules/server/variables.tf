@@ -6,6 +6,8 @@ variable "network_devices" {
   type = list(object({
     bridge     = string
     ip_address = string
+    subnet     = string
+    gateway    = string
   }))
 }
 variable "template_vm_id" { type = number }
@@ -17,7 +19,6 @@ variable "proxmox_node" { type = string }
 variable "vm_username" { type = string }
 variable "vm_password" { type = string }
 variable "ssh_keys" { type = list(string) }
-variable "gateway" { type = string }
 
 variable "disks" {
   description = "List of disks"

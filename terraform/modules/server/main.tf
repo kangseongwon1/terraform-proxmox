@@ -44,11 +44,14 @@ resource "proxmox_virtual_environment_vm" "this" {
       password = var.vm_password
       keys    = var.ssh_keys
     }
-    # 첫 번째 네트워크 디바이스의 IP만 초기화에 사용 (예시)
-    ip_config {
-      ipv4 {
-        address = "${var.network_devices[0].ip_address}/24"
-        gateway = var.gateway
+    # 각 네트워크 디바이스별로 ip/subnet/gateway 적용
+    dynamic "ip_config" {
+      for_each = var.network_devices
+      content {
+        ipv4 {
+          address = "${ip_config.value.ip_address}/${ip_config.value.subnet}"
+          gateway = ip_config.value.gateway
+        }
       }
     }
   }

@@ -767,7 +767,7 @@
             <div class="network-container" id="network-container-${role}">
               <div class="network-item mb-3">
                 <div class="row">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label class="form-label">브리지</label>
                     <select class="form-select network-bridge">
                       <option value="vmbr0">vmbr0</option>
@@ -775,11 +775,19 @@
                       <option value="vmbr2">vmbr2</option>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label class="form-label">IP 주소</label>
                     <input type="text" class="form-control network-ip" placeholder="192.168.1.100">
                   </div>
-                  <div class="col-md-4 d-flex align-items-end">
+                  <div class="col-md-2">
+                    <label class="form-label">서브넷</label>
+                    <input type="text" class="form-control network-subnet" placeholder="24" value="24">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">게이트웨이</label>
+                    <input type="text" class="form-control network-gateway" placeholder="192.168.1.1">
+                  </div>
+                  <div class="col-md-1 d-flex align-items-end">
                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)" disabled>
                       <i class="fas fa-trash me-1"></i>삭제
                     </button>
@@ -872,7 +880,7 @@
       const newNetwork = $(`
         <div class="network-item mb-3">
           <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">브리지</label>
               <select class="form-select network-bridge">
                 <option value="vmbr0">vmbr0</option>
@@ -880,11 +888,19 @@
                 <option value="vmbr2">vmbr2</option>
               </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label">IP 주소</label>
               <input type="text" class="form-control network-ip" placeholder="192.168.1.100">
             </div>
-            <div class="col-md-4 d-flex align-items-end">
+            <div class="col-md-2">
+              <label class="form-label">서브넷</label>
+              <input type="text" class="form-control network-subnet" placeholder="24" value="24">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">게이트웨이</label>
+              <input type="text" class="form-control network-gateway" placeholder="192.168.1.1">
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
               <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)">
                 <i class="fas fa-trash me-1"></i>삭제
               </button>
@@ -991,7 +1007,9 @@
         const networks = $(`#network-container-${role}`).find('.network-item').map(function() {
           return {
             bridge: $(this).find('.network-bridge').val(),
-            ip_address: $(this).find('.network-ip').val()
+            ip_address: $(this).find('.network-ip').val(),
+            subnet: $(this).find('.network-subnet').val(),
+            gateway: $(this).find('.network-gateway').val()
           };
         }).get();
         

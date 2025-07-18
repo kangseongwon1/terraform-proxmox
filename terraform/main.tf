@@ -17,6 +17,5 @@ module "server" {
   vm_username       = var.vm_username
   vm_password       = var.vm_password
   ssh_keys          = var.ssh_keys
-  gateway           = var.gateway
 }
 
