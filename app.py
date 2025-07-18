@@ -174,6 +174,13 @@ def run_ansible_playbook():
     result = subprocess.run(['ansible-playbook', '-i', 'inventory', 'playbook.yml'], cwd=ANSIBLE_DIR, capture_output=True, text=True)
     return result.returncode == 0, result.stdout, result.stderr
 
+# 넷마스크를 CIDR로 변환하는 함수 추가
+def netmask_to_cidr(netmask):
+    try:
+        return str(sum([bin(int(x)).count('1') for x in netmask.split('.')]))
+    except Exception:
+        return netmask  # 변환 실패 시 원래 값 반환
+
 @app.route('/add_server', methods=['POST'])
 def add_server():
     data = request.json
@@ -194,6 +201,9 @@ def add_server():
     # network_devices의 각 요소에 subnet, gateway가 누락되면 기본값 보정 (예: subnet=24, gateway='')
     if 'network_devices' in data:
         for net in data['network_devices']:
+            # subnet이 넷마스크 표기면 CIDR로 변환
+            if 'subnet' in net and '.' in str(net['subnet']):
+                net['subnet'] = netmask_to_cidr(net['subnet'])
             if 'subnet' not in net or not net['subnet']:
                 net['subnet'] = '24'
             if 'gateway' not in net:
