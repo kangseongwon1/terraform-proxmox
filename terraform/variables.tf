@@ -8,6 +8,7 @@ variable "servers" {
     disks           = list(object({
       size      = number
       interface = string
+      datastore_id = string
     }))
     network_devices = list(object({
       bridge     = string
