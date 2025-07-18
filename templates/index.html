@@ -473,157 +473,133 @@
 
   <!-- Main Content -->
   <div class="main-content">
-    <!-- Dashboard Stats -->
-    <div class="row mb-4">
-      <div class="col-md-3">
-        <div class="stats-card">
-          <div class="stats-icon">
-            <i class="fas fa-server"></i>
+    <!-- Dashboard Stats (공통) -->
+    <div id="page-dashboard" class="spa-page" style="display:none;">
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="stats-card">
+            <div class="stats-icon">
+              <i class="fas fa-server"></i>
+            </div>
+            <div class="stats-number" id="total-servers">0</div>
+            <div class="stats-label">총 서버</div>
           </div>
-          <div class="stats-number" id="total-servers">0</div>
-          <div class="stats-label">총 서버</div>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="stats-card">
-          <div class="stats-icon">
-            <i class="fas fa-play-circle"></i>
+        <div class="col-md-3">
+          <div class="stats-card">
+            <div class="stats-icon">
+              <i class="fas fa-play-circle"></i>
+            </div>
+            <div class="stats-number" id="running-servers">0</div>
+            <div class="stats-label">실행 중</div>
           </div>
-          <div class="stats-number" id="running-servers">0</div>
-          <div class="stats-label">실행 중</div>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="stats-card">
-          <div class="stats-icon">
-            <i class="fas fa-pause-circle"></i>
+        <div class="col-md-3">
+          <div class="stats-card">
+            <div class="stats-icon">
+              <i class="fas fa-pause-circle"></i>
+            </div>
+            <div class="stats-number" id="stopped-servers">0</div>
+            <div class="stats-label">중지됨</div>
           </div>
-          <div class="stats-number" id="stopped-servers">0</div>
-          <div class="stats-label">중지됨</div>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="stats-card">
-          <div class="stats-icon">
-            <i class="fas fa-memory"></i>
+        <div class="col-md-3">
+          <div class="stats-card">
+            <div class="stats-icon">
+              <i class="fas fa-memory"></i>
+            </div>
+            <div class="stats-number" id="total-memory">0</div>
+            <div class="stats-label">총 메모리 (GB)</div>
           </div>
-          <div class="stats-number" id="total-memory">0</div>
-          <div class="stats-label">총 메모리 (GB)</div>
         </div>
       </div>
     </div>
 
-    <!-- Main Dashboard Card -->
-    <div class="dashboard-card">
-      <div class="card-header">
-        <h4 class="mb-0"><i class="fas fa-plus-circle me-2"></i>서버 관리</h4>
-      </div>
-      <div class="card-body">
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-4" id="serverTabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">
-              <i class="fas fa-plus me-1"></i>서버 생성
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
-              <i class="fas fa-list me-1"></i>서버 목록
-            </button>
-          </li>
-        </ul>
+    <!-- 인스턴스(서버) 관리 페이지 -->
+    <div id="page-instances" class="spa-page">
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h4 class="mb-0"><i class="fas fa-plus-circle me-2"></i>서버 관리</h4>
+        </div>
+        <div class="card-body">
+          <!-- Tabs -->
+          <ul class="nav nav-tabs mb-4" id="serverTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">
+                <i class="fas fa-plus me-1"></i>서버 생성
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+                <i class="fas fa-list me-1"></i>서버 목록
+              </button>
+            </li>
+          </ul>
 
-        <!-- Tab Content -->
-        <div class="tab-content" id="serverTabsContent">
-          <!-- Create Server Tab -->
-          <div class="tab-pane fade show active" id="create" role="tabpanel">
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label">서버 역할 선택</label>
-                <select id="role-select" class="form-select" multiple="multiple">
-                  {% for key, role in roles.items() %}
-                    <option value="{{ key }}">{{ role.name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-6 mb-3">
-                <label class="form-label">OS 선택</label>
-                <select id="os-select" class="form-select">
-                  <option value="">OS를 선택하세요</option>
-                  <option value="ubuntu">Ubuntu 20.04 (Template ID: 9000)</option>
-                  <option value="rocky">Rocky Linux 8 (Template ID: 8000)</option>
-                  <option value="centos">CentOS 8 (Template ID: 8001)</option>
-                  <option value="debian">Debian 11 (Template ID: 9001)</option>
-                </select>
-              </div>
-            </div>
-            
-            <div id="server-forms"></div>
-            
-            <div class="text-center mt-4">
-              <div id="creation-status" class="mb-3" style="display: none;">
-                <div class="alert alert-info">
-                  <i class="fas fa-spinner fa-spin me-2"></i>
-                  <span id="status-message">서버 생성 중...</span>
+          <!-- Tab Content -->
+          <div class="tab-content" id="serverTabsContent">
+            <!-- Create Server Tab -->
+            <div class="tab-pane fade show active" id="create" role="tabpanel">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">서버 역할 선택</label>
+                  <select id="role-select" class="form-select" multiple="multiple">
+                    {% for key, role in roles.items() %}
+                      <option value="{{ key }}">{{ role.name }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
-                <div class="progress mb-2">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                       id="creation-progress" role="progressbar" style="width: 0%"></div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">OS 선택</label>
+                  <select id="os-select" class="form-select">
+                    <option value="">OS를 선택하세요</option>
+                    <option value="ubuntu">Ubuntu 20.04 (Template ID: 9000)</option>
+                    <option value="rocky">Rocky Linux 8 (Template ID: 8000)</option>
+                    <option value="centos">CentOS 8 (Template ID: 8001)</option>
+                    <option value="debian">Debian 11 (Template ID: 9001)</option>
+                  </select>
                 </div>
               </div>
-              <button id="create-servers-btn" class="btn btn-primary btn-lg">
-                <i class="fas fa-plus-circle me-2"></i>서버 생성
-              </button>
-            </div>
-          </div>
-
-          <!-- Server List Tab -->
-          <div class="tab-pane fade" id="list" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
-              <button class="btn btn-outline-primary btn-sm" onclick="loadActiveServers()">
-                <i class="fas fa-sync-alt me-1"></i>새로고침
-              </button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-hover" id="active-server-table">
-                <thead>
-                  <tr>
-                    <th><i class="fas fa-server me-1"></i>서버명</th>
-                    <th><i class="fas fa-tag me-1"></i>역할</th>
-                    <th><i class="fas fa-microchip me-1"></i>CPU</th>
-                    <th><i class="fas fa-memory me-1"></i>메모리</th>
-                    <th><i class="fas fa-network-wired me-1"></i>IP 주소</th>
-                    <th><i class="fas fa-circle me-1"></i>상태</th>
-                    <th><i class="fas fa-cogs me-1"></i>액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- 서버 리스트 동적 렌더링 -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Storage Tab -->
-          <div class="tab-pane fade" id="storage" role="tabpanel">
-            <div class="card mb-3">
-              <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>스토리지 용량 정보</h5>
+              <div id="server-forms"></div>
+              <div class="text-center mt-4">
+                <div id="creation-status" class="mb-3" style="display: none;">
+                  <div class="alert alert-info">
+                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    <span id="status-message">서버 생성 중...</span>
+                  </div>
+                  <div class="progress mb-2">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="creation-progress" role="progressbar" style="width: 0%"></div>
+                  </div>
+                </div>
+                <button id="create-servers-btn" class="btn btn-primary btn-lg">
+                  <i class="fas fa-plus-circle me-2"></i>서버 생성
+                </button>
               </div>
-              <div class="card-body">
-                <table class="table table-bordered" id="storage-table">
+            </div>
+            <!-- Server List Tab -->
+            <div class="tab-pane fade" id="list" role="tabpanel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
+                <button class="btn btn-outline-primary btn-sm" onclick="loadActiveServers()">
+                  <i class="fas fa-sync-alt me-1"></i>새로고침
+                </button>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover" id="active-server-table">
                   <thead>
                     <tr>
-                      <th>스토리지명</th>
-                      <th>타입</th>
-                      <th>총 용량(GB)</th>
-                      <th>사용 가능(GB)</th>
-                      <th>사용률</th>
+                      <th><i class="fas fa-server me-1"></i>서버명</th>
+                      <th><i class="fas fa-tag me-1"></i>역할</th>
+                      <th><i class="fas fa-microchip me-1"></i>CPU</th>
+                      <th><i class="fas fa-memory me-1"></i>메모리</th>
+                      <th><i class="fas fa-network-wired me-1"></i>IP 주소</th>
+                      <th><i class="fas fa-circle me-1"></i>상태</th>
+                      <th><i class="fas fa-cogs me-1"></i>액션</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <!-- 스토리지 정보 동적 렌더링 -->
+                    <!-- 서버 리스트 동적 렌더링 -->
                   </tbody>
                 </table>
               </div>
@@ -632,6 +608,33 @@
         </div>
       </div>
     </div>
+
+    <!-- 스토리지 관리 페이지 -->
+    <div id="page-storage" class="spa-page" style="display:none;">
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>스토리지 용량 정보</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-bordered" id="storage-table">
+            <thead>
+              <tr>
+                <th>스토리지명</th>
+                <th>타입</th>
+                <th>총 용량(GB)</th>
+                <th>사용 가능(GB)</th>
+                <th>사용률</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 스토리지 정보 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- (추후 네트워크 등 다른 페이지도 같은 방식으로 추가 가능) -->
   </div>
 
   <script>
@@ -1271,6 +1274,36 @@
     $('a[data-bs-toggle="tab"][href="#storage"]').on('shown.bs.tab', function() {
       loadStorageInfo();
     });
+
+    // SPA 네비게이션 처리
+    function showPage(page) {
+      $('.spa-page').hide();
+      $(`#page-${page}`).show();
+      // 사이드바 active 처리
+      $('.sidebar .nav-link').removeClass('active');
+      $(`.sidebar .nav-link[href='#${page}']`).addClass('active');
+    }
+    // 사이드바 클릭 이벤트
+    $('.sidebar .nav-link').on('click', function(e) {
+      const href = $(this).attr('href');
+      if (href && href.startsWith('#')) {
+        e.preventDefault();
+        const page = href.replace('#', '');
+        showPage(page);
+        window.location.hash = page;
+      }
+    });
+    // 해시로 진입 시 해당 페이지 표시
+    function handleHash() {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && $(`#page-${hash}`).length) {
+        showPage(hash);
+      } else {
+        showPage('instances'); // 기본값
+      }
+    }
+    $(window).on('hashchange', handleHash);
+    handleHash();
   });
   </script>
 </body>
