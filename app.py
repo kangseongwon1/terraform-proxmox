@@ -674,16 +674,16 @@ os_type = "{config['os_type']}"
 def get_default_username(os_type):
     """OS별 기본 사용자명 반환"""
     defaults = {
-        'ubuntu': 'ubuntu',
-        'rocky': 'rocky'
+        'rocky': 'rocky',
+        'ubuntu': 'ubuntu'
     }
     return defaults.get(os_type, 'rocky')
 
 def get_default_password(os_type):
     """OS별 기본 비밀번호 반환"""
     defaults = {
-        'ubuntu': 'ubuntu123',
-        'rocky': 'rocky123'
+        'rocky': 'rocky123',
+        'ubuntu': 'ubuntu123'
     }
     return defaults.get(os_type, 'rocky123') 
 
@@ -722,8 +722,9 @@ def create_ansible_playbook(project_path, config):
     inventory = f"""
 [{config['role']}_servers]
 """
+    username = get_default_username(os_type)
     for i, ip in enumerate(config['ip_addresses']):
-        inventory += f"{config['project_name']}-{config['role']}-{i+1} ansible_host={ip} ansible_user={config['os_type']} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'\n"
+        inventory += f"{config['project_name']}-{config['role']}-{i+1} ansible_host={ip} ansible_user={username} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'\n"
     
     # 플레이북 생성
     playbook = {
@@ -999,7 +1000,7 @@ def assign_role(server_name):
     servers = read_servers_from_tfvars()
     if server_name not in servers:
         return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
-    # 서버 IP/계정/비번 추출
+    # 서버 IP/계정 추출
     server = servers[server_name]
     ip = None
     if 'network_devices' in server and server['network_devices']:
@@ -1007,7 +1008,8 @@ def assign_role(server_name):
     if not ip:
         return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
     username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
-    password = server.get('vm_password', get_default_password(server.get('os_type', 'rocky')))
+    # SSH 키 파일 경로 지정
+    PRIVATE_KEY_PATH = os.path.abspath(os.path.join(ANSIBLE_DIR, "id_rsa"))
     # 역할 변경
     server['role'] = role
     servers[server_name] = server
@@ -1021,7 +1023,7 @@ def assign_role(server_name):
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
     with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
-        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_pass={password} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
+        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_private_key_file={PRIVATE_KEY_PATH} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
         inventory_path = f.name
     # ansible-playbook 실행
     try:

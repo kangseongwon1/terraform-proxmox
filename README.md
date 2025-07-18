@@ -4,6 +4,22 @@ Flask + Terraform + Ansible을 사용한 Proxmox 기반 서버 자동 생성 및
 
 ## 📁 프로젝트 구조
 
+---
+### [전체 코드 구조 및 역할 요약]
+
+- **Python(Flask)**: `app.py`(웹 UI 및 API 서버), `templates/`(웹 인터페이스 템플릿)
+- **Terraform**: `terraform/`(Proxmox VM 자동화 인프라 코드), `modules/server/`(서버 VM 생성 모듈)
+- **Ansible**: `ansible/`(서버 소프트웨어 자동 설치 및 설정), `roles/`(nginx, db, java 등 역할별 자동화), `templates/`(설정 템플릿)
+- **기타**: `setup.sh`(환경 자동 세팅), `requirements.txt`(Python 의존성), `venv/`(가상환경)
+
+#### 전체 동작 흐름
+1. 환경설정(.env)
+2. Flask 웹에서 서버 생성 요청
+3. Terraform으로 VM 생성
+4. Ansible로 소프트웨어 자동 설치/설정
+5. 웹 UI/REST API로 상태 및 제어
+---
+
 ```
 terraform-proxmox/
 ├── app.py                    # Flask 메인 애플리케이션
