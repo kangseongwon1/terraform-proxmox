@@ -658,13 +658,14 @@
                 </div>
                 <!-- 역할 선택: 맨 아래, 완전 선택사항 -->
                 <div class="mb-4">
-                  <label class="form-label">서버 역할 선택 <span class="text-muted">(선택사항)</span></label>
-                  <select id="role-select" class="form-select" multiple="multiple">
+                  <label class="form-label">서버 역할 선택 <span class="text-muted">(선택사항, 한 가지만 선택 가능)</span></label>
+                  <select id="role-select" class="form-select">
+                    <option value="">(선택 안 함)</option>
                     {% for key, role in roles.items() %}
                       <option value="{{ key }}">{{ role.name }}</option>
                     {% endfor %}
                   </select>
-                  <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다.</small>
+                  <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다. (한 가지만 선택 가능)</small>
                 </div>
                 <div class="text-center mt-4">
                   <div id="creation-status" class="mb-3" style="display: none;">
@@ -923,7 +924,7 @@
 
     // 서버 생성 버튼 클릭
     $('#create-servers-btn').on('click', function() {
-      const selectedRoles = $('#role-select').val() || [];
+      const selectedRole = $('#role-select').val() || '';
       const selectedOS = $('#os-select').val();
       
       if (!selectedOS) {
@@ -931,62 +932,30 @@
         return;
       }
       
-      // 역할이 선택되지 않은 경우 기본 서버 생성
-      if (selectedRoles.length === 0) {
-        const name = $('input[name="name_basic"]').val();
-        if (!name || name.trim() === '') {
-          alert('서버 이름을 입력해주세요.');
-          return;
-        }
-        
-        // IP 주소 검증
-        let hasError = false;
-        $('#network-container-basic').find('.network-ip').each(function() {
-          const ip = $(this).val();
-          if (!ip || ip.trim() === '') {
-            alert('IP 주소를 입력해주세요.');
-            hasError = true;
-            return false;
-          }
-        });
-        
-        if (hasError) return;
-        
-        // 기본 서버 생성
-        createBasicServer(name, selectedOS);
+      const name = $('input[name="name_basic"]').val();
+      if (!name || name.trim() === '') {
+        alert('서버 이름을 입력해주세요.');
         return;
       }
       
-      // 역할이 선택된 경우 역할별 서버 생성
-      // 입력 검증
+      // IP 주소 검증
       let hasError = false;
-      selectedRoles.forEach(function(role) {
-        const name = $(`input[name='name_${role}']`).val();
-        if (!name || name.trim() === '') {
-          alert(`${role} 서버의 이름을 입력해주세요.`);
+      $('#network-container-basic').find('.network-ip').each(function() {
+        const ip = $(this).val();
+        if (!ip || ip.trim() === '') {
+          alert('IP 주소를 입력해주세요.');
           hasError = true;
           return false;
         }
-        
-        // IP 주소 검증
-        $(`#network-container-${role}`).find('.network-ip').each(function() {
-          const ip = $(this).val();
-          if (!ip || ip.trim() === '') {
-            alert(`${role} 서버의 IP 주소를 입력해주세요.`);
-            hasError = true;
-            return false;
-          }
-        });
       });
-      
       if (hasError) return;
       
-      // 역할별 서버 생성
-      createRoleBasedServers(selectedRoles, selectedOS);
+      // 서버 생성
+      createBasicServer(name, selectedOS, selectedRole);
     });
-    
+
     // 기본 서버 생성 함수
-    function createBasicServer(name, selectedOS) {
+    function createBasicServer(name, selectedOS, selectedRole) {
       const btn = $('#create-servers-btn');
       const originalText = btn.html();
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
@@ -1018,7 +987,7 @@
       const template_vm_id = osTemplateMapping[selectedOS] || 8000;
       const data = {
         name: name,
-        role: '', // 역할 없음
+        role: selectedRole,
         cpu: cpu,
         memory: memory,
         disks: disks,
@@ -1052,102 +1021,6 @@
       });
     }
     
-    // 역할 기반 서버 생성 함수
-    function createRoleBasedServers(selectedRoles, selectedOS) {
-      // UI 상태 변경
-      const btn = $('#create-servers-btn');
-      const originalText = btn.html();
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
-      
-      $('#creation-status').show();
-      $('#status-message').text('서버 생성 준비 중...');
-      $('#creation-progress').css('width', '0%');
-      
-      let created = 0, failed = 0;
-      const totalServers = selectedRoles.length;
-      
-      selectedRoles.forEach(function(role, index) {
-        const name = $(`input[name='name_${role}']`).val();
-        const cpu = parseInt($(`input[name='cpu_${role}']`).val());
-        const memory = parseInt($(`input[name='memory_${role}']`).val());
-        
-        const disks = $(`#disk-container-${role}`).find('.disk-item').map(function() {
-          return {
-            size: parseInt($(this).find('.disk-size').val()),
-            interface: $(this).find('.disk-interface').val(),
-            datastore_id: $(this).find('.disk-datastore').val()
-          };
-        }).get();
-        
-        const networks = $(`#network-container-${role}`).find('.network-item').map(function() {
-          return {
-            bridge: $(this).find('.network-bridge').val(),
-            ip_address: $(this).find('.network-ip').val(),
-            subnet: $(this).find('.network-subnet').val(),
-            gateway: $(this).find('.network-gateway').val()
-          };
-        }).get();
-        
-        const template_vm_id = osTemplateMapping[selectedOS] || 8000;
-        const data = {
-          name, role, cpu, memory, disks, network_devices: networks, template_vm_id
-        };
-        
-        // 진행률 업데이트
-        $('#status-message').text(`${name} 서버 생성 중... (${index + 1}/${totalServers})`);
-        
-        $.ajax({
-          url: '/add_server',
-          method: 'POST',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            created++;
-            const progress = Math.round((created + failed) / totalServers * 100);
-            $('#creation-progress').css('width', progress + '%');
-            
-            if (created + failed === totalServers) {
-              $('#status-message').text(`서버 생성 완료! (성공: ${created}, 실패: ${failed})`);
-              setTimeout(function() {
-                $('#creation-status').hide();
-                btn.prop('disabled', false).html(originalText);
-                loadActiveServers();
-                
-                if (failed === 0) {
-                  alert('모든 서버가 성공적으로 생성되었습니다!');
-                } else {
-                  alert(`서버 생성 완료!\n성공: ${created}개\n실패: ${failed}개`);
-                }
-              }, 2000);
-            }
-          },
-          error: function(xhr) {
-            failed++;
-            const progress = Math.round((created + failed) / totalServers * 100);
-            $('#creation-progress').css('width', progress + '%');
-            // 에러 메시지 추출 및 이쁘게 표시
-            const errMsg = xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText;
-            showNotification('error', `서버 생성 실패:<br><pre style="white-space:pre-wrap;">${errMsg}</pre>`);
-            
-            if (created + failed === totalServers) {
-              $('#status-message').text(`서버 생성 완료! (성공: ${created}, 실패: ${failed})`);
-              setTimeout(function() {
-                $('#creation-status').hide();
-                btn.prop('disabled', false).html(originalText);
-                loadActiveServers();
-                
-                if (failed === 0) {
-                  alert('모든 서버가 성공적으로 생성되었습니다!');
-                } else {
-                  alert(`서버 생성 완료!\n성공: ${created}개\n실패: ${failed}개`);
-                }
-              }, 2000);
-            }
-          }
-        });
-      });
-    });
-
     // 활성화된 서버 리스트 불러오기
     function loadActiveServers() {
       $.get('/all_server_status', function(res) {
