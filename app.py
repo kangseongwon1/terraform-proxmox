@@ -1008,12 +1008,6 @@ def assign_role(server_name):
     if not ip:
         return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
     username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
-    # SSH 키 파일 경로 지정
-    PRIVATE_KEY_PATH = os.path.abspath(os.path.join(ANSIBLE_DIR, "id_rsa"))
-    # 역할 변경
-    server['role'] = role
-    servers[server_name] = server
-    write_servers_to_tfvars(servers)
     # 임시 인벤토리 파일 생성
     import datetime
     import os
@@ -1023,7 +1017,7 @@ def assign_role(server_name):
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
     with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
-        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_private_key_file={PRIVATE_KEY_PATH} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
+        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
         inventory_path = f.name
     # ansible-playbook 실행
     try:
