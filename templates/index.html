@@ -1003,8 +1003,17 @@
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
       
       $('#creation-status').show();
-      $('#status-message').text('서버 생성 준비 중...');
+      $('#status-message').html('<i class="fas fa-spinner fa-spin me-2"></i>서버 생성 진행 중입니다. 잠시만 기다려주세요...');
       $('#creation-progress').css('width', '0%');
+      
+      // 진행률 바 애니메이션 (천천히 증가, 실제 완료시 100%)
+      let progress = 0;
+      const progressInterval = setInterval(function() {
+        if (progress < 90) {
+          progress += Math.random() * 3 + 1; // 1~4%씩 증가
+          $('#creation-progress').css('width', progress + '%');
+        }
+      }, 700);
       
       const cpu = parseInt($('input[name="cpu_basic"]').val());
       const memory = parseInt($('input[name="memory_basic"]').val());
@@ -1037,7 +1046,7 @@
         template_vm_id: template_vm_id
       };
       
-      $('#status-message').text(`${name} 서버 생성 중...`);
+      $('#status-message').html('<i class="fas fa-spinner fa-spin me-2"></i>' + name + ' 서버 생성 진행 중입니다.');
       
       $.ajax({
         url: '/add_server',
@@ -1045,7 +1054,8 @@
         contentType: 'application/json',
         data: JSON.stringify(data),
         success: function(res) {
-          $('#status-message').text('서버 생성 완료!');
+          clearInterval(progressInterval);
+          $('#status-message').html('<i class="fas fa-check-circle me-2"></i>서버 생성 완료!');
           $('#creation-progress').css('width', '100%');
           setTimeout(function() {
             $('#creation-status').hide();
@@ -1055,6 +1065,7 @@
           }, 2000);
         },
         error: function(xhr) {
+          clearInterval(progressInterval);
           const errMsg = xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText;
           showNotification('error', `서버 생성 실패:<br><pre style="white-space:pre-wrap;">${errMsg}</pre>`);
           $('#creation-status').hide();
