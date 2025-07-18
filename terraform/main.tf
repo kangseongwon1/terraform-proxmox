@@ -14,7 +14,6 @@ module "server" {
   proxmox_username  = var.proxmox_username
   proxmox_password  = var.proxmox_password
   proxmox_node      = var.proxmox_node
-  proxmox_datastore = var.proxmox_datastore
   vm_username       = var.vm_username
   vm_password       = var.vm_password
   ssh_keys          = var.ssh_keys
