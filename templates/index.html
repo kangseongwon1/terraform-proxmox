@@ -1053,25 +1053,28 @@
           // 상태별 배지 색상 결정
           let statusBadge = '';
           switch(s.status) {
-            case 'running':
-              statusBadge = '<span class="badge bg-success">실행 중</span>';
-              break;
-            case 'stopped':
-              statusBadge = '<span class="badge bg-secondary">중지됨</span>';
-              break;
-            case 'paused':
-              statusBadge = '<span class="badge bg-warning">일시정지</span>';
-              break;
-            case 'suspended':
-              statusBadge = '<span class="badge bg-info">일시중단</span>';
-              break;
-            default:
-              statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
+            case 'running': statusBadge = '<span class="badge bg-success">실행 중</span>'; break;
+            case 'stopped': statusBadge = '<span class="badge bg-secondary">중지됨</span>'; break;
+            case 'paused': statusBadge = '<span class="badge bg-warning">일시정지</span>'; break;
+            case 'suspended': statusBadge = '<span class="badge bg-info">일시중단</span>'; break;
+            default: statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
           }
-          
+          // 역할 드롭다운
+          let roleOptions = '<option value="">(선택 안 함)</option>';
+          for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
+            roleOptions += `<option value="${k}"${s.role===k?' selected':''}>${v}</option>`;
+          }
           html += `<tr data-server="${name}">
             <td><strong>${s.name}</strong></td>
-            <td><span class="badge bg-primary">${s.role}</span></td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
+                  ${roleOptions}
+                </select>
+                <button class="btn btn-outline-primary btn-sm server-role-apply">적용</button>
+                <button class="btn btn-outline-danger btn-sm server-role-remove"${s.role?'':' disabled'}>삭제</button>
+              </div>
+            </td>
             <td>${s.cpu || 0}코어</td>
             <td>${s.memory || 0}MB</td>
             <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
@@ -1406,6 +1409,30 @@
         loadDashboardServers();
         loadDashboardStorage();
       }
+    });
+
+    // 역할 적용/삭제 이벤트
+    $('#active-server-table').off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
+      const tr = $(this).closest('tr');
+      const server = tr.data('server');
+      const role = tr.find('.server-role-select').val();
+      $.post(`/assign_role/${server}`, { role }, function(res) {
+        showNotification('success', '역할이 적용되었습니다.');
+        loadActiveServers();
+      }).fail(function(xhr) {
+        showNotification('error', xhr.responseJSON?.error || '역할 적용 실패');
+      });
+    });
+    $('#active-server-table').off('click', '.server-role-remove').on('click', '.server-role-remove', function() {
+      const tr = $(this).closest('tr');
+      const server = tr.data('server');
+      if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
+      $.post(`/remove_role/${server}`, {}, function(res) {
+        showNotification('success', '역할이 삭제되었습니다.');
+        loadActiveServers();
+      }).fail(function(xhr) {
+        showNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
+      });
     });
   });
   </script>

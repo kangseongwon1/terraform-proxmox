@@ -8,6 +8,7 @@ import threading
 import time
 import hcl
 import logging
+import tempfile
 
 # ssh 추가 해야함. 
 
@@ -986,6 +987,56 @@ def get_status(project_name):
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/assign_role/<server_name>', methods=['POST'])
+def assign_role(server_name):
+    role = request.form.get('role') or request.json.get('role')
+    if not role:
+        return jsonify({'success': False, 'error': '역할(role)을 지정해야 합니다.'}), 400
+    servers = read_servers_from_tfvars()
+    if server_name not in servers:
+        return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+    # 서버 IP 추출
+    server = servers[server_name]
+    ip = None
+    if 'network_devices' in server and server['network_devices']:
+        ip = server['network_devices'][0].get('ip_address')
+    if not ip:
+        return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
+    # 역할 변경
+    server['role'] = role
+    servers[server_name] = server
+    write_servers_to_tfvars(servers)
+    # 임시 인벤토리 파일 생성
+    with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
+        f.write(f'{server_name} ansible_host={ip} ansible_user={server.get("vm_username", "ubuntu")} ansible_ssh_pass={server.get("vm_password", "ubuntu123")}\n')
+        inventory_path = f.name
+    # ansible-playbook 실행
+    try:
+        result = subprocess.run([
+            'ansible-playbook', '-i', inventory_path, 'role_playbook.yml',
+            '-e', f'role={role}'
+        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
+        os.unlink(inventory_path)
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': result.stderr}), 500
+    except Exception as e:
+        if os.path.exists(inventory_path):
+            os.unlink(inventory_path)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/remove_role/<server_name>', methods=['POST'])
+def remove_role(server_name):
+    servers = read_servers_from_tfvars()
+    if server_name not in servers:
+        return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+    # 역할 제거
+    servers[server_name]['role'] = ''
+    write_servers_to_tfvars(servers)
+    # (옵션) ansible-playbook로 서비스 중지/삭제 역할 실행 가능
+    return jsonify({'success': True, 'message': '역할이 삭제되었습니다.'})
 
 # 로깅 설정
 logging.basicConfig(
