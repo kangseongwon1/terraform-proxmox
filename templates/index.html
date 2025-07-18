@@ -1448,6 +1448,19 @@
       $.post(`/assign_role/${server}`, { role }, function(res) {
         showNotification('success', '역할이 적용되었습니다.');
         loadActiveServers();
+        // Ansible 로그 모달 자동 표시
+        let log = '';
+        if (res.stdout || res.stderr) {
+          log += 'STDOUT:\n' + (res.stdout || '') + '\n\n';
+          log += 'STDERR:\n' + (res.stderr || '') + '\n';
+        }
+        $('#log-modal-content').text(log);
+        if (res.log_path) {
+          $('#log-modal-download').attr('href', '/'+res.log_path).show();
+        } else {
+          $('#log-modal-download').hide();
+        }
+        $('#log-modal').modal('show');
       }).fail(function(xhr) {
         let log = '';
         if (xhr.responseJSON) {

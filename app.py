@@ -1033,6 +1033,10 @@ def assign_role(server_name):
             logf.write('\n=== STDERR ===\n')
             logf.write(result.stderr)
         if result.returncode == 0:
+            # 역할 변경
+            server['role'] = role
+            servers[server_name] = server
+            write_servers_to_tfvars(servers)
             return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path})
         else:
             return jsonify({'success': False, 'error': 'Ansible 실행 실패', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path}), 500
