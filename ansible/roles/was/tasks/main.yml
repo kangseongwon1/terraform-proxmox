@@ -1,0 +1,26 @@
+---
+- name: Install dependencies for python3.12
+  ansible.builtin.apt:
+    name:
+      - software-properties-common
+      - wget
+    state: present
+    update_cache: yes
+
+- name: Add deadsnakes PPA
+  ansible.builtin.apt_repository:
+    repo: ppa:deadsnakes/ppa
+    state: present
+
+- name: Install python3.12
+  ansible.builtin.apt:
+    name: python3.12
+    state: present
+    update_cache: yes
+
+- name: Set python3.12 as default python3 (optional)
+  ansible.builtin.shell: |
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 2
+  args:
+    warn: false
+    executable: /bin/bash 

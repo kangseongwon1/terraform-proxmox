@@ -1,0 +1,14 @@
+---
+- name: Install OpenJDK 17.0.7
+  ansible.builtin.apt:
+    name: openjdk-17-jdk
+    state: present
+    update_cache: yes
+
+- name: Set JAVA_HOME in /etc/profile.d/java.sh
+  ansible.builtin.copy:
+    dest: /etc/profile.d/java.sh
+    content: |
+      export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+      export PATH=$JAVA_HOME/bin:$PATH
+    mode: '0644' 
