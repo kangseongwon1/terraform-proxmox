@@ -196,6 +196,12 @@ def add_server():
     ok, out, err = run_terraform_apply()
     logger.info(f"[add_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
     if not ok:
+        # 실패 시 tfvars.json 백업
+        import shutil
+        from datetime import datetime
+        backup_path = TFVARS_PATH + '.bak_' + datetime.now().strftime('%Y%m%d_%H%M%S')
+        shutil.copy(TFVARS_PATH, backup_path)
+        logger.info(f"[add_server] Terraform 실패로 tfvars.json 백업: {backup_path}")
         # 실패한 서버 정보 삭제
         del servers[server_name]
         write_servers_to_tfvars(servers)
