@@ -13,6 +13,14 @@ import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
+# .env 파일 로드
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("python-dotenv가 설치되지 않았습니다. pip install python-dotenv")
+    pass
+
 # 설정 파일 import
 from config import config
 
