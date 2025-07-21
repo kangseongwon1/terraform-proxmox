@@ -685,10 +685,15 @@ def delete_server(server_name):
 def stop_server(server_name):
     logger.info(f"[stop_server] 요청: {server_name}")
     try:
+        servers = read_servers_from_tfvars()
+        server = servers.get(server_name)
+        if not server or 'vmid' not in server:
+            return jsonify({'success': False, 'error': '서버의 VMID 정보를 찾을 수 없습니다.'}), 400
+        vmid = server['vmid']
         # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=stop"
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={server_name} action=stop"
+            '--extra-vars', f"target={vmid} action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
             logger.info(f"[stop_server] VM 중지 요청: vmid={server_name}")
@@ -704,10 +709,15 @@ def stop_server(server_name):
 def reboot_server(server_name):
     logger.info(f"[reboot_server] 요청: {server_name}")
     try:
+        servers = read_servers_from_tfvars()
+        server = servers.get(server_name)
+        if not server or 'vmid' not in server:
+            return jsonify({'success': False, 'error': '서버의 VMID 정보를 찾을 수 없습니다.'}), 400
+        vmid = server['vmid']
         # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=reboot"
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={server_name} action=reboot"
+            '--extra-vars', f"target={vmid} action=reboot"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
             logger.info(f"[reboot_server] VM 리부팅 요청: {server_name}")
