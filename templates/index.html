@@ -1152,7 +1152,7 @@
               </div>
             </td>
             <td>${s.cpu || 0}코어</td>
-            <td>${s.memory || 0}MB</td>
+            <td>${format2f(s.memory || 0)}MB</td>
             <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
             <td>${statusBadge}</td>
             <td>
@@ -1179,7 +1179,7 @@
         $('#total-servers').text(res.stats.total_servers);
         $('#running-servers').text(res.stats.running_servers);
         $('#stopped-servers').text(res.stats.stopped_servers);
-        $('#total-memory').text(res.stats.total_memory_gb);
+        $('#total-memory').text(format2f(res.stats.total_memory_gb));
       }).fail(function(xhr) {
         console.error('서버 상태 로드 실패:', xhr.responseText);
         // 실패 시 기존 방식으로 폴백
@@ -1192,8 +1192,8 @@
               <td><strong>${s.name}</strong></td>
               <td><span class="badge bg-primary">${s.role}</span></td>
               <td>${s.cpu || 0}코어</td>
-              <td>${s.memory || 0}MB</td>
-              <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : ''}</td>
+              <td>${format2f(s.memory || 0)}MB</td>
+              <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
               <td><span class="badge bg-success">활성</span></td>
               <td>
                 <div class="btn-group" role="group">
@@ -1219,7 +1219,7 @@
           $('#total-servers').text(Object.keys(res.servers).length);
           $('#running-servers').text(Object.keys(res.servers).length);
           $('#stopped-servers').text(0);
-          $('#total-memory').text(Math.round(totalMemory / 1024));
+          $('#total-memory').text(format2f(Math.round(totalMemory / 1024)));
         });
       });
     }
@@ -1333,8 +1333,8 @@
           html += `<tr>
             <td>${s.storage}</td>
             <td>${s.type === 'lvmthin' ? 'HDD' : (s.type === 'dir' ? 'SSD' : s.type)}</td>
-            <td>${(s.total / 1024 / 1024 / 1024).toFixed(1)}</td>
-            <td>${((s.total - s.used) / 1024 / 1024 / 1024).toFixed(1)}</td>
+            <td>${format2f(s.total / 1024 / 1024 / 1024)}</td>
+            <td>${format2f((s.total - s.used) / 1024 / 1024 / 1024)}</td>
             <td>
               <div class='progress' style='height: 16px;'>
                 <div class='progress-bar' role='progressbar' style='width: ${usedPercent}%;'>${usedPercent}%</div>
@@ -1456,8 +1456,8 @@
             html += `<tr>
               <td>${s.storage}</td>
               <td>${s.type === 'lvmthin' ? 'HDD' : (s.type === 'dir' ? 'SSD' : s.type)}</td>
-              <td>${(s.total / 1024 / 1024 / 1024).toFixed(1)}</td>
-              <td>${((s.total - s.used) / 1024 / 1024 / 1024).toFixed(1)}</td>
+              <td>${format2f(s.total / 1024 / 1024 / 1024)}</td>
+              <td>${format2f((s.total - s.used) / 1024 / 1024 / 1024)}</td>
               <td>
                 <div class='progress' style='height: 16px;'>
                   <div class='progress-bar' role='progressbar' style='width: ${usedPercent}%;'>${usedPercent}%</div>
@@ -1487,77 +1487,96 @@
       }
     });
 
-    // 역할 적용/삭제 이벤트 (서버 목록)
+    // 역할 적용/삭제 작업 중 중복 클릭 방지 및 안내 메시지
+    function setRowWorking(tr, working) {
+      if (working) {
+        if (tr.find('.role-working-msg').length === 0) {
+          tr.append('<td class="role-working-msg text-center text-primary" colspan="7">작업 중입니다...</td>');
+        }
+        tr.find('.server-role-apply, .server-role-remove, .server-role-select').prop('disabled', true);
+      } else {
+        tr.find('.role-working-msg').remove();
+        tr.find('.server-role-apply, .server-role-remove, .server-role-select').prop('disabled', false);
+      }
+    }
+    function setModalWorking(working) {
+      const modal = $('#server-detail-modal');
+      if (working) {
+        if (modal.find('.role-working-msg').length === 0) {
+          modal.find('.modal-body').prepend('<div class="role-working-msg text-center text-primary my-2">작업 중입니다...</div>');
+        }
+        modal.find('.server-detail-role-apply, .server-detail-role-remove, .server-detail-role-select').prop('disabled', true);
+      } else {
+        modal.find('.role-working-msg').remove();
+        modal.find('.server-detail-role-apply, .server-detail-role-remove, .server-detail-role-select').prop('disabled', false);
+      }
+    }
+    // 역할 적용 버튼 클릭 이벤트
     $('#active-server-table').off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
-      const tr = $(this).closest('tr');
+      const btn = $(this);
+      const tr = btn.closest('tr');
+      if (tr.find('.role-working-msg').length > 0) return; // 이미 작업 중이면 무시
+      setRowWorking(tr, true);
       const server = tr.data('server');
       const role = tr.find('.server-role-select').val();
       $.post(`/assign_role/${server}`, { role }, function(res) {
-        showNotification('success', '역할이 적용되었습니다.');
-        loadActiveServers();
-        // Ansible 로그 모달 자동 표시
-        let log = '';
-        if (res.stdout || res.stderr) {
-          log += 'STDOUT:\n' + (res.stdout || '') + '\n\n';
-          log += 'STDERR:\n' + (res.stderr || '') + '\n';
-        }
-        $('#log-modal-content').text(log);
-        if (res.log_path) {
-          $('#log-modal-download').attr('href', '/'+res.log_path).show();
-        } else {
-          $('#log-modal-download').hide();
-        }
-        $('#log-modal').modal('show');
-      }).fail(function(xhr) {
-        let log = '';
-        if (xhr.responseJSON) {
-          log += 'STDOUT:\n' + (xhr.responseJSON.stdout || '') + '\n\n';
-          log += 'STDERR:\n' + (xhr.responseJSON.stderr || '') + '\n';
-        } else {
-          log = xhr.statusText;
-        }
-        $('#log-modal-content').text(log);
-        if (xhr.responseJSON && xhr.responseJSON.log_path) {
-          $('#log-modal-download').attr('href', '/'+xhr.responseJSON.log_path).show();
-        } else {
-          $('#log-modal-download').hide();
-        }
-        $('#log-modal').modal('show');
-      });
-    });
-    // 상세 모달 내 역할 적용도 동일하게 로그 모달 처리
-    $('body').on('click', '.server-detail-role-apply', function() {
-      const name = $('#server-detail-modal .modal-title').text().replace('서버 상세 정보','').trim();
-      const role = $('#server-detail-body .server-detail-role-select').val();
-      $.post(`/assign_role/${name}`, { role }, function(res) {
-        showNotification('success', '역할이 적용되었습니다.');
-        $('#server-detail-modal').modal('hide');
+        setRowWorking(tr, false);
+        showNotification('success', '역할이 성공적으로 변경되었습니다.');
         loadActiveServers();
       }).fail(function(xhr) {
-        let log = '';
-        if (xhr.responseJSON) {
-          log += 'STDOUT:\n' + (xhr.responseJSON.stdout || '') + '\n\n';
-          log += 'STDERR:\n' + (xhr.responseJSON.stderr || '') + '\n';
-        } else {
-          log = xhr.statusText;
-        }
-        $('#log-modal-content').text(log);
-        if (xhr.responseJSON && xhr.responseJSON.log_path) {
-          $('#log-modal-download').attr('href', '/'+xhr.responseJSON.log_path).show();
-        } else {
-          $('#log-modal-download').hide();
-        }
-        $('#log-modal').modal('show');
+        setRowWorking(tr, false);
+        showNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
       });
     });
+    // 역할 삭제 버튼 클릭 이벤트
     $('#active-server-table').off('click', '.server-role-remove').on('click', '.server-role-remove', function() {
-      const tr = $(this).closest('tr');
-      const server = tr.data('server');
+      const btn = $(this);
+      const tr = btn.closest('tr');
+      if (tr.find('.role-working-msg').length > 0) return; // 이미 작업 중이면 무시
       if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
+      setRowWorking(tr, true);
+      const server = tr.data('server');
       $.post(`/remove_role/${server}`, {}, function(res) {
+        setRowWorking(tr, false);
         showNotification('success', '역할이 삭제되었습니다.');
         loadActiveServers();
       }).fail(function(xhr) {
+        setRowWorking(tr, false);
+        showNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
+      });
+    });
+    // 서버 상세 모달 내 역할 적용/삭제 버튼에도 동일하게 적용
+    $('body').on('click', '.server-detail-role-apply', function() {
+      const btn = $(this);
+      const modal = $('#server-detail-modal');
+      if (modal.find('.role-working-msg').length > 0) return; // 이미 작업 중이면 무시
+      setModalWorking(true);
+      const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
+      const role = $('#server-detail-body .server-detail-role-select').val();
+      $.post(`/assign_role/${name}`, { role }, function(res) {
+        setModalWorking(false);
+        showNotification('success', '역할이 성공적으로 변경되었습니다.');
+        modal.modal('hide');
+        loadActiveServers();
+      }).fail(function(xhr) {
+        setModalWorking(false);
+        showNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
+      });
+    });
+    $('body').on('click', '.server-detail-role-remove', function() {
+      const btn = $(this);
+      const modal = $('#server-detail-modal');
+      if (modal.find('.role-working-msg').length > 0) return; // 이미 작업 중이면 무시
+      if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
+      setModalWorking(true);
+      const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
+      $.post(`/remove_role/${name}`, {}, function(res) {
+        setModalWorking(false);
+        showNotification('success', '역할이 삭제되었습니다.');
+        modal.modal('hide');
+        loadActiveServers();
+      }).fail(function(xhr) {
+        setModalWorking(false);
         showNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
       });
     });
