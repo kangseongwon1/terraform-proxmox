@@ -11,6 +11,7 @@ import tempfile
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from database import db
 
 # .env 파일 로드
 try:
@@ -682,21 +683,21 @@ def delete_server(server_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
+@permission_required('delete_server')
 def stop_server(server_name):
     logger.info(f"[stop_server] 요청: {server_name}")
     try:
-        servers = read_servers_from_tfvars()
-        server = servers.get(server_name)
-        if not server or 'vmid' not in server:
-            return jsonify({'success': False, 'error': '서버의 VMID 정보를 찾을 수 없습니다.'}), 400
+        # DB에서 vmid 조회
+        server = db.get_server_by_name(server_name)
+        if not server or not server['vmid']:
+            return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
         vmid = server['vmid']
-        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=stop"
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
             '--extra-vars', f"target={vmid} action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info(f"[stop_server] VM 중지 요청: vmid={server_name}")
+            logger.info(f"[stop_server] VM 중지 요청: vmid={vmid}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
             logger.error(f"[stop_server] 중지 실패: {result.stderr}")
@@ -706,21 +707,21 @@ def stop_server(server_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/reboot_server/<server_name>', methods=['POST'])
+@permission_required('delete_server')
 def reboot_server(server_name):
     logger.info(f"[reboot_server] 요청: {server_name}")
     try:
-        servers = read_servers_from_tfvars()
-        server = servers.get(server_name)
-        if not server or 'vmid' not in server:
-            return jsonify({'success': False, 'error': '서버의 VMID 정보를 찾을 수 없습니다.'}), 400
+        # DB에서 vmid 조회
+        server = db.get_server_by_name(server_name)
+        if not server or not server['vmid']:
+            return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
         vmid = server['vmid']
-        # ansible-playbook -i inventory playbook.yml --extra-vars "target=<server_name> action=reboot"
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
             '--extra-vars', f"target={vmid} action=reboot"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info(f"[reboot_server] VM 리부팅 요청: {server_name}")
+            logger.info(f"[reboot_server] VM 리부팅 요청: vmid={vmid}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
         else:
             logger.error(f"[reboot_server] 리부팅 실패: {result.stderr}")
