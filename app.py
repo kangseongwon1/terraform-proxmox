@@ -6,7 +6,6 @@ import yaml
 from datetime import datetime
 import threading
 import time
-import hcl
 import logging
 import tempfile
 import secrets
@@ -29,6 +28,45 @@ app = Flask(__name__)
 # 환경 변수에서 설정 로드
 config_name = os.environ.get('FLASK_ENV', 'development')
 app.config.from_object(config[config_name])
+
+# --- 권한/상수/데코레이터 정의를 상단에 위치 ---
+TERRAFORM_DIR = 'terraform'
+ANSIBLE_DIR = 'ansible'
+PROJECTS_DIR = 'projects'
+TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
+
+PERMISSION_LIST = [
+    'view_all', 'create_server', 'delete_server', 'assign_roles', 'remove_roles', 'manage_users', 'view_logs', 'manage_roles'
+]
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '로그인이 필요합니다.'}), 401
+        user = get_user(session['user_id'])
+        if not user or 'admin' != user.get('role'):
+            return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+def permission_required(permission):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                return jsonify({'error': '로그인이 필요합니다.'}), 401
+            user = get_user(session['user_id'])
+            if not user:
+                return jsonify({'error': '사용자 정보를 찾을 수 없습니다.'}), 403
+            # admin은 무조건 통과
+            if user.get('role') == 'admin':
+                return f(*args, **kwargs)
+            if permission not in user.get('permissions', []):
+                return jsonify({'error': '권한이 없습니다.'}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # 보안 헤더 설정 (개발 환경에서는 비활성화)
 @app.after_request
@@ -55,60 +93,15 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# 관리자 권한 필요 데코레이터
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return jsonify({'error': '로그인이 필요합니다.'}), 401
-        if session.get('role') != 'admin':
-            return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
-        return f(*args, **kwargs)
-    return decorated_function
-
-# 역할별 권한 매핑
-ROLE_PERMISSIONS = {
-    'admin': [
-        'view_all', 'create_server', 'delete_server', 'manage_users',
-        'assign_roles', 'view_logs', 'manage_roles'
-    ],
-    'developer': [
-        'view_all', 'create_server', 'delete_server'
-    ],
-    'operator': [
-        'view_all', 'create_server'
-    ],
-    'viewer': [
-        'view_all'
-    ]
-}
-
-def permission_required(permission):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            user_role = session.get('role')
-            if not user_role or permission not in ROLE_PERMISSIONS.get(user_role, []):
-                return jsonify({'error': '권한이 없습니다.'}), 403
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-# 설정
-TERRAFORM_DIR = 'terraform'
-ANSIBLE_DIR = 'ansible'
-PROJECTS_DIR = 'projects'
-TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
-
 # 파일 기반 사용자 관리
 def load_users():
-    """users.json에서 사용자 정보 로드"""
+    """users.json에서 사용자 정보 로드 및 permissions 필드 마이그레이션"""
     try:
         with open('users.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
+            users = json.load(f)
     except FileNotFoundError:
         # 기본 사용자 생성
-        default_users = {
+        users = {
             'admin': {
                 'password_hash': generate_password_hash('admin123!'),
                 'role': 'admin',
@@ -116,11 +109,25 @@ def load_users():
                 'name': '시스템 관리자',
                 'created_at': datetime.now().isoformat(),
                 'last_login': None,
-                'is_active': True
+                'is_active': True,
+                'permissions': PERMISSION_LIST.copy()
             }
         }
-        save_users(default_users)
-        return default_users
+        save_users(users)
+        return users
+    # 마이그레이션: permissions 필드가 없으면 추가
+    changed = False
+    for username, user in users.items():
+        if 'permissions' not in user:
+            if user.get('role') == 'admin':
+                user['permissions'] = PERMISSION_LIST.copy()
+            else:
+                # 기본 권한: view_all만 부여
+                user['permissions'] = ['view_all']
+            changed = True
+    if changed:
+        save_users(users)
+    return users
 
 def save_users(users):
     """사용자 정보를 users.json에 저장"""
@@ -258,6 +265,9 @@ SERVER_ROLES = {
 def index():
     if 'user_id' not in session:
         return redirect(url_for('login'))
+    user = get_user(session['user_id'])
+    # 세션에 permissions 저장
+    session['permissions'] = user.get('permissions', []) if user else []
     return render_template('index.html', roles=SERVER_ROLES)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -272,14 +282,12 @@ def login():
             session['role'] = user['role']
             session['user_name'] = user.get('name', username)
             session['user_email'] = user.get('email', '')
-            
+            session['permissions'] = user.get('permissions', [])
             # 마지막 로그인 시간 업데이트
             update_user_login(username)
-            
             return redirect(url_for('index'))
         else:
             return render_template('login.html', error='잘못된 사용자명 또는 비밀번호입니다.')
-    
     return render_template('login.html')
 
 @app.route('/logout')
@@ -288,9 +296,9 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/users', methods=['GET'])
-@admin_required
+@permission_required('manage_users')
 def list_users():
-    """사용자 목록 조회 (관리자만)"""
+    """사용자 목록 조회 (권한 필요)"""
     users = load_users()
     # 비밀번호 해시는 제외하고 반환
     safe_users = {}
@@ -301,32 +309,32 @@ def list_users():
             'role': user_data.get('role', 'user'),
             'is_active': user_data.get('is_active', True),
             'created_at': user_data.get('created_at', ''),
-            'last_login': user_data.get('last_login', '')
+            'last_login': user_data.get('last_login', ''),
+            'permissions': user_data.get('permissions', [])
         }
     return jsonify({'users': safe_users})
 
-# 사용자 생성 시 기본 role='viewer' 적용
 @app.route('/users', methods=['POST'])
-@admin_required
+@permission_required('manage_users')
 def create_user():
-    """새 사용자 생성 (관리자만)"""
+    """새 사용자 생성 (권한 필요)"""
     data = request.json
     username = data.get('username')
     password = data.get('password')
     name = data.get('name', username)
     email = data.get('email', '')
-    # 기본 역할은 viewer, admin만 변경 가능
     role = data.get('role', 'viewer')
-    if role not in ROLE_PERMISSIONS:
-        role = 'viewer'
-    
+    permissions = data.get('permissions')
+    if not permissions:
+        # 기본 권한: view_all만 부여
+        permissions = ['view_all']
+    if role == 'admin':
+        permissions = PERMISSION_LIST.copy()
     if not username or not password:
         return jsonify({'error': '사용자명과 비밀번호는 필수입니다.'}), 400
-    
     users = load_users()
     if username in users:
         return jsonify({'error': '이미 존재하는 사용자명입니다.'}), 400
-    
     users[username] = {
         'password_hash': generate_password_hash(password),
         'role': role,
@@ -334,24 +342,40 @@ def create_user():
         'name': name,
         'created_at': datetime.now().isoformat(),
         'last_login': None,
-        'is_active': True
+        'is_active': True,
+        'permissions': permissions
     }
-    
     save_users(users)
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
 
-# 사용자 역할 변경 (관리자만)
-@app.route('/users/<username>/role', methods=['POST'])
-@admin_required
-def change_user_role(username):
+@app.route('/users/<username>/permissions', methods=['POST'])
+@permission_required('manage_users')
+def change_user_permissions(username):
     data = request.json
-    new_role = data.get('role')
-    if new_role not in ROLE_PERMISSIONS:
-        return jsonify({'error': '존재하지 않는 역할입니다.'}), 400
+    permissions = data.get('permissions', [])
     users = load_users()
     if username not in users:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    users[username]['role'] = new_role
+    if users[username].get('role') == 'admin':
+        return jsonify({'error': 'admin 권한은 변경할 수 없습니다.'}), 400
+    users[username]['permissions'] = permissions
+    save_users(users)
+    return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
+
+@app.route('/users/<username>/role', methods=['POST'])
+@permission_required('manage_users')
+def change_user_role(username):
+    data = request.json
+    new_role = data.get('role')
+    users = load_users()
+    if username not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    if new_role == 'admin':
+        users[username]['role'] = 'admin'
+        users[username]['permissions'] = PERMISSION_LIST.copy()
+    else:
+        users[username]['role'] = new_role
+        # 기존 권한 유지(별도 변경 가능)
     save_users(users)
     return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
 
@@ -510,11 +534,6 @@ def create_server():
             return jsonify({'success': False, 'error': '동일한 프로젝트명이 이미 존재합니다. 다른 이름을 사용하세요.'}), 400
         os.makedirs(project_path, exist_ok=False)
         
-        # Terraform 파일 생성
-        create_terraform_files(project_path, server_config)
-        
-        # Ansible 플레이북 생성
-        create_ansible_playbook(project_path, server_config)
         
         # 백그라운드에서 인프라 생성 시작
         thread = threading.Thread(target=deploy_infrastructure, args=(project_path, server_config))
@@ -577,7 +596,10 @@ def netmask_to_cidr(netmask):
     except Exception:
         return netmask  # 변환 실패 시 원래 값 반환
 
+
+
 @app.route('/add_server', methods=['POST'])
+@permission_required('create_server')
 def add_server():
     data = request.json
     logger.info(f"[add_server] 요청: {data}")
@@ -589,22 +611,18 @@ def add_server():
     if server_name in servers:
         logger.error(f"[add_server] 중복 서버 이름: {server_name}")
         return jsonify({'success': False, 'error': f'이미 동일한 이름({server_name})의 서버가 존재합니다.'}), 400
-    # 역할 값이 없으면 빈 값으로 저장
+    # 필요한 변수만 저장
     if 'role' not in data or not data['role']:
         data['role'] = ''
-    # OS별 계정/비밀번호 저장
     os_type = data.get('os_type', 'rocky')
     data['vm_username'] = get_default_username(os_type)
     data['vm_password'] = get_default_password(os_type)
-    # disks의 모든 요소에 datastore_id가 반드시 포함되도록 보정
     if 'disks' in data:
         for disk in data['disks']:
             if 'datastore_id' not in disk or not disk['datastore_id']:
                 disk['datastore_id'] = 'local-lvm'
-    # network_devices의 각 요소에 subnet, gateway가 누락되면 기본값 보정 (예: subnet=24, gateway='')
     if 'network_devices' in data:
         for net in data['network_devices']:
-            # subnet이 넷마스크 표기면 CIDR로 변환
             if 'subnet' in net and '.' in str(net['subnet']):
                 net['subnet'] = netmask_to_cidr(net['subnet'])
             if 'subnet' not in net or not net['subnet']:
@@ -613,16 +631,15 @@ def add_server():
                 net['gateway'] = ''
     servers[server_name] = data
     write_servers_to_tfvars(servers)
+    # terraform apply만 실행 (파일 생성 X)
     ok, out, err = run_terraform_apply()
     logger.info(f"[add_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
     if not ok:
-        # 실패 시 tfvars.json 백업
         import shutil
         from datetime import datetime
         backup_path = TFVARS_PATH + '.bak_' + datetime.now().strftime('%Y%m%d_%H%M%S')
         shutil.copy(TFVARS_PATH, backup_path)
         logger.info(f"[add_server] Terraform 실패로 tfvars.json 백업: {backup_path}")
-        # 실패한 서버 정보 삭제
         del servers[server_name]
         write_servers_to_tfvars(servers)
         logger.info(f"[add_server] Terraform 실패로 서버 정보 삭제: {server_name}")
@@ -633,10 +650,8 @@ def add_server():
 @app.route('/delete_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')
 def delete_server(server_name):
-    print(f"[DEBUG] delete_server 진입: {server_name}")
-    logger.info(f"[delete_server] 서버: {server_name}")
+    logger.info(f"[delete_server] 요청: {server_name}")
     try:
-        print("[DEBUG] 서버 삭제 로직 시작")
         servers = read_servers_from_tfvars()
         if server_name in servers:
             del servers[server_name]
@@ -653,7 +668,6 @@ def delete_server(server_name):
             return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
     except Exception as e:
         logger.exception("[delete_server] 서버 삭제 중 예외 발생")
-        print(f"[DEBUG] 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
@@ -666,7 +680,7 @@ def stop_server(server_name):
             '--extra-vars', f"target={server_name} action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info(f"[stop_server] VM 중지 요청: vmid={target_vm['vmid']}")
+            logger.info(f"[stop_server] VM 중지 요청: vmid={server_name}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
             logger.error(f"[stop_server] 중지 실패: {result.stderr}")
@@ -685,7 +699,7 @@ def reboot_server(server_name):
             '--extra-vars', f"target={server_name} action=reboot"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info(f"[reboot_server] VM 리부팅 요청: vmid={target_vm['vmid']}")
+            logger.info(f"[reboot_server] VM 리부팅 요청: {server_name}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
         else:
             logger.error(f"[reboot_server] 리부팅 실패: {result.stderr}")
@@ -934,431 +948,8 @@ def proxmox_storage():
         logger.exception(f"[proxmox_storage] 예외 발생: {e}")
         return {'error': str(e)}, 500
 
-def create_terraform_files(project_path, config):
-    """Terraform 파일 생성 - OS별 템플릿 ID 지원"""
-    # OS별 템플릿 ID 매핑
-    template_mapping = {
-        'rocky': 8000, 
-        'ubuntu': 9000 # Rocky Linux 8 템플릿 ID
-    }
-    
-    template_id = template_mapping.get(config['os_type'], 8000)
-    
-    # main.tf 생성
-    main_tf = f"""
-terraform {{
-  required_providers {{
-    proxmox = {{
-      source  = "bpg/proxmox"
-      version = "~> 0.40"
-    }}
-  }}
-}}
-
-provider "proxmox" {{
-  endpoint = var.proxmox_endpoint
-  username = var.proxmox_username
-  password = var.proxmox_password
-  insecure = true
-}}
-
-resource "proxmox_virtual_environment_vm" "server" {{
-  count = {config['count']}
-  name  = "${{var.project_name}}-{config['role']}-${{count.index + 1}}"
-  
-  node_name = var.proxmox_node
-  
-  cpu {{
-    cores = {config['cpu']}
-  }}
-  
-  memory {{
-    dedicated = {config['memory']}
-  }}
-  
-  {generate_disk_blocks(config['disks'])}
-  
-  {generate_network_devices(config['network_devices'], config['ip_addresses'])}
-  
-  initialization {{
-    user_account {{
-      username = var.vm_username
-      password = var.vm_password
-      keys    = var.ssh_keys
-    }}
-    
-    ip_config {{
-      ipv4 {{
-        address = "${{var.ip_addresses[count.index]}}/24"
-        gateway = var.gateway
-      }}
-    }}
-  }}
-  
-  operating_system {{
-    type = "l26"
-  }}
-  
-  clone {{
-    vm_id = var.template_vm_id
-  }}
-
-}}
-
-output "vm_ips" {{
-  value = proxmox_virtual_environment_vm.server[*].ipv4_addresses
-}}
-
-output "vm_names" {{
-  value = proxmox_virtual_environment_vm.server[*].name
-}}
-"""
-    
-    # variables.tf 생성
-    variables_tf = """
-variable "proxmox_endpoint" {
-  description = "Proxmox VE endpoint"
-  type        = string
-}
-
-variable "proxmox_username" {
-  description = "Proxmox VE username"
-  type        = string
-}
-
-variable "proxmox_password" {
-  description = "Proxmox VE password"
-  type        = string
-}
-
-variable "proxmox_node" {
-  description = "Proxmox VE node name"
-  type        = string
-}
-
-variable "proxmox_datastore" {
-  description = "Proxmox VE datastore"
-  type        = string
-}
-
-variable "project_name" {
-  description = "Project name"
-  type        = string
-}
-
-variable "vm_username" {
-  description = "VM username"
-  type        = string
-}
-
-variable "vm_password" {
-  description = "VM password"
-  type        = string
-}
-
-variable "ssh_keys" {
-  description = "ssh keys"
-  type        = list(string)
-}
-
-variable "template_vm_id" {
-  description = "Template VM ID"
-  type        = number
-}
-
-variable "ip_addresses" {
-  description = "IP addresses for VMs"
-  type        = list(string)
-}
-
-variable "gateway" {
-  description = "Gateway IP"
-  type        = string
-}
-"""
-
-    # terraform.tfvars 생성
-    tfvars = f"""
-proxmox_endpoint = "https://prox.dmcmedia.co.kr:8006"
-proxmox_username = "root@pam"
-proxmox_password = "dmc1234)(*&"
-proxmox_node = "prox"
-proxmox_datastore = "local-lvm"
-project_name = "{config['project_name']}"
-vm_username = "{get_default_username(config['os_type'])}"
-vm_password = "{get_default_password(config['os_type'])}"
-ssh_keys = ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC5YjxN0N+Xbuv3RJwcUxBXqwlueHXNMidIXHagPO6xXovqo/ypq1EHMKJKXKQND1G2pACX1EIDIF/6gLFVOAMn1tzeiMttn4UskHLGz+oM7PMS3uFnVIN/uBQNDlYxKcyiYvdrP+mxiQsa7lyuxYfcAySoFx64l+giAGppKNuDPBz2SPY87I+V06/+eo6Rnd2XHmJvqpVclEwezZ+WQfkFYRKxxnWAWl2m6apdio2kPyRxEwCP19moyVlQhm5b+IAoktHgaDYFr1YrQ9J/QCSVYkiG3IDCOwI4k+O0MaV5Uelj0NaTDv4Pb2Dv2/86VPTrKOucSs8o0JqboHjKtfEKfmDym25YnTaF+tXGzPkAk8b3l7oESC2SFvPTO3lyiE84dGniQNtJg9YwUb5NxynOk9yydd0L3E6ikfTpdokwjd49GgE/KxkcZjhrxLwUMyJ0SLf/vqaRc9GmTn7JTeqnObMhArXjHuTXmfcL2Q9DYEREVfioWLgu7CPxfdS2+fc= dmc_dev@localhost.localdomain"]
-template_vm_id = {template_id}
-ip_addresses = {json.dumps(config['ip_addresses'])}
-gateway = "192.168.0.1"
-os_type = "{config['os_type']}"
-"""
-
-    # 파일 저장
-    with open(os.path.join(project_path, 'main.tf'), 'w') as f:
-        f.write(main_tf)
-    
-    with open(os.path.join(project_path, 'variables.tf'), 'w') as f:
-        f.write(variables_tf)
-    
-    with open(os.path.join(project_path, 'terraform.tfvars'), 'w') as f:
-        f.write(tfvars)
-
-def get_default_username(os_type):
-    """OS별 기본 사용자명 반환"""
-    defaults = {
-        'rocky': 'rocky',
-        'ubuntu': 'ubuntu'
-    }
-    return defaults.get(os_type, 'rocky')
-
-def get_default_password(os_type):
-    """OS별 기본 비밀번호 반환"""
-    defaults = {
-        'rocky': 'rocky123',
-        'ubuntu': 'ubuntu123'
-    }
-    return defaults.get(os_type, 'rocky123') 
-
-def generate_disk_blocks(disks):
-    blocks = []
-    for idx, disk in enumerate(disks):
-        iface = disk.get('interface') or f'scsi{idx}'
-        size = disk.get('size', 20)
-        datastore = disk.get('datastore_id', 'local-lvm')
-        blocks.append(f'''
-  disk {{
-    interface = "{iface}"
-    size      = {size}
-    file_format = "qcow2"
-    datastore_id = "{datastore}"
-  }}''')
-    return '\n'.join(blocks)
-
-def generate_network_devices(device_count, ip_addresses):
-    """네트워크 디바이스 생성"""
-    network_configs = []
-    for i in range(device_count):
-        network_config = f"""
-  network_device {{
-    bridge = "vmbr{i}"
-  }}"""
-        network_configs.append(network_config)
-    return ''.join(network_configs)
-
-def create_ansible_playbook(project_path, config):
-    """Ansible 플레이북 생성"""
-    role_info = SERVER_ROLES.get(config['role'], {})
-    os_type = config['os_type']
-    
-    # 인벤토리 파일 생성
-    inventory = f"""
-[{config['role']}_servers]
-"""
-    username = get_default_username(os_type)
-    for i, ip in enumerate(config['ip_addresses']):
-        inventory += f"{config['project_name']}-{config['role']}-{i+1} ansible_host={ip} ansible_user={username} ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'\n"
-    
-    # 플레이북 생성
-    playbook = {
-        'name': f'Configure {role_info.get("name", config["role"])} servers',
-        'hosts': f'{config["role"]}_servers',
-        'become': True,
-        'tasks': [
-            {
-                'name': 'Update apt cache',
-                'apt': {
-                    'update_cache': True,
-                    'cache_valid_time': 3600
-                },
-                'when': 'ansible_os_family == "Debian"'
-            },
-            {
-                'name': 'Install required packages',
-                'apt': {
-                    'name': role_info.get('packages', []),
-                    'state': 'present'
-                },
-                'when': 'ansible_os_family == "Debian"'
-            },
-            {
-                'name': 'Update package cache (Rocky/RHEL)',
-                'yum': {
-                    'update_cache': True
-                },
-                'when': 'ansible_os_family == "RedHat"'
-            }
-        ]
-    }
-
-    # OS별 패키지 설치
-    packages = role_info.get('packages', {})
-    if isinstance(packages, dict):
-        ubuntu_packages = packages.get('ubuntu', [])
-        rocky_packages = packages.get('rocky', [])
-        
-        if ubuntu_packages:
-            playbook['tasks'].append({
-                'name': 'Install required packages (Ubuntu)',
-                'apt': {
-                    'name': ubuntu_packages,
-                    'state': 'present'
-                },
-                'when': 'ansible_os_family == "Debian"'
-            })
-        
-        if rocky_packages:
-            playbook['tasks'].append({
-                'name': 'Install required packages (Rocky)',
-                'yum': {
-                    'name': rocky_packages,
-                    'state': 'present'
-                },
-                'when': 'ansible_os_family == "RedHat"'
-            })
-    
-
-   # 서비스 시작 (OS별 서비스명 고려)
-    services = role_info.get('services', [])
-    if isinstance(services, dict):
-        # OS별 서비스명이 다른 경우
-        ubuntu_services = services.get('ubuntu', [])
-        rocky_services = services.get('rocky', [])
-        
-        for service in ubuntu_services:
-            playbook['tasks'].append({
-                'name': f'Start and enable {service} (Ubuntu)',
-                'systemd': {
-                    'name': service,
-                    'state': 'started',
-                    'enabled': True
-                },
-                'when': 'ansible_os_family == "Debian"'
-            })
-        
-        for service in rocky_services:
-            playbook['tasks'].append({
-                'name': f'Start and enable {service} (Rocky)',
-                'systemd': {
-                    'name': service,
-                    'state': 'started',
-                    'enabled': True
-                },
-                'when': 'ansible_os_family == "RedHat"'
-            })
-    else:
-        # 공통 서비스명인 경우
-        for service in services:
-            playbook['tasks'].append({
-                'name': f'Start and enable {service}',
-                'systemd': {
-                    'name': service,
-                    'state': 'started',
-                    'enabled': True
-                }
-            })
-    
-    # Rocky Linux 전용 설정
-    if os_type == 'rocky':
-        playbook['tasks'].extend([
-            {
-                'name': 'Enable EPEL repository',
-                'yum': {
-                    'name': 'epel-release',
-                    'state': 'present'
-                }
-            },
-            {
-                'name': 'Disable SELinux (if needed)',
-                'selinux': {
-                    'state': 'permissive',
-                    'policy': 'targeted'
-                },
-                'when': 'ansible_selinux.status == "enabled"'
-            }
-        ])
-    
-    # 역할별 특별 설정도 OS별로 분기
-    if config['role'] == 'web':
-        if os_type == 'ubuntu':
-            playbook['tasks'].extend([
-                {
-                    'name': 'Create nginx config (Ubuntu)',
-                    'template': {
-                        'src': 'nginx.conf.j2',
-                        'dest': '/etc/nginx/sites-available/default'
-                    },
-                    'when': 'ansible_os_family == "Debian"'
-                },
-                {
-                    'name': 'Enable nginx site (Ubuntu)',
-                    'file': {
-                        'src': '/etc/nginx/sites-available/default',
-                        'dest': '/etc/nginx/sites-enabled/default',
-                        'state': 'link'
-                    },
-                    'when': 'ansible_os_family == "Debian"'
-                }
-            ])
-        elif os_type == 'rocky':
-            playbook['tasks'].extend([
-                {
-                    'name': 'Create nginx config (Rocky)',
-                    'template': {
-                        'src': 'nginx-rocky.conf.j2',
-                        'dest': '/etc/nginx/nginx.conf'
-                    },
-                    'when': 'ansible_os_family == "RedHat"'
-                },
-                {
-                    'name': 'Open firewall for HTTP (Rocky)',
-                    'firewalld': {
-                        'service': 'http',
-                        'permanent': True,
-                        'state': 'enabled'
-                    },
-                    'when': 'ansible_os_family == "RedHat"'
-                }
-            ])
-    
-    elif config['role'] == 'db':
-        if os_type == 'ubuntu':
-            playbook['tasks'].extend([
-                {
-                    'name': 'Secure MySQL installation (Ubuntu)',
-                    'mysql_user': {
-                        'name': 'root',
-                        'password': 'mysql_root_password',
-                        'login_unix_socket': '/var/run/mysqld/mysqld.sock'
-                    },
-                    'when': 'ansible_os_family == "Debian"'
-                }
-            ])
-        elif os_type == 'rocky':
-            playbook['tasks'].extend([
-                {
-                    'name': 'Start MySQL service (Rocky)',
-                    'systemd': {
-                        'name': 'mysqld',
-                        'state': 'started',
-                        'enabled': True
-                    },
-                    'when': 'ansible_os_family == "RedHat"'
-                },
-                {
-                    'name': 'Get MySQL temporary password (Rocky)',
-                    'shell': "grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'",
-                    'register': 'mysql_temp_password',
-                    'when': 'ansible_os_family == "RedHat"'
-                }
-            ])
-    
-    # 파일 저장
-    with open(os.path.join(project_path, 'inventory'), 'w') as f:
-        f.write(inventory)
-    
-    with open(os.path.join(project_path, 'playbook.yml'), 'w') as f:
-        yaml.dump([playbook], f, default_flow_style=False, indent=2)
+# 기타 projects 디렉토리, 동적 파일 생성, ansible/terraform 파일 생성 관련 코드 모두 삭제
+# app.py는 변수 전달 및 결과 처리만 담당
 
 def deploy_infrastructure(project_path, config):
     """인프라 배포 실행"""
@@ -1428,17 +1019,14 @@ def get_status(project_name):
 @app.route('/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
-    print(f"[DEBUG] assign_role 진입: {server_name}")
-    logger.info(f"[assign_role] 서버: {server_name}, 요청 데이터: {request.form.to_dict()}")
+    logger.info(f"[assign_role] 서버: {server_name}, 요청 데이터: {request.form.to_dict() if request.form else request.json}")
     try:
-        print("[DEBUG] 역할 할당 로직 시작")
-        role = request.form.get('role') or request.json.get('role')
+        role = request.form.get('role') if request.form else request.json.get('role')
         if not role:
             return jsonify({'success': False, 'error': '역할(role)을 지정해야 합니다.'}), 400
         servers = read_servers_from_tfvars()
         if server_name not in servers:
             return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
-        # 서버 IP/계정 추출
         server = servers[server_name]
         ip = None
         if 'network_devices' in server and server['network_devices']:
@@ -1447,9 +1035,7 @@ def assign_role(server_name):
             return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
         username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
         # 임시 인벤토리 파일 생성
-        import datetime
-        import os
-        import tempfile
+        import datetime, tempfile, os
         now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         log_dir = os.path.join('logs')
         os.makedirs(log_dir, exist_ok=True)
@@ -1475,17 +1061,12 @@ def assign_role(server_name):
             servers[server_name] = server
             write_servers_to_tfvars(servers)
             logger.info(f"[assign_role] 역할 할당 성공: {server_name}")
-            print("[DEBUG] 역할 할당 성공")
             return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path})
         else:
             logger.error(f"[assign_role] Ansible 실행 실패: {result.stderr}")
-            print(f"[DEBUG] 예외 발생: {result.stderr}")
             return jsonify({'success': False, 'error': 'Ansible 실행 실패', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path}), 500
     except Exception as e:
         logger.exception(f"[assign_role] 역할 할당 중 예외 발생: {e}")
-        print(f"[DEBUG] 예외 발생: {e}")
-        if os.path.exists(inventory_path):
-            os.unlink(inventory_path)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/remove_role/<server_name>', methods=['POST'])
@@ -1498,6 +1079,22 @@ def remove_role(server_name):
     write_servers_to_tfvars(servers)
     # (옵션) ansible-playbook로 서비스 중지/삭제 역할 실행 가능
     return jsonify({'success': True, 'message': '역할이 삭제되었습니다.'})
+
+def get_default_username(os_type):
+    """OS별 기본 사용자명 반환"""
+    defaults = {
+        'rocky': 'rocky',
+        'ubuntu': 'ubuntu'
+    }
+    return defaults.get(os_type, 'rocky')
+
+def get_default_password(os_type):
+    """OS별 기본 비밀번호 반환"""
+    defaults = {
+        'rocky': 'rocky123',
+        'ubuntu': 'ubuntu123'
+    }
+    return defaults.get(os_type, 'rocky123')
 
 # 로깅 설정
 logging.basicConfig(
