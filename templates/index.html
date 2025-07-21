@@ -1022,7 +1022,7 @@
     };
 
     // 서버 생성 버튼 클릭
-    $('#create-servers-btn').on('click', function() {
+    $('#create-server-btn').on('click', function() {
       const selectedRole = $('#role-select').val() || '';
       const selectedOS = $('#os-select').val();
       
@@ -1055,7 +1055,7 @@
 
     // 기본 서버 생성 함수
     function createBasicServer(name, selectedOS, selectedRole) {
-      const btn = $('#create-servers-btn');
+      const btn = $('#create-server-btn');
       const originalText = btn.html();
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
       
