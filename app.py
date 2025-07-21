@@ -708,7 +708,7 @@ def stop_server(server_name):
         vmid = server['vmid']
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={vmid} action=stop"
+            '--extra-vars', f"target={vmid} vm_action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
             logger.info(f"[stop_server] VM 중지 요청: vmid={vmid}")
@@ -732,7 +732,7 @@ def reboot_server(server_name):
         vmid = server['vmid']
         result = subprocess.run([
             'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={vmid} action=reboot"
+            '--extra-vars', f"target={vmid} vm_action=reboot"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
             logger.info(f"[reboot_server] VM 리부팅 요청: vmid={vmid}")

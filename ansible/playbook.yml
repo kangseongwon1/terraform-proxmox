@@ -40,7 +40,7 @@
         force_basic_auth: yes
         validate_certs: no
         status_code: [200]
-      when: action == "stop"
+      when: vm_action == "stop"
       register: stop_result
       
     - name: Reboot VM
@@ -52,7 +52,7 @@
         force_basic_auth: yes
         validate_certs: no
         status_code: [200]
-      when: action == "reboot"
+      when: vm_action == "reboot"
       register: reboot_result
       
     - name: Start VM
@@ -64,13 +64,13 @@
         force_basic_auth: yes
         validate_certs: no
         status_code: [200]
-      when: action == "start"
+      when: vm_action == "start"
       register: start_result
       
     - name: Show result
       debug:
-        msg: "{{ target }} VM {{ action }} completed successfully"
+        msg: "{{ target }} VM {{ vm_action }} completed successfully"
       when: 
-        - action == "stop" and stop_result is defined
-        - or action == "reboot" and reboot_result is defined
-        - or action == "start" and start_result is defined 
+        - vm_action == "stop" and stop_result is defined
+        - or vm_action == "reboot" and reboot_result is defined
+        - or vm_action == "start" and start_result is defined 
