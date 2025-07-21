@@ -124,7 +124,29 @@ SERVER_ROLES = {
 
 @app.route('/')
 def index():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
     return render_template('index.html', roles=SERVER_ROLES)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
+            session['user_id'] = username
+            session['role'] = USERS[username]['role']
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error='잘못된 사용자명 또는 비밀번호입니다.')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/projects', methods=['GET'])
 def list_projects():
