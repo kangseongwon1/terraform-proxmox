@@ -53,6 +53,7 @@ class Database:
                     details TEXT,
                     severity TEXT DEFAULT 'info',
                     user_id TEXT,
+                    owner TEXT,
                     is_read BOOLEAN DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -70,6 +71,7 @@ class Database:
                     os_type TEXT,
                     cpu INTEGER,
                     memory INTEGER,
+                    owner TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -81,6 +83,7 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT UNIQUE NOT NULL,
                     status TEXT DEFAULT 'pending',
+                    owner TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -176,34 +179,35 @@ class Database:
         return None
     
     # 알림 관리
-    def add_notification(self, type, title, message, details=None, severity='info', user_id=None):
+    def add_notification(self, type, title, message, details=None, severity='info', user_id=None, owner=None):
         """새 알림 추가"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO notifications (type, title, message, details, severity, user_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (type, title, message, details, severity, user_id))
+                INSERT INTO notifications (type, title, message, details, severity, user_id, owner)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (type, title, message, details, severity, user_id, owner))
             conn.commit()
             return cursor.lastrowid
     
-    def get_notifications(self, limit=20, user_id=None):
+    def get_notifications(self, limit=20, user_id=None, owner=None):
         """알림 목록 조회"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            if user_id:
+            if owner:
                 cursor.execute('''
                     SELECT * FROM notifications 
-                    WHERE user_id = ? OR user_id IS NULL
+                    WHERE (user_id = ? OR user_id IS NULL OR user_id = 'all') AND (owner = ? OR owner IS NULL)
                     ORDER BY created_at DESC 
                     LIMIT ?
-                ''', (user_id, limit))
+                ''', (user_id, owner, limit))
             else:
                 cursor.execute('''
                     SELECT * FROM notifications 
+                    WHERE (user_id = ? OR user_id IS NULL OR user_id = 'all')
                     ORDER BY created_at DESC 
                     LIMIT ?
-                ''', (limit,))
+                ''', (user_id, limit))
             return cursor.fetchall()
     
     def get_unread_count(self, user_id=None):
@@ -240,14 +244,14 @@ class Database:
             return cursor.rowcount
     
     # 서버 관리
-    def add_server(self, name, vmid=None, status='pending', ip_address=None, role=None, os_type=None, cpu=None, memory=None):
+    def add_server(self, name, vmid=None, status='pending', ip_address=None, role=None, os_type=None, cpu=None, memory=None, owner=None):
         """서버 정보 추가"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO servers (name, vmid, status, ip_address, role, os_type, cpu, memory)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (name, vmid, status, ip_address, role, os_type, cpu, memory))
+                INSERT INTO servers (name, vmid, status, ip_address, role, os_type, cpu, memory, owner)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, vmid, status, ip_address, role, os_type, cpu, memory, owner))
             conn.commit()
             return cursor.lastrowid
     
@@ -268,6 +272,12 @@ class Database:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM servers ORDER BY created_at DESC')
             return cursor.fetchall()
+
+    def get_servers_by_owner(self, owner):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM servers WHERE owner = ? ORDER BY created_at DESC', (owner,))
+            return cursor.fetchall()
     
     def get_server_by_name(self, name):
         """서버명으로 서버 조회"""
@@ -277,14 +287,14 @@ class Database:
             return cursor.fetchone()
     
     # 프로젝트 관리
-    def add_project(self, name, status='pending'):
+    def add_project(self, name, status='pending', owner=None):
         """프로젝트 추가"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO projects (name, status)
-                VALUES (?, ?)
-            ''', (name, status))
+                INSERT INTO projects (name, status, owner)
+                VALUES (?, ?, ?)
+            ''', (name, status, owner))
             conn.commit()
             return cursor.lastrowid
     
@@ -305,6 +315,12 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM projects ORDER BY created_at DESC')
+            return cursor.fetchall()
+
+    def get_projects_by_owner(self, owner):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM projects WHERE owner = ? ORDER BY created_at DESC', (owner,))
             return cursor.fetchall()
 
     def secure_db_file(self):
