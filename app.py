@@ -696,26 +696,54 @@ def delete_server(server_name):
         logger.exception("[delete_server] 서버 삭제 중 예외 발생")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+def proxmox_api_auth():
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    username = app.config['PROXMOX_USERNAME']
+    password = app.config['PROXMOX_PASSWORD']
+    auth_url = f"{proxmox_url}/api2/json/access/ticket"
+    auth_data = {'username': username, 'password': password}
+    resp = requests.post(auth_url, data=auth_data, verify=False)
+    if resp.status_code != 200:
+        return None
+    data = resp.json()['data']
+    return {
+        'ticket': data['ticket'],
+        'csrf': data['CSRFPreventionToken']
+    }
+
+def proxmox_vm_action(vmid, action):
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    node = app.config['PROXMOX_NODE']
+    auth = proxmox_api_auth()
+    if not auth:
+        return False, 'Proxmox 인증 실패'
+    url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{vmid}/status/{action}"
+    headers = {
+        'Cookie': f'PVEAuthCookie={auth["ticket"]}',
+        'CSRFPreventionToken': auth['csrf']
+    }
+    resp = requests.post(url, headers=headers, verify=False)
+    if resp.status_code == 200:
+        return True, None
+    else:
+        return False, resp.text
+
 @app.route('/stop_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')
 def stop_server(server_name):
     logger.info(f"[stop_server] 요청: {server_name}")
     try:
-        # DB에서 vmid 조회
         server = db.get_server_by_name(server_name)
         if not server or not server['vmid']:
             return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
         vmid = server['vmid']
-        result = subprocess.run([
-            'ansible-playbook', '-vvv', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={vmid} vm_action=stop"
-        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
-        if result.returncode == 0:
+        ok, err = proxmox_vm_action(vmid, 'stop')
+        if ok:
             logger.info(f"[stop_server] VM 중지 요청: vmid={vmid}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
-            logger.error(f"[stop_server] 중지 실패: STDOUT: {result.stdout}\nSTDERR: {result.stderr}")
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            logger.error(f"[stop_server] 중지 실패: {err}")
+            return jsonify({'success': False, 'error': err}), 500
     except Exception as e:
         logger.exception(f"[stop_server] 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -725,21 +753,17 @@ def stop_server(server_name):
 def reboot_server(server_name):
     logger.info(f"[reboot_server] 요청: {server_name}")
     try:
-        # DB에서 vmid 조회
         server = db.get_server_by_name(server_name)
         if not server or not server['vmid']:
             return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
         vmid = server['vmid']
-        result = subprocess.run([
-            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
-            '--extra-vars', f"target={vmid} vm_action=reboot"
-        ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
-        if result.returncode == 0:
+        ok, err = proxmox_vm_action(vmid, 'reset')
+        if ok:
             logger.info(f"[reboot_server] VM 리부팅 요청: vmid={vmid}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 리부팅되었습니다.'})
         else:
-            logger.error(f"[reboot_server] 리부팅 실패: {result.stderr}")
-            return jsonify({'success': False, 'error': result.stderr}), 500
+            logger.error(f"[reboot_server] 리부팅 실패: {err}")
+            return jsonify({'success': False, 'error': err}), 500
     except Exception as e:
         logger.exception(f"[reboot_server] 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
