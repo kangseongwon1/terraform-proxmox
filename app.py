@@ -33,12 +33,17 @@ app.config.from_object(config[config_name])
 # 보안 헤더 설정 (개발 환경에서는 비활성화)
 @app.after_request
 def add_security_headers(response):
+    # 기존 보안 헤더
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
     if not app.config.get('DEBUG', False):
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+    # 캐시 방지 헤더 추가
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
     return response
 
 # 로그인 필요 데코레이터
@@ -60,6 +65,34 @@ def admin_required(f):
             return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
         return f(*args, **kwargs)
     return decorated_function
+
+# 역할별 권한 매핑
+ROLE_PERMISSIONS = {
+    'admin': [
+        'view_all', 'create_server', 'delete_server', 'manage_users',
+        'assign_roles', 'view_logs', 'manage_roles'
+    ],
+    'developer': [
+        'view_all', 'create_server', 'delete_server'
+    ],
+    'operator': [
+        'view_all', 'create_server'
+    ],
+    'viewer': [
+        'view_all'
+    ]
+}
+
+def permission_required(permission):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            user_role = session.get('role')
+            if not user_role or permission not in ROLE_PERMISSIONS.get(user_role, []):
+                return jsonify({'error': '권한이 없습니다.'}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # 설정
 TERRAFORM_DIR = 'terraform'
@@ -272,6 +305,7 @@ def list_users():
         }
     return jsonify({'users': safe_users})
 
+# 사용자 생성 시 기본 role='viewer' 적용
 @app.route('/users', methods=['POST'])
 @admin_required
 def create_user():
@@ -281,7 +315,10 @@ def create_user():
     password = data.get('password')
     name = data.get('name', username)
     email = data.get('email', '')
-    role = data.get('role', 'developer')
+    # 기본 역할은 viewer, admin만 변경 가능
+    role = data.get('role', 'viewer')
+    if role not in ROLE_PERMISSIONS:
+        role = 'viewer'
     
     if not username or not password:
         return jsonify({'error': '사용자명과 비밀번호는 필수입니다.'}), 400
@@ -302,6 +339,21 @@ def create_user():
     
     save_users(users)
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
+
+# 사용자 역할 변경 (관리자만)
+@app.route('/users/<username>/role', methods=['POST'])
+@admin_required
+def change_user_role(username):
+    data = request.json
+    new_role = data.get('role')
+    if new_role not in ROLE_PERMISSIONS:
+        return jsonify({'error': '존재하지 않는 역할입니다.'}), 400
+    users = load_users()
+    if username not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    users[username]['role'] = new_role
+    save_users(users)
+    return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
 
 @app.route('/change-password', methods=['POST'])
 @login_required
@@ -432,6 +484,7 @@ def delete_project(project_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/create_server', methods=['POST'])
+@permission_required('create_server')
 def create_server():
     try:
         # 2. 폼 데이터 수집 시 OS 타입 추가
@@ -490,6 +543,7 @@ def create_server():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/servers', methods=['GET'])
+@permission_required('view_all')
 def list_servers():
     servers = read_servers_from_tfvars()
     return jsonify({'servers': servers})
@@ -568,6 +622,7 @@ def add_server():
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
+@permission_required('delete_server')
 def delete_server(server_name):
     logger.info(f"[delete_server] 요청: {server_name}")
     servers = read_servers_from_tfvars()
