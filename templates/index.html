@@ -1511,27 +1511,39 @@
         modal.find('.server-detail-role-apply, .server-detail-role-remove, .server-detail-role-select').prop('disabled', false);
       }
     }
+    // 알림 시스템에 메시지 추가 함수
+    function addSystemNotification(type, message) {
+      $.post('/notifications/add', {
+        type: type, // 'info', 'success', 'error'
+        title: '역할 관리',
+        message: message
+      });
+    }
     // 역할 적용 버튼 클릭 이벤트
     $('#active-server-table').off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
       const btn = $(this);
       const tr = btn.closest('tr');
       const server = tr.data('server');
       const role = tr.find('.server-role-select').val();
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 변경 중...');
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 역할 적용 중...');
       // 역할 부착/변경 안내 알림
       if (!tr.data('has-role')) {
         showNotification('info', '역할 생성을 시작합니다.');
+        addSystemNotification('info', '역할 생성을 시작합니다.');
         tr.data('has-role', true);
       } else {
         showNotification('info', '역할 변경을 시작합니다.');
+        addSystemNotification('info', '역할 변경을 시작합니다.');
       }
       $.post(`/assign_role/${server}`, { role }, function(res) {
-        btn.prop('disabled', false).html('적용');
+        btn.prop('disabled', false).html('<i class="fas fa-check"></i> 역할 적용');
         showNotification('success', '역할이 성공적으로 변경되었습니다.');
+        addSystemNotification('success', '역할이 성공적으로 변경되었습니다.');
         loadActiveServers();
       }).fail(function(xhr) {
-        btn.prop('disabled', false).html('적용');
+        btn.prop('disabled', false).html('<i class="fas fa-check"></i> 역할 적용');
         showNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
+        addSystemNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
       });
     });
     // 역할 삭제 버튼 클릭 이벤트
@@ -1540,15 +1552,18 @@
       const tr = btn.closest('tr');
       const server = tr.data('server');
       if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 삭제 중...');
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 역할 삭제 중...');
       showNotification('info', '역할 삭제를 시작합니다.');
+      addSystemNotification('info', '역할 삭제를 시작합니다.');
       $.post(`/remove_role/${server}`, {}, function(res) {
-        btn.prop('disabled', false).html('삭제');
+        btn.prop('disabled', false).html('<i class="fas fa-trash"></i> 역할 삭제');
         showNotification('success', '역할이 삭제되었습니다.');
+        addSystemNotification('success', '역할이 삭제되었습니다.');
         loadActiveServers();
       }).fail(function(xhr) {
-        btn.prop('disabled', false).html('삭제');
+        btn.prop('disabled', false).html('<i class="fas fa-trash"></i> 역할 삭제');
         showNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
+        addSystemNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
       });
     });
     // 서버 상세 모달 내 역할 적용/삭제 버튼에도 동일하게 적용
@@ -1557,22 +1572,25 @@
       const modal = $('#server-detail-modal');
       const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
       const role = $('#server-detail-body .server-detail-role-select').val();
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 변경 중...');
-      // 역할 부착/변경 안내 알림
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 역할 적용 중...');
       if (!modal.data('has-role')) {
         showNotification('info', '역할 생성을 시작합니다.');
+        addSystemNotification('info', '역할 생성을 시작합니다.');
         modal.data('has-role', true);
       } else {
         showNotification('info', '역할 변경을 시작합니다.');
+        addSystemNotification('info', '역할 변경을 시작합니다.');
       }
       $.post(`/assign_role/${name}`, { role }, function(res) {
-        btn.prop('disabled', false).html('적용');
+        btn.prop('disabled', false).html('<i class="fas fa-check"></i> 역할 적용');
         showNotification('success', '역할이 성공적으로 변경되었습니다.');
+        addSystemNotification('success', '역할이 성공적으로 변경되었습니다.');
         modal.modal('hide');
         loadActiveServers();
       }).fail(function(xhr) {
-        btn.prop('disabled', false).html('적용');
+        btn.prop('disabled', false).html('<i class="fas fa-check"></i> 역할 적용');
         showNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
+        addSystemNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
       });
     });
     $('body').on('click', '.server-detail-role-remove', function() {
@@ -1580,16 +1598,19 @@
       const modal = $('#server-detail-modal');
       const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
       if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 삭제 중...');
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> 역할 삭제 중...');
       showNotification('info', '역할 삭제를 시작합니다.');
+      addSystemNotification('info', '역할 삭제를 시작합니다.');
       $.post(`/remove_role/${name}`, {}, function(res) {
-        btn.prop('disabled', false).html('삭제');
+        btn.prop('disabled', false).html('<i class="fas fa-trash"></i> 역할 삭제');
         showNotification('success', '역할이 삭제되었습니다.');
+        addSystemNotification('success', '역할이 삭제되었습니다.');
         modal.modal('hide');
         loadActiveServers();
       }).fail(function(xhr) {
-        btn.prop('disabled', false).html('삭제');
+        btn.prop('disabled', false).html('<i class="fas fa-trash"></i> 역할 삭제');
         showNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
+        addSystemNotification('error', xhr.responseJSON?.error || '역할 삭제 실패');
       });
     });
 
