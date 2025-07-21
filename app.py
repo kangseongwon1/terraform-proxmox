@@ -482,6 +482,17 @@ def clear_all_notifications():
     save_notifications(data)
     return jsonify({'success': True, 'message': '모든 알림이 삭제되었습니다.'})
 
+@app.route('/notifications/add', methods=['POST'])
+def add_notification_api():
+    data = request.form or request.json
+    add_notification(
+        type=data.get('type', 'info'),
+        title=data.get('title', ''),
+        message=data.get('message', ''),
+        severity=data.get('type', 'info')
+    )
+    return jsonify({'success': True})
+
 @app.route('/projects', methods=['GET'])
 def list_projects():
     """프로젝트(서버 그룹) 리스트 반환"""
