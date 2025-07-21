@@ -486,8 +486,11 @@ def delete_project(project_name):
 @app.route('/create_server', methods=['POST'])
 @permission_required('create_server')
 def create_server():
+    print("[DEBUG] create_server 진입")
+    logger.info("[DEBUG] create_server 진입")
     logger.info(f"[create_server] 요청 데이터: {request.form.to_dict()}")
     try:
+        print("[DEBUG] 서버 생성 로직 시작")
         # 2. 폼 데이터 수집 시 OS 타입 추가
         server_config = {
             'role': request.form.get('role'),
@@ -526,6 +529,8 @@ def create_server():
             severity='info'
         )
         
+        print("[DEBUG] 서버 생성 성공")
+        logger.info("[DEBUG] 서버 생성 성공")
         logger.info(f"[create_server] 서버 생성 성공: {request.form.get('project_name')}")
         return jsonify({
             'success': True,
@@ -535,6 +540,7 @@ def create_server():
         
     except Exception as e:
         logger.exception("[create_server] 서버 생성 중 예외 발생")
+        print(f"[DEBUG] 예외 발생: {e}")
         # 에러 알림 추가
         add_notification(
             type='server_error',
@@ -627,21 +633,28 @@ def add_server():
 @app.route('/delete_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')
 def delete_server(server_name):
+    print(f"[DEBUG] delete_server 진입: {server_name}")
     logger.info(f"[delete_server] 서버: {server_name}")
-    servers = read_servers_from_tfvars()
-    if server_name in servers:
-        del servers[server_name]
-        write_servers_to_tfvars(servers)
-        ok, out, err = run_terraform_apply()
-        logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
-        if not ok:
-            logger.error(f"[delete_server] Terraform apply 실패: {err}")
-            return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-        logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
-        return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
-    else:
-        logger.error(f"[delete_server] 서버를 찾을 수 없음: {server_name}")
-        return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+    try:
+        print("[DEBUG] 서버 삭제 로직 시작")
+        servers = read_servers_from_tfvars()
+        if server_name in servers:
+            del servers[server_name]
+            write_servers_to_tfvars(servers)
+            ok, out, err = run_terraform_apply()
+            logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
+            if not ok:
+                logger.error(f"[delete_server] Terraform apply 실패: {err}")
+                return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+            logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
+            return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
+        else:
+            logger.error(f"[delete_server] 서버를 찾을 수 없음: {server_name}")
+            return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+    except Exception as e:
+        logger.exception("[delete_server] 서버 삭제 중 예외 발생")
+        print(f"[DEBUG] 예외 발생: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
 def stop_server(server_name):
@@ -1415,34 +1428,36 @@ def get_status(project_name):
 @app.route('/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
+    print(f"[DEBUG] assign_role 진입: {server_name}")
     logger.info(f"[assign_role] 서버: {server_name}, 요청 데이터: {request.form.to_dict()}")
-    role = request.form.get('role') or request.json.get('role')
-    if not role:
-        return jsonify({'success': False, 'error': '역할(role)을 지정해야 합니다.'}), 400
-    servers = read_servers_from_tfvars()
-    if server_name not in servers:
-        return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
-    # 서버 IP/계정 추출
-    server = servers[server_name]
-    ip = None
-    if 'network_devices' in server and server['network_devices']:
-        ip = server['network_devices'][0].get('ip_address')
-    if not ip:
-        return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
-    username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
-    # 임시 인벤토리 파일 생성
-    import datetime
-    import os
-    import tempfile
-    now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_dir = os.path.join('logs')
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
-    with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
-        f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
-        inventory_path = f.name
-    # ansible-playbook 실행
     try:
+        print("[DEBUG] 역할 할당 로직 시작")
+        role = request.form.get('role') or request.json.get('role')
+        if not role:
+            return jsonify({'success': False, 'error': '역할(role)을 지정해야 합니다.'}), 400
+        servers = read_servers_from_tfvars()
+        if server_name not in servers:
+            return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+        # 서버 IP/계정 추출
+        server = servers[server_name]
+        ip = None
+        if 'network_devices' in server and server['network_devices']:
+            ip = server['network_devices'][0].get('ip_address')
+        if not ip:
+            return jsonify({'success': False, 'error': '서버의 IP 정보를 찾을 수 없습니다.'}), 400
+        username = server.get('vm_username', get_default_username(server.get('os_type', 'rocky')))
+        # 임시 인벤토리 파일 생성
+        import datetime
+        import os
+        import tempfile
+        now_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_dir = os.path.join('logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, f'assign_role_{server_name}_{now_str}.log')
+        with tempfile.NamedTemporaryFile('w', delete=False, dir='/tmp', prefix=f'inventory_{server_name}_', suffix='.ini') as f:
+            f.write(f'{server_name} ansible_host={ip} ansible_user={username} ansible_ssh_common_args="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"\n')
+            inventory_path = f.name
+        # ansible-playbook 실행
         result = subprocess.run([
             'ansible-playbook', '-i', inventory_path, 'role_playbook.yml',
             '-e', f'role={role}'
@@ -1460,12 +1475,15 @@ def assign_role(server_name):
             servers[server_name] = server
             write_servers_to_tfvars(servers)
             logger.info(f"[assign_role] 역할 할당 성공: {server_name}")
+            print("[DEBUG] 역할 할당 성공")
             return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path})
         else:
             logger.error(f"[assign_role] Ansible 실행 실패: {result.stderr}")
+            print(f"[DEBUG] 예외 발생: {result.stderr}")
             return jsonify({'success': False, 'error': 'Ansible 실행 실패', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path}), 500
     except Exception as e:
         logger.exception(f"[assign_role] 역할 할당 중 예외 발생: {e}")
+        print(f"[DEBUG] 예외 발생: {e}")
         if os.path.exists(inventory_path):
             os.unlink(inventory_path)
         return jsonify({'success': False, 'error': str(e)}), 500
