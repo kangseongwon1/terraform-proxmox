@@ -1830,5 +1830,11 @@
   <script>
   window.userRole = '{{ session['role'] }}';
   </script>
+  <script>
+  function format2f(val) {
+    return Number(val).toFixed(2);
+  }
+  // ... 이하 기존 JS 코드 ...
+  </script>
 </body>
 </html>
