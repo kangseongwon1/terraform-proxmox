@@ -10,6 +10,9 @@
     proxmox_node: "prox"
   
   tasks:
+    - name: Debug Proxmox password
+      debug:
+        msg: "proxmox_password={{ proxmox_password }}"
     - name: Get VM list from Proxmox
       uri:
         url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu"
@@ -33,7 +36,7 @@
       
     - name: Stop VM
       uri:
-        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/stop"
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target }}/status/stop"
         method: POST
         user: "{{ proxmox_user }}"
         password: "{{ proxmox_password }}"
@@ -45,7 +48,7 @@
       
     - name: Reboot VM
       uri:
-        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/reset"
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target }}/status/reset"
         method: POST
         user: "{{ proxmox_user }}"
         password: "{{ proxmox_password }}"
@@ -57,7 +60,7 @@
       
     - name: Start VM
       uri:
-        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target_vm.vmid }}/status/start"
+        url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ target }}/status/start"
         method: POST
         user: "{{ proxmox_user }}"
         password: "{{ proxmox_password }}"
