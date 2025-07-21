@@ -1,0 +1,8 @@
+{
+  "notifications": [],
+  "last_id": 0,
+  "settings": {
+    "max_notifications": 100,
+    "auto_clear_days": 7
+  }
+} 

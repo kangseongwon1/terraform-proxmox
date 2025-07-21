@@ -109,6 +109,71 @@ def update_user_login(username):
 # 초기 사용자 로드
 USERS = load_users()
 
+# 알림 관리 함수
+def load_notifications():
+    """notifications.json에서 알림 데이터 로드"""
+    try:
+        with open('notifications.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        default_data = {
+            "notifications": [],
+            "last_id": 0,
+            "settings": {
+                "max_notifications": 100,
+                "auto_clear_days": 7
+            }
+        }
+        save_notifications(default_data)
+        return default_data
+
+def save_notifications(data):
+    """알림 데이터를 notifications.json에 저장"""
+    with open('notifications.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def add_notification(type, title, message, details=None, severity='info'):
+    """새 알림 추가"""
+    data = load_notifications()
+    
+    # ID 증가
+    data['last_id'] += 1
+    
+    notification = {
+        'id': data['last_id'],
+        'type': type,  # 'server_create', 'server_error', 'terraform_error', 'ansible_error'
+        'title': title,
+        'message': message,
+        'details': details,
+        'severity': severity,  # 'info', 'warning', 'error', 'success'
+        'timestamp': datetime.now().isoformat(),
+        'read': False,
+        'user_id': session.get('user_id', 'system')
+    }
+    
+    data['notifications'].insert(0, notification)  # 최신 알림을 맨 위에
+    
+    # 최대 알림 수 제한
+    if len(data['notifications']) > data['settings']['max_notifications']:
+        data['notifications'] = data['notifications'][:data['settings']['max_notifications']]
+    
+    save_notifications(data)
+    return notification
+
+def get_unread_count():
+    """읽지 않은 알림 수 반환"""
+    data = load_notifications()
+    return len([n for n in data['notifications'] if not n.get('read', False)])
+
+def mark_as_read(notification_id):
+    """알림을 읽음으로 표시"""
+    data = load_notifications()
+    for notification in data['notifications']:
+        if notification['id'] == notification_id:
+            notification['read'] = True
+            break
+    save_notifications(data)
+
 # terraform.tfvars.json의 servers map 읽기
 
 def read_servers_from_tfvars():
@@ -238,6 +303,109 @@ def create_user():
     save_users(users)
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
 
+@app.route('/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """현재 사용자의 비밀번호 변경"""
+    data = request.json
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    confirm_password = data.get('confirm_password')
+    
+    if not all([current_password, new_password, confirm_password]):
+        return jsonify({'error': '모든 필드를 입력해주세요.'}), 400
+    
+    if new_password != confirm_password:
+        return jsonify({'error': '새 비밀번호가 일치하지 않습니다.'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'error': '새 비밀번호는 최소 6자 이상이어야 합니다.'}), 400
+    
+    user_id = session.get('user_id')
+    users = load_users()
+    
+    if user_id not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    
+    # 현재 비밀번호 확인
+    if not check_password_hash(users[user_id]['password_hash'], current_password):
+        return jsonify({'error': '현재 비밀번호가 올바르지 않습니다.'}), 400
+    
+    # 새 비밀번호로 업데이트
+    users[user_id]['password_hash'] = generate_password_hash(new_password)
+    save_users(users)
+    
+    # 알림 추가
+    add_notification(
+        type='password_change',
+        title='비밀번호 변경',
+        message=f'사용자 {user_id}의 비밀번호가 변경되었습니다.',
+        severity='info'
+    )
+    
+    return jsonify({'success': True, 'message': '비밀번호가 성공적으로 변경되었습니다.'})
+
+@app.route('/profile', methods=['GET'])
+@login_required
+def get_profile():
+    """현재 사용자 프로필 조회"""
+    user_id = session.get('user_id')
+    users = load_users()
+    
+    if user_id not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    
+    user_data = users[user_id]
+    return jsonify({
+        'username': user_id,
+        'name': user_data.get('name', user_id),
+        'email': user_data.get('email', ''),
+        'role': user_data.get('role', 'user'),
+        'created_at': user_data.get('created_at', ''),
+        'last_login': user_data.get('last_login', '')
+    })
+
+@app.route('/profile-page')
+@login_required
+def profile_page():
+    """프로필 페이지 렌더링"""
+    return render_template('profile.html')
+
+@app.route('/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    """알림 목록 조회"""
+    data = load_notifications()
+    limit = request.args.get('limit', 20, type=int)
+    notifications = data['notifications'][:limit]
+    return jsonify({
+        'notifications': notifications,
+        'unread_count': get_unread_count()
+    })
+
+@app.route('/notifications/<int:notification_id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(notification_id):
+    """알림을 읽음으로 표시"""
+    mark_as_read(notification_id)
+    return jsonify({'success': True})
+
+@app.route('/notifications/unread-count', methods=['GET'])
+@login_required
+def get_unread_notification_count():
+    """읽지 않은 알림 수 조회"""
+    return jsonify({'unread_count': get_unread_count()})
+
+@app.route('/notifications/clear-all', methods=['POST'])
+@login_required
+def clear_all_notifications():
+    """모든 알림 삭제"""
+    data = load_notifications()
+    data['notifications'] = []
+    data['last_id'] = 0
+    save_notifications(data)
+    return jsonify({'success': True, 'message': '모든 알림이 삭제되었습니다.'})
+
 @app.route('/projects', methods=['GET'])
 def list_projects():
     """프로젝트(서버 그룹) 리스트 반환"""
@@ -296,6 +464,14 @@ def create_server():
         thread.daemon = True
         thread.start()
         
+        # 알림 추가
+        add_notification(
+            type='server_create',
+            title='서버 생성 시작',
+            message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성이 시작되었습니다.',
+            severity='info'
+        )
+        
         return jsonify({
             'success': True,
             'message': '서버 생성이 시작되었습니다.',
@@ -303,6 +479,14 @@ def create_server():
         })
         
     except Exception as e:
+        # 에러 알림 추가
+        add_notification(
+            type='server_error',
+            title='서버 생성 실패',
+            message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성 중 오류가 발생했습니다.',
+            details=str(e),
+            severity='error'
+        )
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/servers', methods=['GET'])
