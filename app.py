@@ -486,6 +486,7 @@ def delete_project(project_name):
 @app.route('/create_server', methods=['POST'])
 @permission_required('create_server')
 def create_server():
+    logger.info(f"[create_server] 요청 데이터: {request.form.to_dict()}")
     try:
         # 2. 폼 데이터 수집 시 OS 타입 추가
         server_config = {
@@ -525,6 +526,7 @@ def create_server():
             severity='info'
         )
         
+        logger.info(f"[create_server] 서버 생성 성공: {request.form.get('project_name')}")
         return jsonify({
             'success': True,
             'message': '서버 생성이 시작되었습니다.',
@@ -532,6 +534,7 @@ def create_server():
         })
         
     except Exception as e:
+        logger.exception("[create_server] 서버 생성 중 예외 발생")
         # 에러 알림 추가
         add_notification(
             type='server_error',
@@ -624,7 +627,7 @@ def add_server():
 @app.route('/delete_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')
 def delete_server(server_name):
-    logger.info(f"[delete_server] 요청: {server_name}")
+    logger.info(f"[delete_server] 서버: {server_name}")
     servers = read_servers_from_tfvars()
     if server_name in servers:
         del servers[server_name]
@@ -1410,7 +1413,9 @@ def get_status(project_name):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/assign_role/<server_name>', methods=['POST'])
+@permission_required('assign_roles')
 def assign_role(server_name):
+    logger.info(f"[assign_role] 서버: {server_name}, 요청 데이터: {request.form.to_dict()}")
     role = request.form.get('role') or request.json.get('role')
     if not role:
         return jsonify({'success': False, 'error': '역할(role)을 지정해야 합니다.'}), 400
@@ -1454,10 +1459,13 @@ def assign_role(server_name):
             server['role'] = role
             servers[server_name] = server
             write_servers_to_tfvars(servers)
+            logger.info(f"[assign_role] 역할 할당 성공: {server_name}")
             return jsonify({'success': True, 'message': f'역할({role})이 적용되었습니다.', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path})
         else:
+            logger.error(f"[assign_role] Ansible 실행 실패: {result.stderr}")
             return jsonify({'success': False, 'error': 'Ansible 실행 실패', 'stdout': result.stdout, 'stderr': result.stderr, 'log_path': log_path}), 500
     except Exception as e:
+        logger.exception(f"[assign_role] 역할 할당 중 예외 발생: {e}")
         if os.path.exists(inventory_path):
             os.unlink(inventory_path)
         return jsonify({'success': False, 'error': str(e)}), 500
