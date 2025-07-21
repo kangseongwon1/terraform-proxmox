@@ -1,5 +1,5 @@
 ---
-- name: Install dependencies
+- name: Install dependencies (Debian/Ubuntu)
   ansible.builtin.apt:
     name:
       - wget
@@ -7,6 +7,16 @@
       - openjdk-17-jdk
     state: present
     update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install dependencies (RedHat/Rocky/CentOS)
+  ansible.builtin.yum:
+    name:
+      - wget
+      - java-17-openjdk
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "RedHat"
 
 - name: Download elasticsearch-7.17.10
   ansible.builtin.get_url:

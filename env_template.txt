@@ -1,0 +1,28 @@
+# Proxmox Manager 환경 변수 템플릿
+# 이 파일을 .env로 복사하고 실제 값으로 변경하세요
+
+# Flask 보안 설정
+SECRET_KEY=your-super-secret-key-change-this
+FLASK_ENV=production
+DEBUG=False
+
+# Proxmox 설정 (필수)
+PROXMOX_ENDPOINT=https://your-proxmox-server:8006
+PROXMOX_USERNAME=root@pam
+PROXMOX_PASSWORD=your-secure-password
+PROXMOX_NODE=pve
+PROXMOX_DATASTORE=local-lvm
+
+# 세션 보안 설정
+SESSION_COOKIE_SECURE=True
+SESSION_COOKIE_HTTPONLY=True
+SESSION_COOKIE_SAMESITE=Strict
+PERMANENT_SESSION_LIFETIME=3600
+
+# 로깅 설정
+LOG_LEVEL=INFO
+LOG_FILE=/var/log/proxmox-manager/app.log
+
+# SSH 설정
+SSH_PRIVATE_KEY_PATH=/path/to/your/private/key
+SSH_PUBLIC_KEY_PATH=/path/to/your/public/key 

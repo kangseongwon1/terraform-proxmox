@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import subprocess
 import os
 import json
@@ -9,15 +9,62 @@ import time
 import hcl
 import logging
 import tempfile
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
+# 설정 파일 import
+from config import config
 
 app = Flask(__name__)
+
+# 환경 변수에서 설정 로드
+config_name = os.environ.get('FLASK_ENV', 'development')
+app.config.from_object(config[config_name])
+
+# 보안 헤더 설정
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; font-src 'self' cdnjs.cloudflare.com"
+    return response
+
+# 로그인 필요 데코레이터
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '로그인이 필요합니다.'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 관리자 권한 필요 데코레이터
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': '로그인이 필요합니다.'}), 401
+        if session.get('role') != 'admin':
+            return jsonify({'error': '관리자 권한이 필요합니다.'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 # 설정
 TERRAFORM_DIR = 'terraform'
 ANSIBLE_DIR = 'ansible'
 PROJECTS_DIR = 'projects'
 TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
+
+# 사용자 데이터 (실제로는 데이터베이스 사용 권장)
+USERS = {
+    'admin': {
+        'password_hash': generate_password_hash('admin123!'),
+        'role': 'admin'
+    }
+}
 
 # terraform.tfvars.json의 servers map 읽기
 
@@ -272,6 +319,7 @@ def reboot_server(server_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/server_status/<server_name>', methods=['GET'])
+@login_required
 def get_server_status(server_name):
     """특정 서버의 상태를 Proxmox에서 가져오기"""
     try:
@@ -279,10 +327,10 @@ def get_server_status(server_name):
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Proxmox API 설정
-        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
-        username = "root@pam"
-        password = "dmc1234)(*&"
+        # Proxmox API 설정 (환경 변수에서 가져오기)
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        username = app.config['PROXMOX_USERNAME']
+        password = app.config['PROXMOX_PASSWORD']
         
         # API 인증
         auth_url = f"{proxmox_url}/api2/json/access/ticket"
@@ -348,6 +396,7 @@ def get_server_status(server_name):
         return jsonify({'error': f'서버 상태 확인 실패: {str(e)}'}), 500
 
 @app.route('/all_server_status', methods=['GET'])
+@login_required
 def get_all_server_status():
     """모든 서버의 상태를 Proxmox에서 가져오기"""
     try:
@@ -355,10 +404,10 @@ def get_all_server_status():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Proxmox API 설정
-        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
-        username = "root@pam"
-        password = "dmc1234)(*&"
+        # Proxmox API 설정 (환경 변수에서 가져오기)
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        username = app.config['PROXMOX_USERNAME']
+        password = app.config['PROXMOX_PASSWORD']
         
         # API 인증
         auth_url = f"{proxmox_url}/api2/json/access/ticket"
