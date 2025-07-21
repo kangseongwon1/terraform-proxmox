@@ -1832,6 +1832,7 @@
   </script>
   <script>
   function format2f(val) {
+    if (isNaN(val) || !isFinite(val)) return "0.00";
     return Number(val).toFixed(2);
   }
   // ... 이하 기존 JS 코드 ...
