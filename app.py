@@ -707,14 +707,14 @@ def stop_server(server_name):
             return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
         vmid = server['vmid']
         result = subprocess.run([
-            'ansible-playbook', '-i', 'inventory', 'playbook.yml',
+            'ansible-playbook', '-vvv', '-i', 'inventory', 'playbook.yml',
             '--extra-vars', f"target={vmid} vm_action=stop"
         ], cwd=ANSIBLE_DIR, capture_output=True, text=True)
         if result.returncode == 0:
             logger.info(f"[stop_server] VM 중지 요청: vmid={vmid}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 중지되었습니다.'})
         else:
-            logger.error(f"[stop_server] 중지 실패: {result.stderr}")
+            logger.error(f"[stop_server] 중지 실패: STDOUT: {result.stdout}\nSTDERR: {result.stderr}")
             return jsonify({'success': False, 'error': result.stderr}), 500
     except Exception as e:
         logger.exception(f"[stop_server] 예외 발생: {e}")
