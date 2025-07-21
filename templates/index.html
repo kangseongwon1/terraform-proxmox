@@ -454,6 +454,9 @@
           </ul>
         </div>
         <a class="nav-link" href="#"><i class="fas fa-cog me-1"></i>설정</a>
+        {% if session['role'] == 'admin' %}
+        <a class="nav-link" href="#" id="user-management-btn"><i class="fas fa-users-cog me-1"></i>사용자 관리</a>
+        {% endif %}
         <a class="nav-link" href="/profile-page"><i class="fas fa-user me-1"></i>프로필</a>
         <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a>
       </div>
@@ -803,6 +806,41 @@
       </div>
     </div>
   </div>
+
+  <!-- 사용자 관리 모달 (관리자만) -->
+  {% if session['role'] == 'admin' %}
+  <div class="modal fade" id="userManagementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-users-cog me-2"></i>사용자 관리</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="user-management-alert" class="alert" style="display:none;"></div>
+          <table class="table table-bordered align-middle">
+            <thead>
+              <tr>
+                <th>사용자명</th>
+                <th>이름</th>
+                <th>이메일</th>
+                <th>역할</th>
+                <th>상태</th>
+                <th>변경</th>
+              </tr>
+            </thead>
+            <tbody id="user-management-table">
+              <tr><td colspan="6" class="text-center text-muted">불러오는 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <script>
   $(document).ready(function() {
@@ -1704,6 +1742,68 @@
         clearInterval(notificationCheckInterval);
       }
     });
+
+    {% if session['role'] == 'admin' %}
+    // 사용자 관리 모달 열기
+    $('#user-management-btn').click(function(e) {
+      e.preventDefault();
+      $('#userManagementModal').modal('show');
+      loadUserManagementTable();
+    });
+
+    function loadUserManagementTable() {
+      $.get('/users', function(data) {
+        const users = data.users;
+        let html = '';
+        for (const [username, user] of Object.entries(users)) {
+          html += `<tr>
+            <td>${username}</td>
+            <td>${user.name || '-'}</td>
+            <td>${user.email || '-'}</td>
+            <td>
+              <select class="form-select form-select-sm user-role-select" data-username="${username}">
+                <option value="admin" ${user.role==='admin'?'selected':''}>admin</option>
+                <option value="developer" ${user.role==='developer'?'selected':''}>developer</option>
+                <option value="operator" ${user.role==='operator'?'selected':''}>operator</option>
+                <option value="viewer" ${user.role==='viewer'?'selected':''}>viewer</option>
+              </select>
+            </td>
+            <td>${user.is_active ? '활성' : '비활성'}</td>
+            <td><button class="btn btn-primary btn-sm user-role-change-btn" data-username="${username}">변경</button></td>
+          </tr>`;
+        }
+        $('#user-management-table').html(html);
+      });
+    }
+
+    // 역할 변경 버튼 클릭
+    $(document).on('click', '.user-role-change-btn', function() {
+      const username = $(this).data('username');
+      const newRole = $(`.user-role-select[data-username="${username}"]`).val();
+      $.ajax({
+        url: `/users/${username}/role`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ role: newRole }),
+        success: function(res) {
+          showUserManagementAlert('success', res.message);
+          loadUserManagementTable();
+        },
+        error: function(xhr) {
+          showUserManagementAlert('danger', xhr.responseJSON?.error || '역할 변경 실패');
+        }
+      });
+    });
+
+    function showUserManagementAlert(type, message) {
+      const alert = $('#user-management-alert');
+      alert.removeClass('alert-success alert-danger alert-warning alert-info')
+           .addClass(`alert-${type}`)
+           .text(message)
+           .show();
+      setTimeout(()=>alert.hide(), 2000);
+    }
+    {% endif %}
   });
   </script>
 </body>
