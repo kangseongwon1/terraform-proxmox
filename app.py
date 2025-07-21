@@ -12,6 +12,7 @@ import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from database import db
+import requests
 
 # .env 파일 로드
 try:
@@ -623,7 +624,6 @@ def add_server():
     if server_name in servers:
         logger.error(f"[add_server] 중복 서버 이름: {server_name}")
         return jsonify({'success': False, 'error': f'이미 동일한 이름({server_name})의 서버가 존재합니다.'}), 400
-    # 필요한 변수만 저장
     if 'role' not in data or not data['role']:
         data['role'] = ''
     os_type = data.get('os_type', 'rocky')
@@ -643,7 +643,6 @@ def add_server():
                 net['gateway'] = ''
     servers[server_name] = data
     write_servers_to_tfvars(servers)
-    # terraform apply만 실행 (파일 생성 X)
     ok, out, err = run_terraform_apply()
     logger.info(f"[add_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
     if not ok:
@@ -656,7 +655,22 @@ def add_server():
         write_servers_to_tfvars(servers)
         logger.info(f"[add_server] Terraform 실패로 서버 정보 삭제: {server_name}")
         return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-    logger.info(f"[add_server] 서버 추가 및 적용 완료: {server_name}")
+    # --- VM 생성 후 Proxmox에서 정보 조회 및 DB 저장 ---
+    vm_info = get_vm_info_from_proxmox(server_name)
+    if not vm_info:
+        logger.error(f"[add_server] Proxmox에서 VM 정보 조회 실패: {server_name}")
+        return jsonify({'success': False, 'error': 'VM 생성 후 Proxmox 정보 조회 실패'}), 500
+    db.add_server(
+        name=server_name,
+        vmid=vm_info['vmid'],
+        status=vm_info.get('status', 'pending'),
+        ip_address=vm_info.get('ip_address'),
+        role=data['role'],
+        os_type=data.get('os_type'),
+        cpu=data.get('cpu'),
+        memory=data.get('memory')
+    )
+    logger.info(f"[add_server] DB에 VM 정보 저장 완료: {server_name}, vmid={vm_info['vmid']}")
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
@@ -1007,6 +1021,40 @@ def deploy_infrastructure(project_path, config):
     except subprocess.CalledProcessError as e:
         print(f"Error deploying infrastructure: {e}")
         print(f"Error output: {e.stderr if hasattr(e, 'stderr') else ''}")
+
+def get_vm_info_from_proxmox(server_name):
+    """Proxmox API에서 VM 이름으로 vmid, ip 등 정보 조회"""
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    username = app.config['PROXMOX_USERNAME']
+    password = app.config['PROXMOX_PASSWORD']
+    node = app.config['PROXMOX_NODE']
+    # 인증
+    auth_url = f"{proxmox_url}/api2/json/access/ticket"
+    auth_data = {'username': username, 'password': password}
+    auth_response = requests.post(auth_url, data=auth_data, verify=False)
+    if auth_response.status_code != 200:
+        return None
+    ticket = auth_response.json()['data']['ticket']
+    csrf_token = auth_response.json()['data']['CSRFPreventionToken']
+    headers = {
+        'Cookie': f'PVEAuthCookie={ticket}',
+        'CSRFPreventionToken': csrf_token
+    }
+    # VM 목록 조회
+    vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+    vms_response = requests.get(vms_url, headers=headers, verify=False)
+    if vms_response.status_code != 200:
+        return None
+    vms = vms_response.json().get('data', [])
+    for vm in vms:
+        if vm['name'] == server_name:
+            # IP 정보는 별도 API 필요할 수 있음
+            return {
+                'vmid': vm['vmid'],
+                'status': vm.get('status', ''),
+                'ip_address': None  # 필요시 별도 조회
+            }
+    return None
 
 @app.route('/status/<project_name>')
 def get_status(project_name):
