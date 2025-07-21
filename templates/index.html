@@ -1151,8 +1151,8 @@
                 <button class="btn btn-outline-danger btn-sm server-role-remove"${s.role?'':' disabled'}>삭제</button>
               </div>
             </td>
-            <td>${s.cpu || 0}코어</td>
-            <td>${format2f(s.memory || 0)}MB</td>
+            <td>${parseInt(s.cpu || 0)}코어</td>
+            <td>${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</td>
             <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
             <td>${statusBadge}</td>
             <td>
@@ -1191,8 +1191,8 @@
             html += `<tr data-server="${name}">
               <td><strong>${s.name}</strong></td>
               <td><span class="badge bg-primary">${s.role}</span></td>
-              <td>${s.cpu || 0}코어</td>
-              <td>${format2f(s.memory || 0)}MB</td>
+              <td>${parseInt(s.cpu || 0)}코어</td>
+              <td>${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</td>
               <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
               <td><span class="badge bg-success">활성</span></td>
               <td>
