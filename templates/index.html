@@ -1620,8 +1620,8 @@
             <button class="btn btn-outline-danger btn-sm server-detail-role-remove"${s.role?'':' disabled'}>삭제</button>
           </div>
           <div class="mb-2"><strong>상태:</strong> ${s.status}</div>
-          <div class="mb-2"><strong>CPU:</strong> ${s.cpu || 0}코어</div>
-          <div class="mb-2"><strong>메모리:</strong> ${s.memory || 0}MB</div>
+          <div class="mb-2"><strong>CPU:</strong> ${parseInt(s.cpu || 0)}코어</div>
+          <div class="mb-2"><strong>메모리:</strong> ${parseInt(s.memory || 0)}GB</div>
           <div class="mb-2"><strong>VMID:</strong> ${s.vmid || '-'}</div>
           <div class="mb-2"><strong>노드:</strong> ${s.node || '-'}</div>
         `);
