@@ -67,13 +67,47 @@ ANSIBLE_DIR = 'ansible'
 PROJECTS_DIR = 'projects'
 TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
 
-# 사용자 데이터 (실제로는 데이터베이스 사용 권장)
-USERS = {
-    'admin': {
-        'password_hash': generate_password_hash('admin123!'),
-        'role': 'admin'
-    }
-}
+# 파일 기반 사용자 관리
+def load_users():
+    """users.json에서 사용자 정보 로드"""
+    try:
+        with open('users.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # 기본 사용자 생성
+        default_users = {
+            'admin': {
+                'password_hash': generate_password_hash('admin123!'),
+                'role': 'admin',
+                'email': 'admin@dmcmedia.co.kr',
+                'name': '시스템 관리자',
+                'created_at': datetime.now().isoformat(),
+                'last_login': None,
+                'is_active': True
+            }
+        }
+        save_users(default_users)
+        return default_users
+
+def save_users(users):
+    """사용자 정보를 users.json에 저장"""
+    with open('users.json', 'w', encoding='utf-8') as f:
+        json.dump(users, f, indent=2, ensure_ascii=False)
+
+def get_user(username):
+    """사용자 정보 조회"""
+    users = load_users()
+    return users.get(username)
+
+def update_user_login(username):
+    """사용자 마지막 로그인 시간 업데이트"""
+    users = load_users()
+    if username in users:
+        users[username]['last_login'] = datetime.now().isoformat()
+        save_users(users)
+
+# 초기 사용자 로드
+USERS = load_users()
 
 # terraform.tfvars.json의 servers map 읽기
 
@@ -134,9 +168,16 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        if username in USERS and check_password_hash(USERS[username]['password_hash'], password):
+        user = get_user(username)
+        if user and user.get('is_active', True) and check_password_hash(user['password_hash'], password):
             session['user_id'] = username
-            session['role'] = USERS[username]['role']
+            session['role'] = user['role']
+            session['user_name'] = user.get('name', username)
+            session['user_email'] = user.get('email', '')
+            
+            # 마지막 로그인 시간 업데이트
+            update_user_login(username)
+            
             return redirect(url_for('index'))
         else:
             return render_template('login.html', error='잘못된 사용자명 또는 비밀번호입니다.')
@@ -147,6 +188,55 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/users', methods=['GET'])
+@admin_required
+def list_users():
+    """사용자 목록 조회 (관리자만)"""
+    users = load_users()
+    # 비밀번호 해시는 제외하고 반환
+    safe_users = {}
+    for username, user_data in users.items():
+        safe_users[username] = {
+            'name': user_data.get('name', username),
+            'email': user_data.get('email', ''),
+            'role': user_data.get('role', 'user'),
+            'is_active': user_data.get('is_active', True),
+            'created_at': user_data.get('created_at', ''),
+            'last_login': user_data.get('last_login', '')
+        }
+    return jsonify({'users': safe_users})
+
+@app.route('/users', methods=['POST'])
+@admin_required
+def create_user():
+    """새 사용자 생성 (관리자만)"""
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    name = data.get('name', username)
+    email = data.get('email', '')
+    role = data.get('role', 'developer')
+    
+    if not username or not password:
+        return jsonify({'error': '사용자명과 비밀번호는 필수입니다.'}), 400
+    
+    users = load_users()
+    if username in users:
+        return jsonify({'error': '이미 존재하는 사용자명입니다.'}), 400
+    
+    users[username] = {
+        'password_hash': generate_password_hash(password),
+        'role': role,
+        'email': email,
+        'name': name,
+        'created_at': datetime.now().isoformat(),
+        'last_login': None,
+        'is_active': True
+    }
+    
+    save_users(users)
+    return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
 
 @app.route('/projects', methods=['GET'])
 def list_projects():
