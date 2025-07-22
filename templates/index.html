@@ -955,7 +955,7 @@
     loadActiveServers();
 
     // 서버 액션 버튼 이벤트
-    $('#active-server-table').on('click', '.start-btn', function() {
+    $(document).on('click', '.start-btn', function() {
       const name = $(this).closest('tr').data('server');
       const btn = $(this);
       const originalText = btn.html();
@@ -974,7 +974,7 @@
       }
     });
     
-    $('#active-server-table').on('click', '.stop-btn', function() {
+    $(document).on('click', '.stop-btn', function() {
       const name = $(this).closest('tr').data('server');
       const btn = $(this);
       const originalText = btn.html();
@@ -994,7 +994,7 @@
       }
     });
     
-    $('#active-server-table').on('click', '.reboot-btn', function() {
+    $(document).on('click', '.reboot-btn', function() {
       const name = $(this).closest('tr').data('server');
       const btn = $(this);
       const originalText = btn.html();
@@ -1013,7 +1013,7 @@
       }
     });
     
-    $('#active-server-table').on('click', '.delete-btn', function() {
+    $(document).on('click', '.delete-btn', function() {
       const name = $(this).closest('tr').data('server');
       const btn = $(this);
       const originalText = btn.html();
@@ -1249,7 +1249,7 @@
       });
     }
     // 역할 적용 버튼 클릭 이벤트
-    $('#active-server-table').off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
+    $(document).on('click', '.server-role-apply', function() {
       const btn = $(this);
       const tr = btn.closest('tr');
       const server = tr.data('server');
@@ -1276,7 +1276,7 @@
       });
     });
     // 역할 삭제 버튼 클릭 이벤트
-    $('#active-server-table').off('click', '.server-role-remove').on('click', '.server-role-remove', function() {
+    $(document).on('click', '.server-role-remove', function() {
       const btn = $(this);
       const tr = btn.closest('tr');
       const server = tr.data('server');
@@ -1296,7 +1296,7 @@
       });
     });
     // 서버 상세 모달 내 역할 적용/삭제 버튼에도 동일하게 적용
-    $('body').on('click', '.server-detail-role-apply', function() {
+    $(document).on('click', '.server-detail-role-apply', function() {
       const btn = $(this);
       const modal = $('#server-detail-modal');
       const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
@@ -1322,7 +1322,7 @@
         addSystemNotification('error', xhr.responseJSON?.error || '역할 변경 실패');
       });
     });
-    $('body').on('click', '.server-detail-role-remove', function() {
+    $(document).on('click', '.server-detail-role-remove', function() {
       const btn = $(this);
       const modal = $('#server-detail-modal');
       const name = modal.find('.modal-title').text().replace('서버 상세 정보','').trim();
@@ -1360,7 +1360,7 @@
     </div>
     `);
     // 서버명 클릭 시 상세 모달 표시
-    $('#active-server-table').off('click', '.server-detail-link').on('click', '.server-detail-link', function(e) {
+    $(document).on('click', '.server-detail-link', function(e) {
       e.preventDefault();
       const name = $(this).data('server');
       $('#server-detail-modal').modal('show');
@@ -1388,7 +1388,7 @@
           <div class="mb-2"><strong>노드:</strong> ${s.node || '-'}</div>
         `);
         // 역할 적용/삭제 이벤트(상세)
-        $('#server-detail-body').off('click', '.server-detail-role-apply').on('click', '.server-detail-role-apply', function() {
+        $(document).on('click', '.server-detail-role-apply', function() {
           const role = $('#server-detail-body .server-detail-role-select').val();
           $.post(`/assign_role/${name}`, { role }, function(res) {
             showNotification('success', '역할이 적용되었습니다.');
@@ -1398,7 +1398,7 @@
             showNotification('error', xhr.responseJSON?.error || '역할 적용 실패');
           });
         });
-        $('#server-detail-body').off('click', '.server-detail-role-remove').on('click', '.server-detail-role-remove', function() {
+        $(document).on('click', '.server-detail-role-remove', function() {
           if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
           $.post(`/remove_role/${name}`, {}, function(res) {
             showNotification('success', '역할이 삭제되었습니다.');

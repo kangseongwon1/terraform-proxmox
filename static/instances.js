@@ -61,4 +61,98 @@ $(function() {
     loadActiveServers();
   });
   // 역할 적용/삭제, 서버 액션 버튼 등 기존 이벤트 핸들러도 index.html과 동일하게 추가되어야 함
+
+  // 서버 생성 버튼 동적 이벤트 위임
+  $(document).on('click', '#create-server-btn', function() {
+    const selectedRole = $('#role-select').val() || '';
+    const selectedOS = $('#os-select').val();
+    if (!selectedOS) {
+      alert('OS를 선택해주세요.');
+      return;
+    }
+    const name = $('input[name="name_basic"]').val();
+    if (!name || name.trim() === '') {
+      alert('서버 이름을 입력해주세요.');
+      return;
+    }
+    // IP 주소 검증
+    let hasError = false;
+    $('#network-container-basic').find('.network-ip').each(function() {
+      const ip = $(this).val();
+      if (!ip || ip.trim() === '') {
+        alert('IP 주소를 입력해주세요.');
+        hasError = true;
+        return false;
+      }
+    });
+    if (hasError) return;
+    // 서버 생성
+    createBasicServer(name, selectedOS, selectedRole);
+  });
+
+  // 기본 서버 생성 함수 (기존 로직 복원)
+  function createBasicServer(name, selectedOS, selectedRole) {
+    const btn = $('#create-server-btn');
+    const originalText = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
+    $('#creation-status').show();
+    $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
+    const cpu = parseInt($('input[name="cpu_basic"]').val());
+    const memory = parseInt($('input[name="memory_basic"]').val());
+    const disks = $('#disk-container-basic').find('.disk-item').map(function() {
+      return {
+        size: parseInt($(this).find('.disk-size').val()),
+        interface: $(this).find('.disk-interface').val(),
+        datastore_id: $(this).find('.disk-datastore').val()
+      };
+    }).get();
+    const networks = $('#network-container-basic').find('.network-item').map(function() {
+      return {
+        bridge: $(this).find('.network-bridge').val(),
+        ip_address: $(this).find('.network-ip').val(),
+        subnet: $(this).find('.network-subnet').val(),
+        gateway: $(this).find('.network-gateway').val()
+      };
+    }).get();
+    const osTemplateMapping = {
+      'ubuntu': 9000,
+      'rocky': 8000,
+      'centos': 8001,
+      'debian': 9001
+    };
+    const template_vm_id = osTemplateMapping[selectedOS] || 8000;
+    const data = {
+      name: name,
+      role: selectedRole,
+      cpu: cpu,
+      memory: memory,
+      disks: disks,
+      network_devices: networks,
+      template_vm_id: template_vm_id
+    };
+    $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
+    $.ajax({
+      url: '/add_server',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify(data),
+      success: function(res) {
+        $('#status-message').html('서버 생성 완료!');
+        setTimeout(function() {
+          $('#creation-status').hide();
+          btn.prop('disabled', false).html(originalText);
+          loadActiveServers();
+          alert('서버가 성공적으로 생성되었습니다!');
+        }, 2000);
+      },
+      error: function(xhr) {
+        $('#status-message').html('서버 생성 실패');
+        alert('서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
+        setTimeout(function() {
+          $('#creation-status').hide();
+          btn.prop('disabled', false).html(originalText);
+        }, 2000);
+      }
+    });
+  }
 }); 
