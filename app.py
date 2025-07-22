@@ -660,17 +660,22 @@ def add_server():
     if not vm_info:
         logger.error(f"[add_server] Proxmox에서 VM 정보 조회 실패: {server_name}")
         return jsonify({'success': False, 'error': 'VM 생성 후 Proxmox 정보 조회 실패'}), 500
-    db.add_server(
-        name=server_name,
-        vmid=vm_info['vmid'],
-        status=vm_info.get('status', 'pending'),
-        ip_address=vm_info.get('ip_address'),
-        role=data['role'],
-        os_type=data.get('os_type'),
-        cpu=data.get('cpu'),
-        memory=data.get('memory')
-    )
-    logger.info(f"[add_server] DB에 VM 정보 저장 완료: {server_name}, vmid={vm_info['vmid']}")
+    # 파라미터 보정 및 상세 로그
+    try:
+        db.add_server(
+            name=server_name,
+            vmid=vm_info.get('vmid'),
+            status=vm_info.get('status', 'pending'),
+            ip_address=vm_info.get('ip_address'),
+            role=data.get('role', ''),
+            os_type=data.get('os_type', ''),
+            cpu=int(data.get('cpu', 0)) if data.get('cpu') is not None else None,
+            memory=int(data.get('memory', 0)) if data.get('memory') is not None else None
+        )
+        logger.info(f"[add_server] DB에 VM 정보 저장 완료: {server_name}, vmid={vm_info.get('vmid')}")
+    except Exception as e:
+        logger.exception(f"[add_server] DB 저장 중 예외 발생: {e}, 파라미터: name={server_name}, vmid={vm_info.get('vmid')}, status={vm_info.get('status')}, ip_address={vm_info.get('ip_address')}, role={data.get('role', '')}, os_type={data.get('os_type', '')}, cpu={data.get('cpu')}, memory={data.get('memory')}")
+        return jsonify({'success': False, 'error': f'DB 저장 중 오류: {str(e)}'}), 500
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
@@ -687,6 +692,16 @@ def delete_server(server_name):
             if not ok:
                 logger.error(f"[delete_server] Terraform apply 실패: {err}")
                 return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+            # DB에서도 삭제 시도 (예외 발생 시 로그)
+            try:
+                # name이 unique이므로 name 기준 삭제
+                with db.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('DELETE FROM servers WHERE name = ?', (server_name,))
+                    conn.commit()
+                    logger.info(f"[delete_server] DB에서 서버 삭제 완료: {server_name}")
+            except Exception as e:
+                logger.exception(f"[delete_server] DB 삭제 중 예외 발생: {e}")
             logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
         else:
