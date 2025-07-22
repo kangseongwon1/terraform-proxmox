@@ -1174,6 +1174,26 @@ def remove_role(server_name):
     # (옵션) ansible-playbook로 서비스 중지/삭제 역할 실행 가능
     return jsonify({'success': True, 'message': '역할이 삭제되었습니다.'})
 
+@app.route('/start_server/<server_name>', methods=['POST'])
+@permission_required('delete_server')  # 필요시 권한 조정
+def start_server(server_name):
+    logger.info(f"[start_server] 요청: {server_name}")
+    try:
+        server = db.get_server_by_name(server_name)
+        if not server or not server['vmid']:
+            return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
+        vmid = server['vmid']
+        ok, err = proxmox_vm_action(vmid, 'start')
+        if ok:
+            logger.info(f"[start_server] VM 시작 요청: vmid={vmid}")
+            return jsonify({'success': True, 'message': f'{server_name} 서버가 시작되었습니다.'})
+        else:
+            logger.error(f"[start_server] 시작 실패: {err}")
+            return jsonify({'success': False, 'error': err}), 500
+    except Exception as e:
+        logger.exception(f"[start_server] 예외 발생: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 def get_default_username(os_type):
     """OS별 기본 사용자명 반환"""
     defaults = {
