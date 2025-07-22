@@ -701,7 +701,12 @@ def delete_server(server_name):
             if not ok:
                 logger.error(f"[delete_server] Terraform apply 실패: {err}")
                 return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-        # terraform apply가 성공한 경우에만 DB에서 삭제
+        # Proxmox에서 VM이 실제로 삭제됐는지 확인
+        vm_still_exists = check_proxmox_vm_exists(server_name)
+        if vm_still_exists:
+            logger.error(f"[delete_server] Proxmox에서 VM이 아직 삭제되지 않음: {server_name}")
+            return jsonify({'success': False, 'error': 'Proxmox에서 VM이 아직 삭제되지 않았습니다.'}), 500
+        # Proxmox에서 삭제가 확인된 경우에만 DB에서 삭제
         db_deleted = False
         with db.get_connection() as conn:
             cursor = conn.cursor()
@@ -721,6 +726,35 @@ def delete_server(server_name):
     except Exception as e:
         logger.exception("[delete_server] 서버 삭제 중 예외 발생")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Proxmox에서 VM이 실제로 삭제됐는지 확인하는 함수
+
+def check_proxmox_vm_exists(server_name):
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    username = app.config['PROXMOX_USERNAME']
+    password = app.config['PROXMOX_PASSWORD']
+    node = app.config['PROXMOX_NODE']
+    # 인증
+    auth_url = f"{proxmox_url}/api2/json/access/ticket"
+    auth_data = {'username': username, 'password': password}
+    auth_response = requests.post(auth_url, data=auth_data, verify=False)
+    if auth_response.status_code != 200:
+        return True  # 인증 실패 시 존재한다고 간주
+    ticket = auth_response.json()['data']['ticket']
+    csrf_token = auth_response.json()['data']['CSRFPreventionToken']
+    headers = {
+        'Cookie': f'PVEAuthCookie={ticket}',
+        'CSRFPreventionToken': csrf_token
+    }
+    vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+    vms_response = requests.get(vms_url, headers=headers, verify=False)
+    if vms_response.status_code != 200:
+        return True  # 조회 실패 시 존재한다고 간주
+    vms = vms_response.json().get('data', [])
+    for vm in vms:
+        if vm['name'] == server_name:
+            return True  # 아직 존재함
+    return False  # 존재하지 않음
 
 def proxmox_api_auth():
     proxmox_url = app.config['PROXMOX_ENDPOINT']
