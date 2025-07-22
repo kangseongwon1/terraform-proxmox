@@ -1201,6 +1201,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@app.route('/admin/iam', methods=['GET'])
+@admin_required
+def admin_iam_page():
+    return render_template('admin_iam.html')
+
+@app.route('/admin/iam/<username>/permissions', methods=['POST'])
+@admin_required
+def admin_iam_set_permissions(username):
+    data = request.json
+    permissions = data.get('permissions', [])
+    users = load_users()
+    if username not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    if users[username].get('role') == 'admin':
+        return jsonify({'error': '관리자 권한은 변경할 수 없습니다.'}), 400
+    users[username]['permissions'] = permissions
+    save_users(users)
+    return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
+
+@app.route('/admin/iam/<username>/role', methods=['POST'])
+@admin_required
+def admin_iam_set_role(username):
+    data = request.json
+    new_role = data.get('role')
+    users = load_users()
+    if username not in users:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    if new_role == 'admin':
+        users[username]['role'] = 'admin'
+        users[username]['permissions'] = PERMISSION_LIST.copy()
+    else:
+        users[username]['role'] = new_role
+        # 기존 권한 유지
+    save_users(users)
+    return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
+
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
     os.makedirs(PROJECTS_DIR, exist_ok=True)
