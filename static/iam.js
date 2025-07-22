@@ -57,30 +57,35 @@ $(function() {
     );
   }
 
-  // 오버레이 권한 카드 렌더링 (좌: 유저정보, 우: 권한카드 세로정렬)
+  // 오버레이 권한 카드 렌더링 (왼: 권한 풀, 오: 유저 권한 슬롯)
   function renderPermCardsOverlay(username) {
     const user = USERS[username];
     if (!user) return '';
     let perms = selectedPerms.length ? selectedPerms : user.permissions;
+    // 왼쪽: 부여되지 않은 권한, 오른쪽: 부여된 권한
+    const unassigned = PERMISSIONS.filter(p => !perms.includes(p));
+    const assigned = perms;
     let html = `<div style="display:flex; gap:32px; align-items:flex-start; min-height:220px;">
       <div style="flex:1; min-width:180px; max-width:220px; text-align:center;">
         <i class="fas fa-user-circle fa-2x me-2"></i><span class="fw-bold">${username}</span>
         <span class="badge ms-2 ${user.role==='admin'?'bg-success':user.role==='developer'?'bg-info':user.role==='operator'?'bg-warning':'bg-secondary'}">${user.role}</span>
         <div class="text-muted small mt-1">${user.email || ''}</div>
       </div>
-      <div style="flex:1; min-width:180px; max-height:320px; overflow-y:auto;">
-        <div id="perm-card-list" style="display:flex; flex-direction:column; gap:12px; align-items:stretch;">
-          ${PERMISSIONS.map(perm => {
-            const active = perms.includes(perm);
-            return `<button class="perm-card-btn btn ${active ? 'btn-primary text-white' : 'btn-outline-primary'} text-start d-flex align-items-center gap-2" data-perm="${perm}" draggable="true" style="font-size:1.08em; font-weight:500; padding:10px 18px; border-radius:8px;">
-              <i class="fas fa-key"></i> ${perm}
-            </button>`;
-          }).join('')}
+      <div style="flex:1; min-width:180px;">
+        <div class="mb-2 fw-bold text-primary">권한 풀</div>
+        <div id="perm-pool-list" style="display:flex; flex-direction:column; gap:10px; align-items:stretch; min-height:120px; max-height:180px; overflow-y:auto; background:#f6fafd; border-radius:8px; padding:8px 0;">
+          ${unassigned.map(perm => `<button class="perm-pool-btn btn btn-outline-primary text-start d-flex align-items-center gap-2" data-perm="${perm}" draggable="true" style="font-size:1.08em; font-weight:500; padding:8px 14px; border-radius:8px;"><i class="fas fa-key"></i> ${perm}</button>`).join('')}
+        </div>
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <div class="mb-2 fw-bold text-success">부여된 권한</div>
+        <div id="perm-assigned-list" style="display:flex; flex-direction:column; gap:10px; align-items:stretch; min-height:120px; max-height:180px; overflow-y:auto; background:#f6fff6; border-radius:8px; padding:8px 0;">
+          ${assigned.map(perm => `<button class="perm-assigned-btn btn btn-primary text-white text-start d-flex align-items-center gap-2" data-perm="${perm}" draggable="true" style="font-size:1.08em; font-weight:500; padding:8px 14px; border-radius:8px;"><i class="fas fa-key"></i> ${perm}</button>`).join('')}
         </div>
       </div>
     </div>`;
     html += `<div class="text-end mt-4"><button class="btn btn-success btn-sm iam-save-perm-btn" data-username="${username}" disabled style="min-width:90px;"><i class="fas fa-save me-1"></i>적용</button></div>`;
-    html += `<div class="mt-3 text-center text-muted small">카드를 클릭하거나 드래그해서 권한을 부여/해제할 수 있습니다.</div>`;
+    html += `<div class="mt-3 text-center text-muted small">왼쪽에서 드래그하여 권한을 부여, 오른쪽에서 드래그하여 권한을 해제할 수 있습니다.</div>`;
     return html;
   }
 
@@ -128,47 +133,71 @@ $(function() {
     }
   });
 
-  // 권한 카드 클릭 토글 (오버레이 내부)
-  $(document).off('click', '.perm-card-btn').on('click', '.perm-card-btn', function() {
-    const perm = $(this).data('perm');
-    if (selectedPerms.includes(perm)) {
-      selectedPerms = selectedPerms.filter(p => p !== perm);
-    } else {
-      selectedPerms.push(perm);
-    }
-    // 카드 UI 갱신
-    const html = renderPermCardsOverlay(overlayUser);
-    $('#iam-overlay-content').html(html);
-    // 적용 버튼 활성화
-    $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
-  });
-
-  // 권한 카드 드래그&드롭 지원 (버튼 클릭/드래그로 토글)
+  // 권한 풀에서 드래그 시작
   let dragPerm = null;
-  $(document).off('dragstart', '.perm-card-btn').on('dragstart', '.perm-card-btn', function(e) {
+  $(document).off('dragstart', '.perm-pool-btn').on('dragstart', '.perm-pool-btn', function(e) {
     dragPerm = $(this).data('perm');
     $(this).addClass('opacity-50');
   });
-  $(document).off('dragend', '.perm-card-btn').on('dragend', '.perm-card-btn', function(e) {
+  $(document).off('dragend', '.perm-pool-btn').on('dragend', '.perm-pool-btn', function(e) {
     dragPerm = null;
     $(this).removeClass('opacity-50');
   });
-  // 드롭존: 카드 리스트 전체
-  $(document).off('dragover', '#perm-card-list').on('dragover', '#perm-card-list', function(e) {
+  // 부여된 권한에서 드래그 시작
+  $(document).off('dragstart', '.perm-assigned-btn').on('dragstart', '.perm-assigned-btn', function(e) {
+    dragPerm = $(this).data('perm');
+    $(this).addClass('opacity-50');
+  });
+  $(document).off('dragend', '.perm-assigned-btn').on('dragend', '.perm-assigned-btn', function(e) {
+    dragPerm = null;
+    $(this).removeClass('opacity-50');
+  });
+  // 드롭: 권한 풀 → 부여된 권한
+  $(document).off('dragover', '#perm-assigned-list').on('dragover', '#perm-assigned-list', function(e) {
     e.preventDefault();
   });
-  $(document).off('drop', '#perm-card-list').on('drop', '#perm-card-list', function(e) {
+  $(document).off('drop', '#perm-assigned-list').on('drop', '#perm-assigned-list', function(e) {
     e.preventDefault();
     if (!dragPerm) return;
-    // 드래그한 권한을 토글
+    if (!selectedPerms.includes(dragPerm)) {
+      selectedPerms.push(dragPerm);
+      const html = renderPermCardsOverlay(overlayUser);
+      $('#iam-overlay-content').html(html);
+      $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
+    }
+  });
+  // 드롭: 부여된 권한 → 권한 풀
+  $(document).off('dragover', '#perm-pool-list').on('dragover', '#perm-pool-list', function(e) {
+    e.preventDefault();
+  });
+  $(document).off('drop', '#perm-pool-list').on('drop', '#perm-pool-list', function(e) {
+    e.preventDefault();
+    if (!dragPerm) return;
     if (selectedPerms.includes(dragPerm)) {
       selectedPerms = selectedPerms.filter(p => p !== dragPerm);
-    } else {
-      selectedPerms.push(dragPerm);
+      const html = renderPermCardsOverlay(overlayUser);
+      $('#iam-overlay-content').html(html);
+      $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
     }
-    const html = renderPermCardsOverlay(overlayUser);
-    $('#iam-overlay-content').html(html);
-    $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
+  });
+  // 클릭 토글도 지원
+  $(document).off('click', '.perm-pool-btn').on('click', '.perm-pool-btn', function() {
+    const perm = $(this).data('perm');
+    if (!selectedPerms.includes(perm)) {
+      selectedPerms.push(perm);
+      const html = renderPermCardsOverlay(overlayUser);
+      $('#iam-overlay-content').html(html);
+      $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
+    }
+  });
+  $(document).off('click', '.perm-assigned-btn').on('click', '.perm-assigned-btn', function() {
+    const perm = $(this).data('perm');
+    if (selectedPerms.includes(perm)) {
+      selectedPerms = selectedPerms.filter(p => p !== perm);
+      const html = renderPermCardsOverlay(overlayUser);
+      $('#iam-overlay-content').html(html);
+      $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
+    }
   });
 
   // 권한 저장 버튼 클릭 (오버레이 내부)
