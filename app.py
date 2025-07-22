@@ -780,14 +780,28 @@ def delete_server(server_name):
         ok, err = proxmox_vm_action(vmid, 'shutdown')
         print(f"[delete_server] Proxmox shutdown 요청 결과: ok={ok}, err={err}")
         if not ok:
-            logger.error(f"[delete_server] Proxmox shutdown 요청 실패: {err}")
-            return jsonify({'success': False, 'error': f'Proxmox shutdown 요청 실패: {err}'}), 500
-        # 3. shutdown 완료까지 대기
-        ok, err = wait_for_vm_shutdown(server_name)
+            print(f"[delete_server] shutdown 실패, stop(강제종료) 시도")
+            ok, err = proxmox_vm_action(vmid, 'stop')
+            print(f"[delete_server] Proxmox stop(강제종료) 요청 결과: ok={ok}, err={err}")
+            if not ok:
+                logger.error(f"[delete_server] Proxmox shutdown/stop 모두 실패: {err}")
+                return jsonify({'success': False, 'error': f'Proxmox shutdown/stop 모두 실패: {err}'}), 500
+        # 3. shutdown 완료까지 대기 (60초)
+        ok, err = wait_for_vm_shutdown(server_name, max_wait=60)
         print(f"[delete_server] VM shutdown 대기 결과: ok={ok}, err={err}")
         if not ok:
-            logger.error(f"[delete_server] VM shutdown 대기 실패: {err}")
-            return jsonify({'success': False, 'error': f'VM shutdown 대기 실패: {err}'}), 500
+            print(f"[delete_server] shutdown 대기 실패, stop(강제종료) 시도")
+            ok, err = proxmox_vm_action(vmid, 'stop')
+            print(f"[delete_server] Proxmox stop(강제종료) 요청 결과: ok={ok}, err={err}")
+            if not ok:
+                logger.error(f"[delete_server] Proxmox stop(강제종료)도 실패: {err}")
+                return jsonify({'success': False, 'error': f'Proxmox stop(강제종료)도 실패: {err}'}), 500
+            # stop 후 다시 대기 (30초)
+            ok, err = wait_for_vm_shutdown(server_name, max_wait=30)
+            print(f"[delete_server] stop 후 VM shutdown 대기 결과: ok={ok}, err={err}")
+            if not ok:
+                logger.error(f"[delete_server] 강제종료 후에도 VM이 종료되지 않음: {err}")
+                return jsonify({'success': False, 'error': f'강제종료 후에도 VM이 종료되지 않음: {err}'}), 500
         # 4. tfvars/terraform apply로 삭제 진행
         servers = read_servers_from_tfvars()
         print(f"[delete_server] 기존 tfvars 서버 목록: {list(servers.keys())}")
