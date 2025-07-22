@@ -249,12 +249,14 @@ $(function() {
     const originalText = btn.html();
     if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
+      // 삭제 중임을 행에도 표시(선택사항)
+      btn.closest('tr').addClass('table-warning');
       $.post('/delete_server/' + name, function(res) {
-        btn.prop('disabled', false).html(originalText);
+        // 삭제 성공 시 테이블 즉시 새로고침
         loadActiveServers();
-        alert(`${name} 서버가 삭제되었습니다.`);
       }).fail(function(xhr){
         btn.prop('disabled', false).html(originalText);
+        btn.closest('tr').removeClass('table-warning');
         alert(`삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
     }
