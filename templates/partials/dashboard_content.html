@@ -37,7 +37,39 @@
       <button class="btn btn-outline-primary btn-sm" id="dashboard-refresh-btn"><i class="fas fa-sync-alt me-1"></i>새로고침</button>
     </div>
     <div class="card-body" id="dashboard-server-panels">
-      <div class="text-center text-muted">서버 정보를 불러오는 중...</div>
+      {# 서버 목록을 Jinja2로 직접 렌더링 (예시) #}
+      {% if servers and servers|length > 0 %}
+      <div class="row g-3">
+        {% for s in servers %}
+        <div class="col-md-4 col-lg-3">
+          <div class="dashboard-card h-100 p-3" style="min-height:170px;">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-server fa-lg me-2 text-primary"></i>
+              <span class="fw-bold">{{ s.name }}</span>
+            </div>
+            <div class="mb-1"><i class="fas fa-tag me-1"></i> <span class="badge bg-primary">{{ s.role or '-' }}</span></div>
+            <div class="mb-1"><i class="fas fa-microchip me-1"></i> {{ s.cpu|int }}코어 <i class="fas fa-memory ms-2 me-1"></i> {{ (s.memory / 1024 / 1024 / 1024)|round(2) }}GB</div>
+            <div class="mb-1"><i class="fas fa-network-wired me-1"></i> {{ s.network_devices[0].ip_address if s.network_devices and s.network_devices|length > 0 else '-' }}</div>
+            <div class="mb-1">
+              {% if s.status == 'running' %}
+                <span class="badge bg-success">실행 중</span>
+              {% elif s.status == 'stopped' %}
+                <span class="badge bg-secondary">중지됨</span>
+              {% elif s.status == 'paused' %}
+                <span class="badge bg-warning">일시정지</span>
+              {% elif s.status == 'suspended' %}
+                <span class="badge bg-info">일시중단</span>
+              {% else %}
+                <span class="badge bg-dark">{{ s.status }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center text-muted">등록된 서버가 없습니다.</div>
+      {% endif %}
     </div>
   </div>
   <!-- 스토리지 요약 패널 -->
