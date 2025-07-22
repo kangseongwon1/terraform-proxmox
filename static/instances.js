@@ -247,29 +247,25 @@ $(function() {
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
-      // 1. 즉시 버튼/행에 삭제중 표시
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
-      btn.closest('tr').addClass('table-warning');
-      // 2. 안내 메시지 추가
+    // confirm 없이 바로 삭제 진행
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
+    btn.closest('tr').addClass('table-warning');
+    $('#delete-status-message').remove();
+    $('#active-server-table').before('<div id="delete-status-message" class="alert alert-warning mb-2">서버 삭제 중입니다. 완료까지 수 분 소요될 수 있습니다.</div>');
+    $.post('/delete_server/' + name, function(res) {
       $('#delete-status-message').remove();
-      $('#active-server-table').before('<div id="delete-status-message" class="alert alert-warning mb-2">서버 삭제 중입니다. 완료까지 수 분 소요될 수 있습니다.</div>');
-      // 3. ajax 요청
-      $.post('/delete_server/' + name, function(res) {
-        $('#delete-status-message').remove();
-        loadActiveServers();
-        if (typeof showNotification === 'function') {
-          showNotification('success', `${name} 서버가 삭제되었습니다.`);
-        }
-      }).fail(function(xhr){
-        $('#delete-status-message').remove();
-        btn.prop('disabled', false).html(originalText);
-        btn.closest('tr').removeClass('table-warning');
-        if (typeof showNotification === 'function') {
-          showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-        }
-      });
-    }
+      loadActiveServers();
+      if (typeof showNotification === 'function') {
+        showNotification('success', `${name} 서버가 삭제되었습니다.`);
+      }
+    }).fail(function(xhr){
+      $('#delete-status-message').remove();
+      btn.prop('disabled', false).html(originalText);
+      btn.closest('tr').removeClass('table-warning');
+      if (typeof showNotification === 'function') {
+        showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      }
+    });
   });
 
   // 서버명 클릭 시 상세 모달 표시
