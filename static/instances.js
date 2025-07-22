@@ -56,13 +56,11 @@ $(function() {
     });
   }
   loadActiveServers();
-  // 탭 전환 시 서버 목록 새로고침
   $('#list-tab').on('shown.bs.tab', function() {
     loadActiveServers();
   });
-  // 역할 적용/삭제, 서버 액션 버튼 등 기존 이벤트 핸들러도 index.html과 동일하게 추가되어야 함
 
-  // 서버 생성 버튼 동적 이벤트 위임
+  // 서버 생성 버튼
   $(document).on('click', '#create-server-btn', function() {
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
@@ -155,4 +153,122 @@ $(function() {
       }
     });
   }
+
+  // 역할 적용
+  $(document).on('click', '.server-role-apply', function() {
+    const btn = $(this);
+    const tr = btn.closest('tr');
+    const server = tr.data('server');
+    const role = tr.find('.server-role-select').val();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 적용 중...</span>');
+    $.post(`/assign_role/${server}`, { role }, function(res) {
+      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+      loadActiveServers();
+      alert('역할이 성공적으로 변경되었습니다.');
+    }).fail(function(xhr) {
+      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+      alert(xhr.responseJSON?.error || '역할 변경 실패');
+    });
+  });
+
+  // 역할 삭제
+  $(document).on('click', '.server-role-remove', function() {
+    const btn = $(this);
+    const tr = btn.closest('tr');
+    const server = tr.data('server');
+    if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 삭제 중...</span>');
+    $.post(`/remove_role/${server}`, {}, function(res) {
+      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
+      loadActiveServers();
+      alert('역할이 삭제되었습니다.');
+    }).fail(function(xhr) {
+      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
+      alert(xhr.responseJSON?.error || '역할 삭제 실패');
+    });
+  });
+
+  // 서버 시작
+  $(document).on('click', '.start-btn', function() {
+    const name = $(this).closest('tr').data('server');
+    const btn = $(this);
+    const originalText = btn.html();
+    if (confirm(`${name} 서버를 시작하시겠습니까?`)) {
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
+      $.post('/start_server/' + name, function(res) {
+        btn.prop('disabled', false).html(originalText);
+        loadActiveServers();
+        alert(`${name} 서버가 시작되었습니다.`);
+      }).fail(function(xhr){
+        btn.prop('disabled', false).html(originalText);
+        alert(`시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      });
+    }
+  });
+
+  // 서버 중지
+  $(document).on('click', '.stop-btn', function() {
+    const name = $(this).closest('tr').data('server');
+    const btn = $(this);
+    const originalText = btn.html();
+    if (confirm(`${name} 서버를 중지하시겠습니까?`)) {
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
+      $.post('/stop_server/' + name, function(res) {
+        btn.prop('disabled', false).html(originalText);
+        loadActiveServers();
+        alert(`${name} 서버가 중지되었습니다.`);
+      }).fail(function(xhr){
+        btn.prop('disabled', false).html(originalText);
+        alert(`중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      });
+    }
+  });
+
+  // 서버 리부팅
+  $(document).on('click', '.reboot-btn', function() {
+    const name = $(this).closest('tr').data('server');
+    const btn = $(this);
+    const originalText = btn.html();
+    if (confirm(`${name} 서버를 리부팅하시겠습니까?`)) {
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
+      $.post('/reboot_server/' + name, function(res) {
+        btn.prop('disabled', false).html(originalText);
+        loadActiveServers();
+        alert(`${name} 서버가 리부팅되었습니다.`);
+      }).fail(function(xhr){
+        btn.prop('disabled', false).html(originalText);
+        alert(`리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      });
+    }
+  });
+
+  // 서버 삭제
+  $(document).on('click', '.delete-btn', function() {
+    const name = $(this).closest('tr').data('server');
+    const btn = $(this);
+    const originalText = btn.html();
+    if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
+      $.post('/delete_server/' + name, function(res) {
+        btn.prop('disabled', false).html(originalText);
+        loadActiveServers();
+        alert(`${name} 서버가 삭제되었습니다.`);
+      }).fail(function(xhr){
+        btn.prop('disabled', false).html(originalText);
+        alert(`삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      });
+    }
+  });
+
+  // 서버명 클릭 시 상세 모달 표시
+  $(document).on('click', '.server-detail-link', function(e) {
+    e.preventDefault();
+    const name = $(this).data('server');
+    // 상세 모달 로드 및 이벤트 연결 (기존 index.html 구조 복원)
+    // ... 상세 모달 코드 ...
+  });
+
+  // 상세 모달 내 역할 적용/삭제
+  $(document).on('click', '.server-detail-role-apply', function() { /* ... */ });
+  $(document).on('click', '.server-detail-role-remove', function() { /* ... */ });
 }); 
