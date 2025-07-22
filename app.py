@@ -695,25 +695,23 @@ def delete_server(server_name):
         if tfvars_existed:
             del servers[server_name]
             write_servers_to_tfvars(servers)
+            # terraform apply를 동기 실행(완료까지 대기)
             ok, out, err = run_terraform_apply()
             logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
             if not ok:
                 logger.error(f"[delete_server] Terraform apply 실패: {err}")
                 return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-        # DB에서도 삭제 시도 (tfvars에 없더라도)
+        # terraform apply가 성공한 경우에만 DB에서 삭제
         db_deleted = False
-        try:
-            with db.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute('DELETE FROM servers WHERE name = ?', (server_name,))
-                conn.commit()
-                db_deleted = cursor.rowcount > 0
-                if db_deleted:
-                    logger.info(f"[delete_server] DB에서 서버 삭제 완료: {server_name}")
-                else:
-                    logger.info(f"[delete_server] DB에 해당 서버 없음: {server_name}")
-        except Exception as e:
-            logger.exception(f"[delete_server] DB 삭제 중 예외 발생: {e}")
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM servers WHERE name = ?', (server_name,))
+            conn.commit()
+            db_deleted = cursor.rowcount > 0
+            if db_deleted:
+                logger.info(f"[delete_server] DB에서 서버 삭제 완료: {server_name}")
+            else:
+                logger.info(f"[delete_server] DB에 해당 서버 없음: {server_name}")
         if tfvars_existed or db_deleted:
             logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
