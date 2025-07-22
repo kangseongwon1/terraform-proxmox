@@ -1641,7 +1641,6 @@
     if (isNaN(val) || !isFinite(val)) return "0.00";
     return Number(val).toFixed(2);
   }
-  // ... 이하 기존 JS 코드 ...
   </script>
   <script>
   // SPA: 서비스별 partial 동적 로드
@@ -1653,7 +1652,7 @@
     });
   }
   // 메뉴 클릭 이벤트
-  $('.sidebar .nav-link').on('click', function(e) {
+  $(document).on('click', '.sidebar .nav-link', function(e) {
     const href = $(this).attr('href');
     if (href === '/admin/iam') {
       e.preventDefault();
@@ -1668,7 +1667,7 @@
       e.preventDefault();
       loadSPA('/storage/content', '/static/storage.js');
     }
-    // ... 필요시 네트워크, 모니터링 등 추가
+    // 필요시 네트워크, 모니터링 등 추가
   });
   // 초기 진입 시 대시보드 자동 로드
   $(document).ready(function() {

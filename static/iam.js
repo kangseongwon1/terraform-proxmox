@@ -1,5 +1,6 @@
 // iam.js
 $(function() {
+  console.log('[iam.js] iam.js loaded');
   let PERMISSIONS = [];
   let USERS = {};
   let overlayUser = null;
@@ -90,8 +91,10 @@ $(function() {
   }
 
   function loadIAM() {
+    console.log('[iam.js] loadIAM 호출');
     $('#iam-loading').removeClass('d-none');
     $.get('/admin/iam', function(res) {
+      console.log('[iam.js] /admin/iam 응답:', res);
       USERS = res.users;
       PERMISSIONS = res.permissions;
       renderSummary();
@@ -101,11 +104,14 @@ $(function() {
       selectedPerms = [];
       $('#iam-overlay').hide();
       $('#iam-overlay-content').empty();
+    }).fail(function(xhr) {
+      console.error('[iam.js] /admin/iam 실패:', xhr);
     });
   }
 
   // 권한 관리 버튼 클릭 시 오버레이 띄우기
   $(document).off('click', '.iam-expand-btn').on('click', '.iam-expand-btn', function(e) {
+    console.log('[iam.js] .iam-expand-btn 클릭', $(this).data('username'));
     e.stopPropagation();
     const username = $(this).data('username');
     overlayUser = username;
@@ -117,6 +123,7 @@ $(function() {
 
   // 오버레이 닫기
   $(document).off('click', '#iam-overlay-close').on('click', '#iam-overlay-close', function() {
+    console.log('[iam.js] #iam-overlay-close 클릭');
     $('#iam-overlay').fadeOut(120);
     overlayUser = null;
     selectedPerms = [];
@@ -126,6 +133,7 @@ $(function() {
   // 오버레이 바깥 클릭 시 닫기
   $(document).off('mousedown', '#iam-overlay').on('mousedown', '#iam-overlay', function(e) {
     if (e.target === this) {
+      console.log('[iam.js] #iam-overlay 바깥 클릭');
       $('#iam-overlay').fadeOut(120);
       overlayUser = null;
       selectedPerms = [];
@@ -202,17 +210,23 @@ $(function() {
 
   // 권한 저장 버튼 클릭 (오버레이 내부)
   $(document).off('click', '.iam-save-perm-btn').on('click', '.iam-save-perm-btn', function() {
+    console.log('[iam.js] .iam-save-perm-btn 클릭', $(this).data('username'), selectedPerms);
     const username = $(this).data('username');
     $.ajax({
       url: `/admin/iam/${username}/permissions`,
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ permissions: selectedPerms }),
+      beforeSend: function() {
+        console.log('[iam.js] /admin/iam/permissions 요청 전', username, selectedPerms);
+      },
       success: function(res) {
+        console.log('[iam.js] /admin/iam/permissions 성공', res);
         showIAMAlert('success', res.message);
         loadIAM();
       },
       error: function(xhr) {
+        console.error('[iam.js] /admin/iam/permissions 실패', xhr);
         showIAMAlert('danger', xhr.responseJSON?.error || '권한 변경 실패');
       }
     });

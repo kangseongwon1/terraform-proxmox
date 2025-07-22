@@ -592,6 +592,7 @@ def list_servers():
 def run_terraform_apply():
     import subprocess
     lock_path = os.path.join(TERRAFORM_DIR, '.terraform.tfstate.lock.info')
+    print(f"[terraform] run_terraform_apply 진입, lock_path: {lock_path}")
     # apply 전 락 파일이 남아있으면 자동 삭제(비정상 종료/중복 락 방지)
     if os.path.exists(lock_path):
         try:
@@ -613,6 +614,7 @@ def run_terraform_apply():
         result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
         print(f"[terraform] apply stdout: {result.stdout}")
         print(f"[terraform] apply stderr: {result.stderr}")
+        print(f"[terraform] apply returncode: {result.returncode}")
         return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
         # apply 중 예외 발생 시 락 파일 자동 정리
@@ -622,6 +624,7 @@ def run_terraform_apply():
                 print(f"[terraform] apply 예외 발생, 락 파일 자동 삭제: {lock_path}")
             except Exception as e2:
                 print(f"[terraform] apply 예외+락 파일 삭제 실패: {e2}")
+        print(f"[terraform] apply 예외 발생: {e}")
         return False, '', f'terraform apply 중 예외 발생: {e}'
 
 def run_ansible_playbook():
@@ -717,22 +720,30 @@ def add_server():
 @permission_required('delete_server')
 def delete_server(server_name):
     logger.info(f"[delete_server] 요청: {server_name}")
+    print(f"[delete_server] 요청: {server_name}")
     try:
         servers = read_servers_from_tfvars()
+        print(f"[delete_server] 기존 tfvars 서버 목록: {list(servers.keys())}")
         tfvars_existed = server_name in servers
         if tfvars_existed:
             del servers[server_name]
+            print(f"[delete_server] {server_name} 삭제 후 tfvars 서버 목록: {list(servers.keys())}")
             write_servers_to_tfvars(servers)
+            print(f"[delete_server] write_servers_to_tfvars 완료")
             # terraform apply를 동기 실행(완료까지 대기)
             ok, out, err = run_terraform_apply()
             logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
+            print(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
             if not ok:
                 logger.error(f"[delete_server] Terraform apply 실패: {err}")
+                print(f"[delete_server] Terraform apply 실패: {err}")
                 return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
         # Proxmox에서 VM이 실제로 삭제됐는지 확인
         vm_still_exists = check_proxmox_vm_exists(server_name)
+        print(f"[delete_server] Proxmox VM 존재 여부: {vm_still_exists}")
         if vm_still_exists:
             logger.error(f"[delete_server] Proxmox에서 VM이 아직 삭제되지 않음: {server_name}")
+            print(f"[delete_server] Proxmox에서 VM이 아직 삭제되지 않음: {server_name}")
             return jsonify({'success': False, 'error': 'Proxmox에서 VM이 아직 삭제되지 않았습니다.'}), 500
         # Proxmox에서 삭제가 확인된 경우에만 DB에서 삭제
         db_deleted = False
@@ -741,18 +752,24 @@ def delete_server(server_name):
             cursor.execute('DELETE FROM servers WHERE name = ?', (server_name,))
             conn.commit()
             db_deleted = cursor.rowcount > 0
+            print(f"[delete_server] DB 삭제 rowcount: {cursor.rowcount}")
             if db_deleted:
                 logger.info(f"[delete_server] DB에서 서버 삭제 완료: {server_name}")
+                print(f"[delete_server] DB에서 서버 삭제 완료: {server_name}")
             else:
                 logger.info(f"[delete_server] DB에 해당 서버 없음: {server_name}")
+                print(f"[delete_server] DB에 해당 서버 없음: {server_name}")
         if tfvars_existed or db_deleted:
             logger.info(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
+            print(f"[delete_server] 서버 삭제 및 적용 완료: {server_name}")
             return jsonify({'success': True, 'message': f'{server_name} 서버가 삭제 및 적용되었습니다.'})
         else:
             logger.error(f"[delete_server] 서버를 찾을 수 없음: {server_name}")
+            print(f"[delete_server] 서버를 찾을 수 없음: {server_name}")
             return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
     except Exception as e:
         logger.exception("[delete_server] 서버 삭제 중 예외 발생")
+        print(f"[delete_server] 서버 삭제 중 예외 발생: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Proxmox에서 VM이 실제로 삭제됐는지 확인하는 함수

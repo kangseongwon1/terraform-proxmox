@@ -2,7 +2,9 @@
 $(function() {
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
   window.loadActiveServers = function() {
+    console.log('[instances.js] loadActiveServers 호출');
     $.get('/all_server_status', function(res) {
+      console.log('[instances.js] /all_server_status 응답:', res);
       let html = '';
       for (const [name, s] of Object.entries(res.servers)) {
         // 상태별 배지 색상 결정
@@ -53,15 +55,20 @@ $(function() {
         </tr>`;
       }
       $('#active-server-table tbody').html(html);
+      console.log('[instances.js] 서버 목록 렌더링 완료');
+    }).fail(function(xhr) {
+      console.error('[instances.js] /all_server_status 실패:', xhr);
     });
   }
   loadActiveServers();
   $('#list-tab').on('shown.bs.tab', function() {
+    console.log('[instances.js] list-tab shown');
     loadActiveServers();
   });
 
   // 서버 생성 버튼
   $(document).on('click', '#create-server-btn', function() {
+    console.log('[instances.js] #create-server-btn 클릭');
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
     if (!selectedOS) {
@@ -90,6 +97,7 @@ $(function() {
 
   // 기본 서버 생성 함수 (기존 로직 복원)
   function createBasicServer(name, selectedOS, selectedRole) {
+    console.log('[instances.js] createBasicServer 호출', name, selectedOS, selectedRole);
     const btn = $('#create-server-btn');
     const originalText = btn.html();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
@@ -134,7 +142,11 @@ $(function() {
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(data),
+      beforeSend: function() {
+        console.log('[instances.js] /add_server 요청 전', data);
+      },
       success: function(res) {
+        console.log('[instances.js] /add_server 성공', res);
         $('#status-message').html('서버 생성 완료!');
         setTimeout(function() {
           $('#creation-status').hide();
@@ -144,6 +156,7 @@ $(function() {
         }, 2000);
       },
       error: function(xhr) {
+        console.error('[instances.js] /add_server 실패', xhr);
         $('#status-message').html('서버 생성 실패');
         alert('서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
         setTimeout(function() {
@@ -156,16 +169,19 @@ $(function() {
 
   // 역할 적용
   $(document).on('click', '.server-role-apply', function() {
+    console.log('[instances.js] .server-role-apply 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
     const server = tr.data('server');
     const role = tr.find('.server-role-select').val();
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 적용 중...</span>');
     $.post(`/assign_role/${server}`, { role }, function(res) {
+      console.log('[instances.js] /assign_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       loadActiveServers();
       alert('역할이 성공적으로 변경되었습니다.');
     }).fail(function(xhr) {
+      console.error('[instances.js] /assign_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       alert(xhr.responseJSON?.error || '역할 변경 실패');
     });
@@ -173,16 +189,19 @@ $(function() {
 
   // 역할 삭제
   $(document).on('click', '.server-role-remove', function() {
+    console.log('[instances.js] .server-role-remove 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
     const server = tr.data('server');
     if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 삭제 중...</span>');
     $.post(`/remove_role/${server}`, {}, function(res) {
+      console.log('[instances.js] /remove_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
       loadActiveServers();
       alert('역할이 삭제되었습니다.');
     }).fail(function(xhr) {
+      console.error('[instances.js] /remove_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
       alert(xhr.responseJSON?.error || '역할 삭제 실패');
     });
@@ -190,16 +209,19 @@ $(function() {
 
   // 서버 시작
   $(document).on('click', '.start-btn', function() {
+    console.log('[instances.js] .start-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
     if (confirm(`${name} 서버를 시작하시겠습니까?`)) {
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
       $.post('/start_server/' + name, function(res) {
+        console.log('[instances.js] /start_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
         alert(`${name} 서버가 시작되었습니다.`);
       }).fail(function(xhr){
+        console.error('[instances.js] /start_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
         alert(`시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
@@ -208,16 +230,19 @@ $(function() {
 
   // 서버 중지
   $(document).on('click', '.stop-btn', function() {
+    console.log('[instances.js] .stop-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
     if (confirm(`${name} 서버를 중지하시겠습니까?`)) {
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
       $.post('/stop_server/' + name, function(res) {
+        console.log('[instances.js] /stop_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
         alert(`${name} 서버가 중지되었습니다.`);
       }).fail(function(xhr){
+        console.error('[instances.js] /stop_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
         alert(`중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
@@ -226,16 +251,19 @@ $(function() {
 
   // 서버 리부팅
   $(document).on('click', '.reboot-btn', function() {
+    console.log('[instances.js] .reboot-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
     if (confirm(`${name} 서버를 리부팅하시겠습니까?`)) {
       btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
       $.post('/reboot_server/' + name, function(res) {
+        console.log('[instances.js] /reboot_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
         alert(`${name} 서버가 리부팅되었습니다.`);
       }).fail(function(xhr){
+        console.error('[instances.js] /reboot_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
         alert(`리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
@@ -244,6 +272,7 @@ $(function() {
 
   // 서버 삭제
   $(document).on('click', '.delete-btn', function() {
+    console.log('[instances.js] .delete-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
@@ -253,12 +282,14 @@ $(function() {
     $('#delete-status-message').remove();
     $('#active-server-table').before('<div id="delete-status-message" class="alert alert-warning mb-2">서버 삭제 중입니다. 완료까지 수 분 소요될 수 있습니다.</div>');
     $.post('/delete_server/' + name, function(res) {
+      console.log('[instances.js] /delete_server 성공', res);
       $('#delete-status-message').remove();
       loadActiveServers();
       if (typeof showNotification === 'function') {
         showNotification('success', `${name} 서버가 삭제되었습니다.`);
       }
     }).fail(function(xhr){
+      console.error('[instances.js] /delete_server 실패', xhr);
       $('#delete-status-message').remove();
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
@@ -289,5 +320,11 @@ $(function() {
     if (container.find('.disk-item').length === 1) {
       container.find('.disk-item:first .btn-outline-danger').prop('disabled', true);
     }
+  });
+
+  // 새로고침 버튼 클릭 시 서버 목록 갱신
+  $(document).on('click', '.refresh-btn', function() {
+    console.log('[instances.js] .refresh-btn 클릭');
+    loadActiveServers();
   });
 }); 

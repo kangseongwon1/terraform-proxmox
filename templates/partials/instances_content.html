@@ -197,4 +197,11 @@
       </div>
     </div>
   </div>
-</div> 
+</div>
+<script>
+window.dashboardRoleMap = {
+{% for key, role in roles.items() %}
+  '{{ key }}': '{{ role.name }}'{% if not loop.last %},{% endif %}
+{% endfor %}
+};
+</script> 
