@@ -59,7 +59,7 @@
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                   <label class="form-label mb-0"><i class="fas fa-hdd me-1"></i>디스크 설정</label>
-                  <button type="button" class="btn btn-outline-primary btn-sm" onclick="addDisk('basic')">
+                  <button type="button" class="btn btn-outline-primary btn-sm add-disk-btn">
                     <i class="fas fa-plus me-1"></i>디스크 추가
                   </button>
                 </div>
@@ -92,7 +92,7 @@
                           <option value="local-lvm" selected>HDD (local-lvm)</option>
                           <option value="ssd">SSD (ssd)</option>
                         </select>
-                        <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
+                        <button type="button" class="btn btn-outline-danger btn-sm mt-2 remove-disk-btn">
                           <i class="fas fa-trash me-1"></i>삭제
                         </button>
                       </div>
@@ -104,7 +104,7 @@
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                   <label class="form-label mb-0"><i class="fas fa-network-wired me-1"></i>네트워크 설정</label>
-                  <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNetwork('basic')">
+                  <button type="button" class="btn btn-outline-primary btn-sm add-network-btn">
                     <i class="fas fa-plus me-1"></i>네트워크 추가
                   </button>
                 </div>
@@ -132,7 +132,7 @@
                         <input type="text" class="form-control network-gateway" placeholder="192.168.1.1">
                       </div>
                       <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNetwork(this)" disabled>
+                        <button type="button" class="btn btn-outline-danger btn-sm remove-network-btn" disabled>
                           <i class="fas fa-trash me-1"></i>삭제
                         </button>
                       </div>
@@ -170,7 +170,7 @@
           <div class="tab-pane fade" id="list" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
-              <button class="btn btn-outline-primary btn-sm" onclick="loadActiveServers()">
+              <button class="btn btn-outline-primary btn-sm refresh-btn">
                 <i class="fas fa-sync-alt me-1"></i>새로고침
               </button>
             </div>
