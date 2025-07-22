@@ -600,10 +600,19 @@ def run_terraform_apply():
         except Exception as e:
             print(f"[terraform] 락 파일 삭제 실패: {e}")
             return False, '', f'기존 terraform 락 파일이 남아있어 삭제에 실패했습니다: {e}'
-    # terraform init 먼저 실행
-    subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+    # 항상 terraform init 먼저 실행
+    print("[terraform] terraform init 실행")
+    init_result = subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+    print(f"[terraform] init stdout: {init_result.stdout}")
+    print(f"[terraform] init stderr: {init_result.stderr}")
+    if init_result.returncode != 0:
+        print(f"[terraform] init 실패: {init_result.stderr}")
+        return False, init_result.stdout, init_result.stderr
     try:
+        print("[terraform] terraform apply 실행")
         result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+        print(f"[terraform] apply stdout: {result.stdout}")
+        print(f"[terraform] apply stderr: {result.stderr}")
         return result.returncode == 0, result.stdout, result.stderr
     except Exception as e:
         # apply 중 예외 발생 시 락 파일 자동 정리
