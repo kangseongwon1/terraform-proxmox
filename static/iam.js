@@ -2,7 +2,7 @@
 $(function() {
   let PERMISSIONS = [];
   let USERS = {};
-  let expandedUser = null;
+  let overlayUser = null;
   let changedPerms = {};
 
   function showIAMAlert(type, msg) {
@@ -85,23 +85,24 @@ $(function() {
       tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`);
       tr.append(`<td class="align-middle text-center" style="width:120px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn w-100" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`);
       tbody.append(tr);
-      // 권한 카드 영역(펼침)
-      let permRow = $(`<tr class="iam-perm-row" data-username="${username}" style="display:none;"><td colspan="5" style="background:#f8f9fa;"></td></tr>`);
-      tbody.append(permRow);
     });
-    // 행 hover 효과
     tbody.find('tr.iam-user-row').hover(
       function() { $(this).addClass('table-primary'); },
       function() { $(this).removeClass('table-primary'); }
     );
   }
 
-  // 권한 카드 렌더링
-  function renderPermCards(username) {
+  // 오버레이 권한 카드 렌더링
+  function renderPermCardsOverlay(username) {
     const user = USERS[username];
     if (!user) return '';
     let perms = changedPerms[username] || user.permissions;
-    let html = `<div class="d-flex flex-wrap gap-2 mb-2">`;
+    let html = `<div class="mb-3 text-center">
+      <i class="fas fa-user-circle fa-2x me-2"></i><span class="fw-bold">${username}</span>
+      <span class="badge ms-2 ${user.role==='admin'?'bg-success':user.role==='developer'?'bg-info':user.role==='operator'?'bg-warning':'bg-secondary'}">${user.role}</span>
+      <div class="text-muted small mt-1">${user.email || ''}</div>
+    </div>`;
+    html += `<div class="d-flex flex-wrap gap-2 mb-3 justify-content-center">`;
     PERMISSIONS.forEach(perm => {
       const active = perms.includes(perm);
       html += `<div class="card perm-card ${active ? 'border-primary bg-primary text-white' : 'border-light'}" data-perm="${perm}" style="min-width:120px;cursor:pointer;transition:all 0.2s;">
@@ -123,32 +124,42 @@ $(function() {
       renderSummary();
       renderTable();
       $('#iam-loading').addClass('d-none');
-      expandedUser = null;
+      overlayUser = null;
       changedPerms = {};
+      $('#iam-overlay').hide();
+      $('#iam-overlay-content').empty();
     });
   }
 
-  // 사용자 행 클릭 시 권한 카드 펼침/닫기
+  // 권한 관리 버튼 클릭 시 오버레이 띄우기
   $(document).off('click', '.iam-expand-btn').on('click', '.iam-expand-btn', function(e) {
     e.stopPropagation();
     const username = $(this).data('username');
-    // 이미 펼쳐진 경우 닫기
-    if (expandedUser === username) {
-      $(`.iam-perm-row[data-username='${username}']`).hide().empty();
-      expandedUser = null;
-      return;
-    }
-    // 다른 유저 펼침 닫기
-    $('.iam-perm-row').hide().empty();
-    expandedUser = username;
-    // 권한 카드 렌더링
-    const html = renderPermCards(username);
-    $(`.iam-perm-row[data-username='${username}']`).show().find('td').html(html);
+    overlayUser = username;
+    const html = renderPermCardsOverlay(username);
+    $('#iam-overlay-content').html(html);
+    $('#iam-overlay').fadeIn(120);
   });
 
-  // 권한 카드 클릭 토글
+  // 오버레이 닫기
+  $(document).off('click', '#iam-overlay-close').on('click', '#iam-overlay-close', function() {
+    $('#iam-overlay').fadeOut(120);
+    overlayUser = null;
+    $('#iam-overlay-content').empty();
+  });
+
+  // 오버레이 바깥 클릭 시 닫기
+  $(document).off('mousedown', '#iam-overlay').on('mousedown', '#iam-overlay', function(e) {
+    if (e.target === this) {
+      $('#iam-overlay').fadeOut(120);
+      overlayUser = null;
+      $('#iam-overlay-content').empty();
+    }
+  });
+
+  // 권한 카드 클릭 토글 (오버레이 내부)
   $(document).off('click', '.perm-card').on('click', '.perm-card', function() {
-    const username = expandedUser;
+    const username = overlayUser;
     if (!username) return;
     let perms = changedPerms[username] || [...USERS[username].permissions];
     const perm = $(this).data('perm');
@@ -159,13 +170,13 @@ $(function() {
     }
     changedPerms[username] = perms;
     // 카드 UI 갱신
-    const html = renderPermCards(username);
-    $(`.iam-perm-row[data-username='${username}'] td`).html(html);
+    const html = renderPermCardsOverlay(username);
+    $('#iam-overlay-content').html(html);
     // 저장 버튼 활성화
     $(`.iam-save-perm-btn[data-username='${username}']`).prop('disabled', false);
   });
 
-  // 권한 저장 버튼 클릭
+  // 권한 저장 버튼 클릭 (오버레이 내부)
   $(document).off('click', '.iam-save-perm-btn').on('click', '.iam-save-perm-btn', function() {
     const username = $(this).data('username');
     const perms = changedPerms[username] || USERS[username].permissions;

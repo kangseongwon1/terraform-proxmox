@@ -24,6 +24,13 @@
       </table>
     </div>
   </div>
+  <!-- 권한 관리 오버레이 -->
+  <div id="iam-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0008; z-index:2000;">
+    <div style="max-width:480px; margin:60px auto; background:white; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.18); padding:32px 24px; position:relative;">
+      <button id="iam-overlay-close" class="btn btn-close position-absolute end-0 top-0 m-3"></button>
+      <div id="iam-overlay-content"></div>
+    </div>
+  </div>
   <style>
     .iam-table th, .iam-table td { vertical-align: middle; text-align: center; }
     .iam-table th { font-weight: 600; letter-spacing: 0.5px; }
@@ -33,5 +40,7 @@
     .perm-card { border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
     .perm-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.10); transform: translateY(-2px); }
     .iam-save-perm-btn { min-width: 80px; }
+    #iam-overlay { display:none; }
+    #iam-overlay-content { min-height:120px; }
   </style>
 </div> 
