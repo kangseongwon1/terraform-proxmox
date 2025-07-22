@@ -4,28 +4,28 @@
     <div class="col-md-3">
       <div class="stats-card">
         <div class="stats-icon"><i class="fas fa-server"></i></div>
-        <div class="stats-number" id="total-servers">0</div>
+        <div class="stats-number" id="total-servers">{{ total_servers }}</div>
         <div class="stats-label">총 서버</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stats-card">
         <div class="stats-icon"><i class="fas fa-play-circle"></i></div>
-        <div class="stats-number" id="running-servers">0</div>
+        <div class="stats-number" id="running-servers">{{ running_servers }}</div>
         <div class="stats-label">실행 중</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stats-card">
         <div class="stats-icon"><i class="fas fa-pause-circle"></i></div>
-        <div class="stats-number" id="stopped-servers">0</div>
+        <div class="stats-number" id="stopped-servers">{{ stopped_servers }}</div>
         <div class="stats-label">중지됨</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="stats-card">
         <div class="stats-icon"><i class="fas fa-memory"></i></div>
-        <div class="stats-number" id="total-memory">0</div>
+        <div class="stats-number" id="total-memory">{{ '%.2f' % total_memory_gb }}</div>
         <div class="stats-label">총 메모리 (GB)</div>
       </div>
     </div>

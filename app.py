@@ -1239,11 +1239,37 @@ def admin_iam_set_role(username):
 
 @app.route('/dashboard/content')
 def dashboard_content():
-    return render_template('partials/dashboard_content.html')
+    # 실제 서버/메모리 통계 정보 계산 (예시)
+    # 실제 구현에서는 db 또는 API에서 값을 가져와야 함
+    try:
+        from database import db
+        servers = db.get_all_servers() if hasattr(db, 'get_all_servers') else []
+    except Exception:
+        servers = []
+    total_servers = len(servers)
+    running_servers = sum(1 for s in servers if s.get('status') == 'running')
+    stopped_servers = sum(1 for s in servers if s.get('status') == 'stopped')
+    total_memory_gb = sum(s.get('memory', 0) for s in servers) / 1024 / 1024 / 1024 if servers else 0
+    return render_template(
+        'partials/dashboard_content.html',
+        total_servers=total_servers,
+        running_servers=running_servers,
+        stopped_servers=stopped_servers,
+        total_memory_gb=total_memory_gb
+    )
 
 @app.route('/instances/content')
 def instances_content():
-    return render_template('partials/instances_content.html')
+    # roles 변수 준비 (예시)
+    roles = {
+        'web': {'name': '웹서버', 'description': '웹 서비스 제공'},
+        'was': {'name': 'WAS', 'description': '애플리케이션 서버'},
+        'java': {'name': 'JAVA', 'description': '자바 서버'},
+        'search': {'name': '검색', 'description': '검색 서버'},
+        'ftp': {'name': 'FTP', 'description': '파일 서버'},
+        'db': {'name': 'DB', 'description': '데이터베이스 서버'}
+    }
+    return render_template('partials/instances_content.html', roles=roles)
 
 @app.route('/storage/content')
 def storage_content():
