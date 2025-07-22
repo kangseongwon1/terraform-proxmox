@@ -1017,25 +1017,6 @@
       }
     });
     
-    $(document).on('click', '.delete-btn', function() {
-      const name = $(this).closest('tr').data('server');
-      const btn = $(this);
-      const originalText = btn.html();
-      
-      if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
-        
-        $.post('/delete_server/' + name, function(res) {
-          btn.prop('disabled', false).html(originalText);
-          loadActiveServers();
-          showNotification('success', `${name} 서버가 삭제되었습니다.`);
-        }).fail(function(xhr){
-          btn.prop('disabled', false).html(originalText);
-          showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-        });
-      }
-    });
-    
     // 알림 표시 함수
     function showNotification(type, message) {
       const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
