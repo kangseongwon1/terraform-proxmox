@@ -1223,8 +1223,23 @@ logger = logging.getLogger(__name__)
 
 @app.route('/admin/iam', methods=['GET'])
 @admin_required
-def admin_iam_page():
-    return render_template('admin_iam.html')
+def admin_iam_api():
+    users = load_users()
+    safe_users = {}
+    for username, user_data in users.items():
+        safe_users[username] = {
+            'name': user_data.get('name', username),
+            'email': user_data.get('email', ''),
+            'role': user_data.get('role', 'user'),
+            'is_active': user_data.get('is_active', True),
+            'created_at': user_data.get('created_at', ''),
+            'last_login': user_data.get('last_login', ''),
+            'permissions': user_data.get('permissions', [])
+        }
+    return jsonify({
+        'users': safe_users,
+        'permissions': PERMISSION_LIST
+    })
 
 @app.route('/admin/iam/<username>/permissions', methods=['POST'])
 @admin_required
