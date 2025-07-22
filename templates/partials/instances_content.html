@@ -1,0 +1,60 @@
+<div class="instances-panel">
+  <h3><i class="fas fa-server me-2"></i>서버 관리</h3>
+  <div class="dashboard-card">
+    <div class="card-header">
+      <h4 class="mb-0"><i class="fas fa-plus-circle me-2"></i>서버 관리</h4>
+    </div>
+    <div class="card-body">
+      <!-- Tabs -->
+      <ul class="nav nav-tabs mb-4" id="serverTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">
+            <i class="fas fa-plus me-1"></i>서버 생성
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+            <i class="fas fa-list me-1"></i>서버 목록
+          </button>
+        </li>
+      </ul>
+      <!-- Tab Content -->
+      <div class="tab-content" id="serverTabsContent">
+        <!-- Create Server Tab -->
+        <div class="tab-pane fade show active" id="create" role="tabpanel">
+          <form id="server-create-form">
+            <!-- 서버 생성 폼 내용 (필요시 추가) -->
+            <div class="alert alert-info">서버 생성 폼 영역</div>
+          </form>
+        </div>
+        <!-- Server List Tab -->
+        <div class="tab-pane fade" id="list" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
+            <button class="btn btn-outline-primary btn-sm" onclick="loadActiveServers()">
+              <i class="fas fa-sync-alt me-1"></i>새로고침
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover" id="active-server-table">
+              <thead>
+                <tr>
+                  <th><i class="fas fa-server me-1"></i>서버명</th>
+                  <th><i class="fas fa-tag me-1"></i>역할</th>
+                  <th><i class="fas fa-microchip me-1"></i>CPU</th>
+                  <th><i class="fas fa-memory me-1"></i>메모리</th>
+                  <th><i class="fas fa-network-wired me-1"></i>IP 주소</th>
+                  <th><i class="fas fa-circle me-1"></i>상태</th>
+                  <th><i class="fas fa-cogs me-1"></i>액션</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- 서버 리스트 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

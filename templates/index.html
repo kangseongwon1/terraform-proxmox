@@ -854,6 +854,14 @@
   </div>
   {% endif %}
 
+  <!-- 사용자 관리 오버레이 패널 -->
+  <div id="iam-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0008; z-index:2000;">
+    <div style="position:absolute; top:50px; left:50%; transform:translateX(-50%); width:90vw; max-width:900px; background:#fff; border-radius:12px; box-shadow:0 4px 24px #0003; padding:32px 24px;">
+      <button id="iam-close-btn" class="btn btn-close float-end"></button>
+      <div id="iam-overlay-content"></div>
+    </div>
+  </div>
+
   <script>
   $(document).ready(function() {
     $('#role-select').select2({
@@ -1868,6 +1876,24 @@
       setTimeout(()=>alert.hide(), 2000);
     }
     {% endif %}
+
+    // 사용자 관리 메뉴 클릭 시 오버레이 패널 열기
+    $(document).on('click', 'a[href="/admin/iam"]', function(e) {
+      e.preventDefault();
+      $('#iam-overlay').show();
+      $('#iam-overlay-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
+      $.get('/admin/iam/content', function(html) {
+        $('#iam-overlay-content').html(html);
+        if (!window.IAM_SCRIPT_LOADED) {
+          $.getScript('/static/iam.js');
+          window.IAM_SCRIPT_LOADED = true;
+        }
+      });
+    });
+    // 오버레이 닫기
+    $(document).on('click', '#iam-close-btn', function() {
+      $('#iam-overlay').hide();
+    });
   });
   </script>
   <script>

@@ -1,0 +1,53 @@
+<div class="dashboard-summary">
+  <h3><i class="fas fa-tachometer-alt me-2"></i>모든 상태 요약</h3>
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="stats-card">
+        <div class="stats-icon"><i class="fas fa-server"></i></div>
+        <div class="stats-number" id="total-servers">0</div>
+        <div class="stats-label">총 서버</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card">
+        <div class="stats-icon"><i class="fas fa-play-circle"></i></div>
+        <div class="stats-number" id="running-servers">0</div>
+        <div class="stats-label">실행 중</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card">
+        <div class="stats-icon"><i class="fas fa-pause-circle"></i></div>
+        <div class="stats-number" id="stopped-servers">0</div>
+        <div class="stats-label">중지됨</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="stats-card">
+        <div class="stats-icon"><i class="fas fa-memory"></i></div>
+        <div class="stats-number" id="total-memory">0</div>
+        <div class="stats-label">총 메모리 (GB)</div>
+      </div>
+    </div>
+  </div>
+  <!-- 서버 요약 패널 -->
+  <div class="dashboard-card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 요약</h5>
+      <button class="btn btn-outline-primary btn-sm" id="dashboard-refresh-btn"><i class="fas fa-sync-alt me-1"></i>새로고침</button>
+    </div>
+    <div class="card-body" id="dashboard-server-panels">
+      <div class="text-center text-muted">서버 정보를 불러오는 중...</div>
+    </div>
+  </div>
+  <!-- 스토리지 요약 패널 -->
+  <div class="dashboard-card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>스토리지 요약</h5>
+      <button class="btn btn-outline-primary btn-sm" id="dashboard-storage-refresh-btn"><i class="fas fa-sync-alt me-1"></i>새로고침</button>
+    </div>
+    <div class="card-body p-0" id="dashboard-storage-panel">
+      <div class="text-center text-muted py-4">스토리지 정보를 불러오는 중...</div>
+    </div>
+  </div>
+</div> 
