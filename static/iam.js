@@ -2,8 +2,8 @@
 $(function() {
   let PERMISSIONS = [];
   let USERS = {};
-  let expandedUser = null; // 현재 권한 카드가 펼쳐진 사용자
-  let changedPerms = {}; // 변경된 권한 임시 저장
+  let expandedUser = null;
+  let changedPerms = {};
 
   function showIAMAlert(type, msg) {
     const alert = $('#iam-alert');
@@ -72,23 +72,21 @@ $(function() {
       const isAdmin = user.role === 'admin';
       const isInactive = user.is_active === false;
       let tr = $('<tr>').toggleClass('iam-admin-row', isAdmin).toggleClass('table-secondary', isInactive).addClass('iam-user-row').attr('data-username', username);
-      tr.append(`<td><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`);
-      tr.append(`<td class="fw-bold align-middle">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`);
-      tr.append(`<td class="align-middle">${user.email || ''}</td>`);
+      tr.append(`<td class="align-middle text-center" style="width:48px;"><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`);
+      tr.append(`<td class="fw-bold align-middle" style="min-width:120px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`);
+      tr.append(`<td class="align-middle" style="min-width:180px;">${user.email || ''}</td>`);
       let roleBadge = {
         'admin': 'bg-success',
         'developer': 'bg-info',
         'operator': 'bg-warning',
         'viewer': 'bg-secondary'
       }[user.role] || 'bg-light';
-      let roleSel = `<div class="d-flex align-items-center gap-2">
-        <span class="badge ${roleBadge}">${user.role}</span>
-      </div>`;
-      tr.append(`<td class="align-middle">${roleSel}</td>`);
-      tr.append(`<td class="align-middle text-center"><button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`);
+      let roleSel = `<div class="d-flex align-items-center gap-2"><span class="badge ${roleBadge}">${user.role}</span></div>`;
+      tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`);
+      tr.append(`<td class="align-middle text-center" style="width:120px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn w-100" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`);
       tbody.append(tr);
       // 권한 카드 영역(펼침)
-      let permRow = $(`<tr class="iam-perm-row" data-username="${username}" style="display:none;"><td colspan="5"></td></tr>`);
+      let permRow = $(`<tr class="iam-perm-row" data-username="${username}" style="display:none;"><td colspan="5" style="background:#f8f9fa;"></td></tr>`);
       tbody.append(permRow);
     });
     // 행 hover 효과
@@ -117,7 +115,6 @@ $(function() {
     return html;
   }
 
-  // 테이블 렌더링 및 이벤트 바인딩
   function loadIAM() {
     $('#iam-loading').removeClass('d-none');
     $.get('/admin/iam', function(res) {
@@ -132,7 +129,7 @@ $(function() {
   }
 
   // 사용자 행 클릭 시 권한 카드 펼침/닫기
-  $(document).on('click', '.iam-expand-btn', function(e) {
+  $(document).off('click', '.iam-expand-btn').on('click', '.iam-expand-btn', function(e) {
     e.stopPropagation();
     const username = $(this).data('username');
     // 이미 펼쳐진 경우 닫기
@@ -150,7 +147,7 @@ $(function() {
   });
 
   // 권한 카드 클릭 토글
-  $(document).on('click', '.perm-card', function() {
+  $(document).off('click', '.perm-card').on('click', '.perm-card', function() {
     const username = expandedUser;
     if (!username) return;
     let perms = changedPerms[username] || [...USERS[username].permissions];
@@ -169,7 +166,7 @@ $(function() {
   });
 
   // 권한 저장 버튼 클릭
-  $(document).on('click', '.iam-save-perm-btn', function() {
+  $(document).off('click', '.iam-save-perm-btn').on('click', '.iam-save-perm-btn', function() {
     const username = $(this).data('username');
     const perms = changedPerms[username] || USERS[username].permissions;
     $.ajax({
