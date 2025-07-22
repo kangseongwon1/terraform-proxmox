@@ -591,10 +591,29 @@ def list_servers():
 
 def run_terraform_apply():
     import subprocess
+    lock_path = os.path.join(TERRAFORM_DIR, '.terraform.tfstate.lock.info')
+    # apply 전 락 파일이 남아있으면 자동 삭제(비정상 종료/중복 락 방지)
+    if os.path.exists(lock_path):
+        try:
+            os.remove(lock_path)
+            print(f"[terraform] 기존 락 파일 자동 삭제: {lock_path}")
+        except Exception as e:
+            print(f"[terraform] 락 파일 삭제 실패: {e}")
+            return False, '', f'기존 terraform 락 파일이 남아있어 삭제에 실패했습니다: {e}'
     # terraform init 먼저 실행
     subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
-    result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
-    return result.returncode == 0, result.stdout, result.stderr
+    try:
+        result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+        return result.returncode == 0, result.stdout, result.stderr
+    except Exception as e:
+        # apply 중 예외 발생 시 락 파일 자동 정리
+        if os.path.exists(lock_path):
+            try:
+                os.remove(lock_path)
+                print(f"[terraform] apply 예외 발생, 락 파일 자동 삭제: {lock_path}")
+            except Exception as e2:
+                print(f"[terraform] apply 예외+락 파일 삭제 실패: {e2}")
+        return False, '', f'terraform apply 중 예외 발생: {e}'
 
 def run_ansible_playbook():
     # 실제 환경에 맞게 inventory, playbook 경로 조정 필요
