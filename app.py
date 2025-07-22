@@ -1244,6 +1244,8 @@ def dashboard_content():
     try:
         from database import db
         servers = db.get_all_servers() if hasattr(db, 'get_all_servers') else []
+        # Row 객체를 dict로 변환
+        servers = [dict(s) for s in servers]
     except Exception:
         servers = []
     total_servers = len(servers)
