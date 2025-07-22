@@ -660,8 +660,15 @@ def add_server():
     if not vm_info:
         logger.error(f"[add_server] Proxmox에서 VM 정보 조회 실패: {server_name}")
         return jsonify({'success': False, 'error': 'VM 생성 후 Proxmox 정보 조회 실패'}), 500
-    # 파라미터 보정 및 상세 로그
+    # DB에 중복 name row가 있으면 먼저 삭제 후 INSERT
     try:
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM servers WHERE name = ?', (server_name,))
+                conn.commit()
+        except Exception as e:
+            logger.exception(f"[add_server] DB 중복 name 삭제 중 예외: {e}")
         db.add_server(
             name=server_name,
             vmid=vm_info.get('vmid'),
