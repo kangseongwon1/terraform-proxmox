@@ -516,9 +516,7 @@
   </nav>
 
   <!-- Main Content -->
-  <div id="main-content">
-    {% include 'partials/dashboard_content.html' %}
-  </div>
+  <div id="main-content"></div>
 
   <!-- 로그 모달 추가 -->
   <div class="modal fade" id="log-modal" tabindex="-1" aria-hidden="true">
@@ -1631,6 +1629,16 @@
     // 오버레이 닫기
     $(document).on('click', '#iam-close-btn', function() {
         $('#iam-overlay').hide();
+    });
+
+    // 페이지 로드 시 대시보드 내용 불러오기
+    $(document).ready(function() {
+        $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
+        $.get('/dashboard/content', function(html) {
+            $('#main-content').html(html);
+        }).fail(function() {
+            $('#main-content').html('<div class="text-danger">대시보드 정보를 불러올 수 없습니다.</div>');
+        });
     });
   });
   </script>
