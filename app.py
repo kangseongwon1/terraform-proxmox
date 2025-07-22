@@ -611,11 +611,20 @@ def run_terraform_apply():
         return False, init_result.stdout, init_result.stderr
     try:
         print("[terraform] terraform apply 실행")
-        result = subprocess.run(['terraform', 'apply', '-auto-approve'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+        result = subprocess.run(
+            ['terraform', 'apply', '-auto-approve', '-lock-timeout=30s'],
+            cwd=TERRAFORM_DIR,
+            capture_output=True,
+            text=True,
+            timeout=180  # 3분 제한
+        )
         print(f"[terraform] apply stdout: {result.stdout}")
         print(f"[terraform] apply stderr: {result.stderr}")
         print(f"[terraform] apply returncode: {result.returncode}")
         return result.returncode == 0, result.stdout, result.stderr
+    except subprocess.TimeoutExpired as e:
+        print(f"[terraform] apply timeout: {e}")
+        return False, '', f'terraform apply timeout: {e}'
     except Exception as e:
         # apply 중 예외 발생 시 락 파일 자동 정리
         if os.path.exists(lock_path):
@@ -716,12 +725,68 @@ def add_server():
         return jsonify({'success': False, 'error': f'DB 저장 중 오류: {str(e)}'}), 500
     return jsonify({'success': True, 'message': f'{server_name} 서버가 추가 및 적용되었습니다.'})
 
-@app.route('/delete_server/<server_name>', methods=['POST'])
-@permission_required('delete_server')
+def wait_for_vm_shutdown(server_name, max_wait=180, poll_interval=5):
+    """Proxmox에서 VM이 완전히 stopped 될 때까지 대기"""
+    waited = 0
+    while waited < max_wait:
+        # VM 상태 확인
+        status = None
+        try:
+            proxmox_url = app.config['PROXMOX_ENDPOINT']
+            username = app.config['PROXMOX_USERNAME']
+            password = app.config['PROXMOX_PASSWORD']
+            node = app.config['PROXMOX_NODE']
+            auth_url = f"{proxmox_url}/api2/json/access/ticket"
+            auth_data = {'username': username, 'password': password}
+            auth_response = requests.post(auth_url, data=auth_data, verify=False)
+            if auth_response.status_code != 200:
+                return False, 'Proxmox 인증 실패'
+            ticket = auth_response.json()['data']['ticket']
+            csrf_token = auth_response.json()['data']['CSRFPreventionToken']
+            headers = {
+                'Cookie': f'PVEAuthCookie={ticket}',
+                'CSRFPreventionToken': csrf_token
+            }
+            vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+            vms_response = requests.get(vms_url, headers=headers, verify=False)
+            if vms_response.status_code != 200:
+                return False, 'Proxmox VM 목록 조회 실패'
+            vms = vms_response.json().get('data', [])
+            for vm in vms:
+                if vm['name'] == server_name:
+                    status = vm.get('status')
+                    break
+        except Exception as e:
+            return False, f'Proxmox 상태 확인 중 예외: {e}'
+        if status == 'stopped':
+            return True, None
+        time.sleep(poll_interval)
+        waited += poll_interval
+    return False, 'VM shutdown 대기 timeout'
+
 def delete_server(server_name):
     logger.info(f"[delete_server] 요청: {server_name}")
     print(f"[delete_server] 요청: {server_name}")
     try:
+        # 1. DB에서 VMID 조회
+        server_row = db.get_server_by_name(server_name)
+        if not server_row or not server_row['vmid']:
+            logger.error(f"[delete_server] DB에서 VMID 정보를 찾을 수 없음: {server_name}")
+            return jsonify({'success': False, 'error': 'DB에서 VMID 정보를 찾을 수 없습니다.'}), 400
+        vmid = server_row['vmid']
+        # 2. Proxmox에 shutdown 요청
+        ok, err = proxmox_vm_action(vmid, 'shutdown')
+        print(f"[delete_server] Proxmox shutdown 요청 결과: ok={ok}, err={err}")
+        if not ok:
+            logger.error(f"[delete_server] Proxmox shutdown 요청 실패: {err}")
+            return jsonify({'success': False, 'error': f'Proxmox shutdown 요청 실패: {err}'}), 500
+        # 3. shutdown 완료까지 대기
+        ok, err = wait_for_vm_shutdown(server_name)
+        print(f"[delete_server] VM shutdown 대기 결과: ok={ok}, err={err}")
+        if not ok:
+            logger.error(f"[delete_server] VM shutdown 대기 실패: {err}")
+            return jsonify({'success': False, 'error': f'VM shutdown 대기 실패: {err}'}), 500
+        # 4. 기존 로직(tfvars/terraform apply)
         servers = read_servers_from_tfvars()
         print(f"[delete_server] 기존 tfvars 서버 목록: {list(servers.keys())}")
         tfvars_existed = server_name in servers
@@ -730,7 +795,6 @@ def delete_server(server_name):
             print(f"[delete_server] {server_name} 삭제 후 tfvars 서버 목록: {list(servers.keys())}")
             write_servers_to_tfvars(servers)
             print(f"[delete_server] write_servers_to_tfvars 완료")
-            # terraform apply를 동기 실행(완료까지 대기)
             ok, out, err = run_terraform_apply()
             logger.info(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
             print(f"[delete_server] terraform apply 결과: ok={ok}, stdout={out}, stderr={err}")
