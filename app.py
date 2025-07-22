@@ -1237,6 +1237,22 @@ def admin_iam_set_role(username):
     save_users(users)
     return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
 
+@app.route('/dashboard/content')
+def dashboard_content():
+    return render_template('partials/dashboard_content.html')
+
+@app.route('/instances/content')
+def instances_content():
+    return render_template('partials/instances_content.html')
+
+@app.route('/storage/content')
+def storage_content():
+    return render_template('partials/storage_content.html')
+
+@app.route('/admin/iam/content')
+def admin_iam_content():
+    return render_template('partials/admin_iam_content.html')
+
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
     os.makedirs(PROJECTS_DIR, exist_ok=True)
