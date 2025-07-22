@@ -1,7 +1,7 @@
 // instances.js
 $(function() {
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
-  function loadActiveServers() {
+  window.loadActiveServers = function() {
     $.get('/all_server_status', function(res) {
       let html = '';
       for (const [name, s] of Object.entries(res.servers)) {
@@ -283,4 +283,15 @@ $(function() {
   // 상세 모달 내 역할 적용/삭제
   $(document).on('click', '.server-detail-role-apply', function() { /* ... */ });
   $(document).on('click', '.server-detail-role-remove', function() { /* ... */ });
+
+  // removeDisk 인라인 이벤트 대체
+  $(document).on('click', '.remove-disk-btn', function() {
+    const diskItem = $(this).closest('.disk-item');
+    const container = diskItem.closest('.disk-container');
+    diskItem.remove();
+    // 마지막 하나 남았을 때 삭제 버튼 비활성화
+    if (container.find('.disk-item').length === 1) {
+      container.find('.disk-item:first .btn-outline-danger').prop('disabled', true);
+    }
+  });
 }); 
