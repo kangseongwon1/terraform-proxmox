@@ -57,27 +57,29 @@ $(function() {
     );
   }
 
-  // 오버레이 권한 카드 렌더링 (드래그&드롭 + 클릭 토글)
+  // 오버레이 권한 카드 렌더링 (좌: 유저정보, 우: 권한카드 세로정렬)
   function renderPermCardsOverlay(username) {
     const user = USERS[username];
     if (!user) return '';
     let perms = selectedPerms.length ? selectedPerms : user.permissions;
-    let html = `<div class="mb-3 text-center">
-      <i class="fas fa-user-circle fa-2x me-2"></i><span class="fw-bold">${username}</span>
-      <span class="badge ms-2 ${user.role==='admin'?'bg-success':user.role==='developer'?'bg-info':user.role==='operator'?'bg-warning':'bg-secondary'}">${user.role}</span>
-      <div class="text-muted small mt-1">${user.email || ''}</div>
-    </div>`;
-    html += `<div class="d-flex flex-wrap gap-2 mb-3 justify-content-center" id="perm-card-list">`;
-    PERMISSIONS.forEach(perm => {
-      const active = perms.includes(perm);
-      html += `<div class="card perm-card ${active ? 'border-primary bg-primary text-white' : 'border-light'}" data-perm="${perm}" draggable="true" style="min-width:120px;cursor:pointer;transition:all 0.2s;">
-        <div class="card-body py-2 px-3 text-center">
-          <i class="fas fa-key me-1"></i>${perm}
+    let html = `<div style="display:flex; gap:32px; align-items:flex-start; min-height:220px;">
+      <div style="flex:1; min-width:180px; max-width:220px; text-align:center;">
+        <i class="fas fa-user-circle fa-2x me-2"></i><span class="fw-bold">${username}</span>
+        <span class="badge ms-2 ${user.role==='admin'?'bg-success':user.role==='developer'?'bg-info':user.role==='operator'?'bg-warning':'bg-secondary'}">${user.role}</span>
+        <div class="text-muted small mt-1">${user.email || ''}</div>
+      </div>
+      <div style="flex:1; min-width:180px; max-height:320px; overflow-y:auto;">
+        <div id="perm-card-list" style="display:flex; flex-direction:column; gap:12px; align-items:stretch;">
+          ${PERMISSIONS.map(perm => {
+            const active = perms.includes(perm);
+            return `<button class="perm-card-btn btn ${active ? 'btn-primary text-white' : 'btn-outline-primary'} text-start d-flex align-items-center gap-2" data-perm="${perm}" draggable="true" style="font-size:1.08em; font-weight:500; padding:10px 18px; border-radius:8px;">
+              <i class="fas fa-key"></i> ${perm}
+            </button>`;
+          }).join('')}
         </div>
-      </div>`;
-    });
-    html += '</div>';
-    html += `<div class="text-end"><button class="btn btn-success btn-sm iam-save-perm-btn" data-username="${username}" disabled><i class="fas fa-save me-1"></i>적용</button></div>`;
+      </div>
+    </div>`;
+    html += `<div class="text-end mt-4"><button class="btn btn-success btn-sm iam-save-perm-btn" data-username="${username}" disabled style="min-width:90px;"><i class="fas fa-save me-1"></i>적용</button></div>`;
     html += `<div class="mt-3 text-center text-muted small">카드를 클릭하거나 드래그해서 권한을 부여/해제할 수 있습니다.</div>`;
     return html;
   }
@@ -127,7 +129,7 @@ $(function() {
   });
 
   // 권한 카드 클릭 토글 (오버레이 내부)
-  $(document).off('click', '.perm-card').on('click', '.perm-card', function() {
+  $(document).off('click', '.perm-card-btn').on('click', '.perm-card-btn', function() {
     const perm = $(this).data('perm');
     if (selectedPerms.includes(perm)) {
       selectedPerms = selectedPerms.filter(p => p !== perm);
@@ -141,13 +143,13 @@ $(function() {
     $(`.iam-save-perm-btn[data-username='${overlayUser}']`).prop('disabled', false);
   });
 
-  // 권한 카드 드래그&드롭 지원 (간단 버전: 카드 클릭/드래그로 토글)
+  // 권한 카드 드래그&드롭 지원 (버튼 클릭/드래그로 토글)
   let dragPerm = null;
-  $(document).off('dragstart', '.perm-card').on('dragstart', '.perm-card', function(e) {
+  $(document).off('dragstart', '.perm-card-btn').on('dragstart', '.perm-card-btn', function(e) {
     dragPerm = $(this).data('perm');
     $(this).addClass('opacity-50');
   });
-  $(document).off('dragend', '.perm-card').on('dragend', '.perm-card', function(e) {
+  $(document).off('dragend', '.perm-card-btn').on('dragend', '.perm-card-btn', function(e) {
     dragPerm = null;
     $(this).removeClass('opacity-50');
   });
