@@ -764,6 +764,8 @@ def wait_for_vm_shutdown(server_name, max_wait=180, poll_interval=5):
         waited += poll_interval
     return False, 'VM shutdown 대기 timeout'
 
+@app.route('/delete_server/<server_name>', methods=['POST'])
+@permission_required('delete_server')
 def delete_server(server_name):
     logger.info(f"[delete_server] 요청: {server_name}")
     print(f"[delete_server] 요청: {server_name}")
@@ -786,7 +788,7 @@ def delete_server(server_name):
         if not ok:
             logger.error(f"[delete_server] VM shutdown 대기 실패: {err}")
             return jsonify({'success': False, 'error': f'VM shutdown 대기 실패: {err}'}), 500
-        # 4. 기존 로직(tfvars/terraform apply)
+        # 4. tfvars/terraform apply로 삭제 진행
         servers = read_servers_from_tfvars()
         print(f"[delete_server] 기존 tfvars 서버 목록: {list(servers.keys())}")
         tfvars_existed = server_name in servers
