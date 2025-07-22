@@ -496,10 +496,16 @@
           <i class="fas fa-hdd"></i>스토리지
         </a>
       </li>
-      <li class="nav-item">
-        <a class="nav-link" href="#security">
-          <i class="fas fa-shield-alt"></i>보안
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="securityMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fas fa-shield-alt me-1"></i>보안
         </a>
+        <ul class="dropdown-menu" aria-labelledby="securityMenu">
+          <li>
+            <a class="dropdown-item" href="#" id="user-management-menu"><i class="fas fa-users-cog me-1"></i>사용자 관리</a>
+          </li>
+          <!-- 필요시 다른 보안 하위 메뉴 추가 -->
+        </ul>
       </li>
       <li class="nav-item">
         <a class="nav-link" href="#monitoring">
@@ -565,12 +571,10 @@
   </div>
   {% endif %}
 
-  <!-- 사용자 관리 오버레이 패널 -->
+  <!-- 사용자 관리 오버레이 -->
   <div id="iam-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0008; z-index:2000;">
-    <div style="position:absolute; top:50px; left:50%; transform:translateX(-50%); width:90vw; max-width:900px; background:#fff; border-radius:12px; box-shadow:0 4px 24px #0003; padding:32px 24px;">
-      <button id="iam-close-btn" class="btn btn-close float-end"></button>
-      <div id="iam-overlay-content"></div>
-    </div>
+    <button id="iam-close-btn" class="btn btn-close float-end"></button>
+    <div id="iam-overlay-content"></div>
   </div>
 
   <script>
@@ -1604,6 +1608,28 @@
     // 오버레이 닫기
     $(document).on('click', '#iam-close-btn', function() {
       $('#iam-overlay').hide();
+    });
+
+    // "사용자 관리" 메뉴 클릭 시 오버레이 열기
+    $(document).on('click', '#user-management-menu', function(e) {
+        e.preventDefault();
+        $('#iam-overlay').show();
+        $('#iam-overlay-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
+        $.get('/admin/iam/content', function(html) {
+            $('#iam-overlay-content').html(html);
+            // iam.js 동적 로드 (중복 방지)
+            if (!window.IAM_SCRIPT_LOADED) {
+                $.getScript('/static/iam.js');
+                window.IAM_SCRIPT_LOADED = true;
+            }
+        }).fail(function() {
+            $('#iam-overlay-content').html('<div class="text-danger">사용자 관리 화면을 불러올 수 없습니다.</div>');
+        });
+    });
+
+    // 오버레이 닫기
+    $(document).on('click', '#iam-close-btn', function() {
+        $('#iam-overlay').hide();
     });
   });
   </script>
