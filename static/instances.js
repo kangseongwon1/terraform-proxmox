@@ -152,13 +152,13 @@ $(function() {
           $('#creation-status').hide();
           btn.prop('disabled', false).html(originalText);
           loadActiveServers();
-          alert('서버가 성공적으로 생성되었습니다!');
+          addSystemNotification('success', '서버 생성', '서버가 성공적으로 생성되었습니다!');
         }, 2000);
       },
       error: function(xhr) {
         console.error('[instances.js] /add_server 실패', xhr);
         $('#status-message').html('서버 생성 실패');
-        alert('서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
+        addSystemNotification('error', '서버 생성', '서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
         setTimeout(function() {
           $('#creation-status').hide();
           btn.prop('disabled', false).html(originalText);
@@ -179,11 +179,11 @@ $(function() {
       console.log('[instances.js] /assign_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       loadActiveServers();
-      alert('역할이 성공적으로 변경되었습니다.');
+      addSystemNotification('success', '역할 변경', '역할이 성공적으로 변경되었습니다.');
     }).fail(function(xhr) {
       console.error('[instances.js] /assign_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-      alert(xhr.responseJSON?.error || '역할 변경 실패');
+      addSystemNotification('error', '역할 변경', xhr.responseJSON?.error || '역할 변경 실패');
     });
   });
 
@@ -199,11 +199,11 @@ $(function() {
       console.log('[instances.js] /remove_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
       loadActiveServers();
-      alert('역할이 삭제되었습니다.');
+      addSystemNotification('success', '역할 삭제', '역할이 삭제되었습니다.');
     }).fail(function(xhr) {
       console.error('[instances.js] /remove_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
-      alert(xhr.responseJSON?.error || '역할 삭제 실패');
+      addSystemNotification('error', '역할 삭제', xhr.responseJSON?.error || '역할 삭제 실패');
     });
   });
 
@@ -219,11 +219,11 @@ $(function() {
         console.log('[instances.js] /start_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
-        alert(`${name} 서버가 시작되었습니다.`);
+        addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
       }).fail(function(xhr){
         console.error('[instances.js] /start_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
-        alert(`시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        addSystemNotification('error', '서버 시작', `시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
     }
   });
@@ -240,11 +240,11 @@ $(function() {
         console.log('[instances.js] /stop_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
-        alert(`${name} 서버가 중지되었습니다.`);
+        addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
       }).fail(function(xhr){
         console.error('[instances.js] /stop_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
-        alert(`중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        addSystemNotification('error', '서버 중지', `중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
     }
   });
@@ -261,11 +261,11 @@ $(function() {
         console.log('[instances.js] /reboot_server 성공', res);
         btn.prop('disabled', false).html(originalText);
         loadActiveServers();
-        alert(`${name} 서버가 리부팅되었습니다.`);
+        addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
       }).fail(function(xhr){
         console.error('[instances.js] /reboot_server 실패', xhr);
         btn.prop('disabled', false).html(originalText);
-        alert(`리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+        addSystemNotification('error', '서버 리부팅', `리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
       });
     }
   });
@@ -285,17 +285,13 @@ $(function() {
       console.log('[instances.js] /delete_server 성공', res);
       $('#delete-status-message').remove();
       loadActiveServers();
-      if (typeof showNotification === 'function') {
-        showNotification('success', `${name} 서버가 삭제되었습니다.`);
-      }
+      addSystemNotification('success', '서버 삭제', `${name} 서버가 삭제되었습니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /delete_server 실패', xhr);
       $('#delete-status-message').remove();
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
-      if (typeof showNotification === 'function') {
-        showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-      }
+      addSystemNotification('error', '서버 삭제', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
     });
   });
 
