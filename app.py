@@ -708,6 +708,7 @@ def add_servers_bulk():
     servers = read_servers_from_tfvars()
     created = []
     failed = []
+    names = []
     for i in range(count):
         name = f"{name_prefix}-{i+1}"
         if name in servers:
@@ -728,11 +729,25 @@ def add_servers_bulk():
         }
         servers[name] = server_data
         created.append(name)
+        names.append(name)
     write_servers_to_tfvars(servers)
     ok, out, terr = run_terraform_apply()
     if not ok:
         return jsonify({'success': False, 'created': created, 'failed': failed, 'error': f'Terraform apply 실패: {terr}'})
-    # DB 저장 등 추가 로직 필요시 여기에
+    # Proxmox에서 VM 정보 조회 및 DB 저장 (각 서버별)
+    for name in names:
+        vm_info = get_vm_info_from_proxmox(name)
+        if vm_info:
+            db.add_server(
+                name=name,
+                vmid=vm_info.get('vmid'),
+                status=vm_info.get('status', 'pending'),
+                ip_address=vm_info.get('ip_address'),
+                role=role,
+                os_type=data.get('os_type', ''),
+                cpu=int(cpu) if cpu is not None else None,
+                memory=int(memory) if memory is not None else None
+            )
     return jsonify({'success': True, 'created': created, 'failed': failed})
 
 # --- 서버 생성 비동기 처리 ---
@@ -760,19 +775,27 @@ def do_add_server(task_id, data):
                     disk['datastore_id'] = 'local-lvm'
         if 'network_devices' in data:
             for net in data['network_devices']:
-                if 'subnet' in net and '.' in str(net['subnet']):
-                    net['subnet'] = netmask_to_cidr(net['subnet'])
-                if 'subnet' not in net or not net['subnet']:
-                    net['subnet'] = '24'
-                if 'gateway' not in net:
-                    net['gateway'] = ''
+                if 'bridge' not in net or not net['bridge']:
+                    net['bridge'] = 'vmbr0'
         servers[server_name] = data
         write_servers_to_tfvars(servers)
         ok, out, terr = run_terraform_apply()
         if not ok:
             update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
             return
-        # DB 저장 등 추가 로직
+        # Proxmox에서 VM 정보 조회 및 DB 저장
+        vm_info = get_vm_info_from_proxmox(server_name)
+        if vm_info:
+            db.add_server(
+                name=server_name,
+                vmid=vm_info.get('vmid'),
+                status=vm_info.get('status', 'pending'),
+                ip_address=vm_info.get('ip_address'),
+                role=data.get('role', ''),
+                os_type=data.get('os_type', ''),
+                cpu=int(data.get('cpu', 0)) if data.get('cpu') is not None else None,
+                memory=int(data.get('memory', 0)) if data.get('memory') is not None else None
+            )
         update_task(task_id, 'success', f'{server_name} 서버 생성 완료')
     except Exception as e:
         update_task(task_id, 'error', f'서버 생성 중 예외: {str(e)}')
