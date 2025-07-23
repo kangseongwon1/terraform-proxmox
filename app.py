@@ -923,7 +923,7 @@ def wait_for_vm_shutdown(server_name, max_wait=180, poll_interval=5):
     return False, 'VM shutdown 대기 timeout'
 
 @app.route('/stop_server/<server_name>', methods=['POST'])
-@permission_required('delete_server')
+@permission_required('stop_server')
 def stop_server(server_name):
     logger.info(f"[stop_server] 요청: {server_name}")
     try:
@@ -943,7 +943,7 @@ def stop_server(server_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/reboot_server/<server_name>', methods=['POST'])
-@permission_required('delete_server')
+@permission_required('reboot_server')
 def reboot_server(server_name):
     logger.info(f"[reboot_server] 요청: {server_name}")
     try:
@@ -1300,6 +1300,38 @@ def check_proxmox_vm_exists(server_name):
         if vm['name'] == server_name:
             return True  # 아직 존재함
     return False  # 존재하지 않음
+
+def proxmox_api_auth():
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    username = app.config['PROXMOX_USERNAME']
+    password = app.config['PROXMOX_PASSWORD']
+    auth_url = f"{proxmox_url}/api2/json/access/ticket"
+    auth_data = {'username': username, 'password': password}
+    resp = requests.post(auth_url, data=auth_data, verify=False)
+    if resp.status_code != 200:
+        return None
+    data = resp.json()['data']
+    return {
+        'ticket': data['ticket'],
+        'csrf': data['CSRFPreventionToken']
+    }
+
+def proxmox_vm_action(vmid, action):
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    node = app.config['PROXMOX_NODE']
+    auth = proxmox_api_auth()
+    if not auth:
+        return False, 'Proxmox 인증 실패'
+    url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{vmid}/status/{action}"
+    headers = {
+        'Cookie': f'PVEAuthCookie={auth["ticket"]}',
+        'CSRFPreventionToken': auth['csrf']
+    }
+    resp = requests.post(url, headers=headers, verify=False)
+    if resp.status_code == 200:
+        return True, None
+    else:
+        return False, resp.text
 
 @app.route('/status/<project_name>')
 def get_status(project_name):
