@@ -90,26 +90,212 @@ $(function() {
     }, 5000);
   }
 
-  // 서버 생성 버튼
-  $(document).on('click', '#create-server-btn', function() {
-    console.log('[instances.js] #create-server-btn 클릭');
+  // 서버 생성 버튼 (단일/다중 모드 분기, 중복 바인딩 제거)
+  $(document).off('click', '#create-server-btn').on('click', '#create-server-btn', async function(e) {
+    const mode = $('#server_mode').val();
+    if (mode === 'multi') {
+      // 다중 서버 로직 (기존 다중 서버 코드)
+      e.preventDefault();
+      // 입력값 수집
+      const count = parseInt($('#multi-server-count').val());
+      const baseName = $('input[name="name_basic"]').val();
+      const selectedRole = $('#role-select').val() || '';
+      const selectedOS = $('#os-select').val();
+      const cpu = parseInt($('input[name="cpu_basic"]').val());
+      const memory = parseInt($('input[name="memory_basic"]').val());
+      // 디스크/네트워크 정보 복제
+      const disks = $('#disk-container-basic').find('.disk-item').map(function() {
+        return {
+          size: parseInt($(this).find('.disk-size').val()),
+          interface: $(this).find('.disk-interface').val(),
+          datastore_id: $(this).find('.disk-datastore').val()
+        };
+      }).get();
+      const networks = $('#network-container-basic').find('.network-item').map(function() {
+        return {
+          bridge: $(this).find('.network-bridge').val(),
+          ip: $(this).find('.network-ip').val(),
+          subnet: $(this).find('.network-subnet').val(),
+          gateway: $(this).find('.network-gateway').val()
+        };
+      }).get();
+      if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
+      if (!baseName || baseName.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
+      if (!count || count < 2) { alertModal('서버 개수는 2 이상이어야 합니다.'); return; }
+      // 네트워크 입력값 검증 (IP, 서브넷, 게이트웨이 모두 필수)
+      let hasError = false;
+      networks.forEach(function(n, idx) {
+        if (!n.ip || !n.subnet || !n.gateway) {
+          alertModal(`네트워크 카드 #${idx+1}의 IP, 서브넷, 게이트웨이를 모두 입력해주세요.`);
+          hasError = true;
+        }
+      });
+      if (hasError) return;
+      // 서버별 정보 생성 (IP 자동 증가, 네트워크 여러 개 지원)
+      function ipAdd(ip, add) {
+        const parts = ip.split('.').map(Number);
+        parts[3] += add;
+        if (parts[3] > 254) parts[3] = 254;
+        return parts.join('.')
+      }
+      const serverList = [];
+      for (let i = 0; i < count; i++) {
+        // 네트워크 여러 개 지원: 각 네트워크의 ip만 i만큼 증가
+        const nets = networks.map((net, ni) => {
+          const newNet = {...net};
+          if (i > 0 && newNet.ip) {
+            newNet.ip = ipAdd(net.ip, i);
+          }
+          return newNet;
+        });
+        serverList.push({
+          name: `${baseName}-${i+1}`,
+          role: selectedRole,
+          os: selectedOS,
+          cpu: cpu,
+          memory: memory,
+          disks: JSON.parse(JSON.stringify(disks)),
+          networks: nets
+        });
+      }
+      // 역할 select 옵션 생성
+      let roleOptions = '<option value="">(선택 안 함)</option>';
+      for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
+        roleOptions += `<option value="${k}">${v}</option>`;
+      }
+      // 요약/수정 모달 HTML 생성 (네트워크 여러 개, 역할 포함)
+      let modalHtml = `
+      <div class="modal fade" id="multiServerSummaryModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-layer-group me-2"></i>다중 서버 생성 요약 및 네트워크/역할 수정</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center">
+                  <thead>
+                    <tr>
+                      <th>서버명</th><th>OS</th><th>CPU</th><th>메모리</th><th>디스크</th><th>역할</th>
+                      <th>브리지</th><th>IP</th><th>Subnet</th><th>Gateway</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${serverList.map((s, sidx) =>
+                      s.networks.map((net, nidx) => `
+                        <tr data-sidx="${sidx}" data-nidx="${nidx}">
+                          ${nidx === 0 ? `
+                            <td rowspan="${s.networks.length}">${s.name}</td>
+                            <td rowspan="${s.networks.length}">${s.os}</td>
+                            <td rowspan="${s.networks.length}">${s.cpu}</td>
+                            <td rowspan="${s.networks.length}">${s.memory}</td>
+                            <td rowspan="${s.networks.length}">${s.disks.map(d=>`${d.size}GB/${d.interface}/${d.datastore_id}`).join('<br>')}</td>
+                            <td rowspan="${s.networks.length}">
+                              <select class="form-select form-select-sm summary-role">${roleOptions.replace(`value=\"${s.role}\"`, `value=\"${s.role}\" selected`)}</select>
+                            </td>
+                          ` : ''}
+                          <td><input type="text" class="form-control form-control-sm summary-bridge" value="${net.bridge}"></td>
+                          <td><input type="text" class="form-control form-control-sm summary-ip" value="${net.ip}"></td>
+                          <td><input type="text" class="form-control form-control-sm summary-subnet" value="${net.subnet}"></td>
+                          <td><input type="text" class="form-control form-control-sm summary-gateway" value="${net.gateway}"></td>
+                        </tr>
+                      `).join('')
+                    ).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-primary" id="multi-server-final-create">서버 생성</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+      // 모달 DOM 추가 및 표시
+      $('body').append(modalHtml);
+      const modal = new bootstrap.Modal(document.getElementById('multiServerSummaryModal'));
+      modal.show();
+      // 서버 생성 버튼 클릭 시
+      $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
+        // 수정된 값 반영
+        $('#multiServerSummaryModal tbody tr').each(function() {
+          const sidx = $(this).data('sidx');
+          const nidx = $(this).data('nidx');
+          if (nidx === 0) {
+            // 역할 select 반영
+            serverList[sidx].role = $(this).find('.summary-role').val();
+          }
+          serverList[sidx].networks[nidx].bridge = $(this).find('.summary-bridge').val();
+          serverList[sidx].networks[nidx].ip = $(this).find('.summary-ip').val();
+          serverList[sidx].networks[nidx].subnet = $(this).find('.summary-subnet').val();
+          serverList[sidx].networks[nidx].gateway = $(this).find('.summary-gateway').val();
+        });
+        // 서버별 생성 API 호출
+        let created = 0, failed = 0;
+        serverList.forEach(function(s, idx) {
+          const data = {
+            name: s.name,
+            role: s.role,
+            cpu: s.cpu,
+            memory: s.memory,
+            disks: s.disks,
+            network_devices: s.networks.map(net => ({
+              bridge: net.bridge,
+              ip_address: net.ip + '/' + net.subnet,
+              subnet: net.subnet,
+              gateway: net.gateway
+            })),
+            template_vm_id: (function(){
+              const osMap = { 'ubuntu': 9000, 'rocky': 8000, 'centos': 8001, 'debian': 9001 };
+              return osMap[s.os] || 8000;
+            })()
+          };
+          $.ajax({
+            url: '/add_server',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(res) {
+              created++;
+              addSystemNotification('success', '서버 생성', `${s.name} 생성 요청 완료`);
+              if (created + failed === serverList.length) {
+                modal.hide();
+                $('#multiServerSummaryModal').remove();
+                loadActiveServers();
+              }
+            },
+            error: function(xhr) {
+              failed++;
+              addSystemNotification('error', '서버 생성', `${s.name} 생성 실패: ` + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
+              if (created + failed === serverList.length) {
+                modal.hide();
+                $('#multiServerSummaryModal').remove();
+                loadActiveServers();
+              }
+            }
+          });
+        });
+      });
+      // 모달 닫힐 때 DOM 제거
+      $('#multiServerSummaryModal').on('hidden.bs.modal', function(){
+        $('#multiServerSummaryModal').remove();
+      });
+      return; // 다중 서버 모드에서는 여기서 종료
+    }
+    // 단일 서버 로직 (기존 단일 서버 코드)
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
-    if (!selectedOS) {
-      alert('OS를 선택해주세요.');
-      return;
-    }
+    if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
     const name = $('input[name="name_basic"]').val();
-    if (!name || name.trim() === '') {
-      alert('서버 이름을 입력해주세요.');
-      return;
-    }
+    if (!name || name.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
     // IP 주소 검증
     let hasError = false;
     $('#network-container-basic').find('.network-ip').each(function() {
       const ip = $(this).val();
       if (!ip || ip.trim() === '') {
-        alert('IP 주소를 입력해주세요.');
+        alertModal('IP 주소를 입력해주세요.');
         hasError = true;
         return false;
       }
@@ -418,172 +604,7 @@ $(function() {
   });
 
   // 다중 서버 모드: 다음 버튼 클릭 시 요약/수정 모달 표시
-  $(document).on('click', '#create-server-btn', function(e) {
-    const mode = $('#server_mode').val();
-    if (mode !== 'multi') return; // 단일 서버는 기존 로직 그대로
-    e.preventDefault();
-    // 입력값 수집
-    const count = parseInt($('#multi-server-count').val());
-    const baseName = $('input[name="name_basic"]').val();
-    const selectedRole = $('#role-select').val() || '';
-    const selectedOS = $('#os-select').val();
-    const cpu = parseInt($('input[name="cpu_basic"]').val());
-    const memory = parseInt($('input[name="memory_basic"]').val());
-    // 디스크/네트워크 정보 복제
-    const disks = $('#disk-container-basic').find('.disk-item').map(function() {
-      return {
-        size: parseInt($(this).find('.disk-size').val()),
-        interface: $(this).find('.disk-interface').val(),
-        datastore_id: $(this).find('.disk-datastore').val()
-      };
-    }).get();
-    const networks = $('#network-container-basic').find('.network-item').map(function() {
-      return {
-        bridge: $(this).find('.network-bridge').val(),
-        ip: $(this).find('.network-ip').val(),
-        subnet: $(this).find('.network-subnet').val(),
-        gateway: $(this).find('.network-gateway').val()
-      };
-    }).get();
-    if (!selectedOS) { alertModal('OS를 선택해주세요.'); return; }
-    if (!baseName || baseName.trim() === '') { alertModal('서버 이름을 입력해주세요.'); return; }
-    if (!count || count < 2) { alertModal('서버 개수는 2 이상이어야 합니다.'); return; }
-    // 네트워크 입력값 검증 (IP, 서브넷, 게이트웨이 모두 필수)
-    let hasError = false;
-    networks.forEach(function(n, idx) {
-      if (!n.ip || !n.subnet || !n.gateway) {
-        alertModal(`네트워크 카드 #${idx+1}의 IP, 서브넷, 게이트웨이를 모두 입력해주세요.`);
-        hasError = true;
-      }
-    });
-    if (hasError) return;
-    // 서버별 정보 생성 (IP 자동 증가)
-    function ipAdd(ip, add) {
-      const parts = ip.split('.').map(Number);
-      parts[3] += add;
-      if (parts[3] > 254) parts[3] = 254; // 최대 254
-      return parts.join('.')
-    }
-    const serverList = [];
-    for (let i = 0; i < count; i++) {
-      // IP 자동 증가 (첫 네트워크만)
-      const net = {...networks[0]};
-      if (i > 0) net.ip = ipAdd(networks[0].ip, i);
-      serverList.push({
-        name: `${baseName}-${i+1}`,
-        role: selectedRole,
-        os: selectedOS,
-        cpu: cpu,
-        memory: memory,
-        disks: JSON.parse(JSON.stringify(disks)),
-        network: net
-      });
-    }
-    // 요약/수정 모달 HTML 생성
-    let modalHtml = `
-    <div class="modal fade" id="multiServerSummaryModal" tabindex="-1">
-      <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="fas fa-layer-group me-2"></i>다중 서버 생성 요약 및 네트워크 수정</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="table-responsive">
-              <table class="table table-bordered align-middle text-center">
-                <thead>
-                  <tr>
-                    <th>서버명</th><th>OS</th><th>CPU</th><th>메모리</th><th>디스크</th>
-                    <th>IP</th><th>Subnet</th><th>Gateway</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${serverList.map((s, idx) => `
-                    <tr data-idx="${idx}">
-                      <td>${s.name}</td>
-                      <td>${s.os}</td>
-                      <td>${s.cpu}</td>
-                      <td>${s.memory}</td>
-                      <td>${s.disks.map(d=>`${d.size}GB/${d.interface}/${d.datastore_id}`).join('<br>')}</td>
-                      <td><input type="text" class="form-control form-control-sm summary-ip" value="${s.network.ip}"></td>
-                      <td><input type="text" class="form-control form-control-sm summary-subnet" value="${s.network.subnet}"></td>
-                      <td><input type="text" class="form-control form-control-sm summary-gateway" value="${s.network.gateway}"></td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-            <button type="button" class="btn btn-primary" id="multi-server-final-create">서버 생성</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    // 모달 DOM 추가 및 표시
-    $('body').append(modalHtml);
-    const modal = new bootstrap.Modal(document.getElementById('multiServerSummaryModal'));
-    modal.show();
-    // 서버 생성 버튼 클릭 시
-    $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
-      // 수정된 값 반영
-      $('#multiServerSummaryModal tbody tr').each(function(i) {
-        serverList[i].network.ip = $(this).find('.summary-ip').val();
-        serverList[i].network.subnet = $(this).find('.summary-subnet').val();
-        serverList[i].network.gateway = $(this).find('.summary-gateway').val();
-      });
-      // 서버별 생성 API 호출 (여기서는 일괄 호출, 필요시 Promise.all 등으로 처리)
-      let created = 0, failed = 0;
-      serverList.forEach(function(s, idx) {
-        const data = {
-          name: s.name,
-          role: s.role,
-          cpu: s.cpu,
-          memory: s.memory,
-          disks: s.disks,
-          network_devices: [{
-            bridge: s.network.bridge,
-            ip_address: s.network.ip + '/' + s.network.subnet,
-            subnet: s.network.subnet,
-            gateway: s.network.gateway
-          }],
-          template_vm_id: (function(){
-            const osMap = { 'ubuntu': 9000, 'rocky': 8000, 'centos': 8001, 'debian': 9001 };
-            return osMap[s.os] || 8000;
-          })()
-        };
-        $.ajax({
-          url: '/add_server',
-          method: 'POST',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            created++;
-            addSystemNotification('success', '서버 생성', `${s.name} 생성 요청 완료`);
-            if (created + failed === serverList.length) {
-              modal.hide();
-              $('#multiServerSummaryModal').remove();
-              loadActiveServers();
-            }
-          },
-          error: function(xhr) {
-            failed++;
-            addSystemNotification('error', '서버 생성', `${s.name} 생성 실패: ` + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
-            if (created + failed === serverList.length) {
-              modal.hide();
-              $('#multiServerSummaryModal').remove();
-              loadActiveServers();
-            }
-          }
-        });
-      });
-    });
-    // 모달 닫힐 때 DOM 제거
-    $('#multiServerSummaryModal').on('hidden.bs.modal', function(){
-      $('#multiServerSummaryModal').remove();
-    });
-  });
+  // 이 부분은 이미 위에서 처리되었으므로 제거
 });
 
 // =========================
