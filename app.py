@@ -740,24 +740,60 @@ def delete_server(server_name):
 # --- 서버 삭제 비동기 처리 ---
 def do_delete_server(task_id, server_name):
     try:
-        update_task(task_id, 'progress', '서버 shutdown 시도 중...')
+        update_task(task_id, 'progress', '서버 stop(강제종료) 시도 중...')
         # 1. VMID 조회
         server_row = db.get_server_by_name(server_name)
         if not server_row or not server_row['vmid']:
             update_task(task_id, 'error', 'DB에서 VMID 정보를 찾을 수 없습니다.')
             return
         vmid = server_row['vmid']
-        # 2. Proxmox에 shutdown 요청
-        ok, err = proxmox_vm_action(vmid, 'shutdown')
+        # 2. Proxmox에 stop(강제종료) 요청 (lock 에러 시 unlock 후 재시도)
+        ok, err = proxmox_vm_action(vmid, 'stop')
+        if not ok and err and 'lock' in err:
+            unlock_ok, unlock_err = proxmox_vm_unlock(vmid)
+            if unlock_ok:
+                ok, err = proxmox_vm_action(vmid, 'stop')
         if not ok:
-            update_task(task_id, 'error', f'Proxmox shutdown 요청 실패: {err}')
+            update_task(task_id, 'error', f'Proxmox stop(강제종료) 요청 실패: {err}')
             return
-        # 3. 30초 대기 (shutdown 완료까지)
-        ok, err = wait_for_vm_shutdown(server_name, max_wait=30)
-        if not ok:
-            update_task(task_id, 'error', f'shutdown 대기 실패: {err}')
+        # 3. 30초 대기 (stop 완료+lock 해제까지 polling)
+        waited = 0
+        poll_interval = 3
+        stop_ok = False
+        while waited < 30:
+            ok, err = wait_for_vm_shutdown(server_name, max_wait=poll_interval)
+            if ok:
+                # lock 상태 확인
+                lock_free = True
+                try:
+                    proxmox_url = app.config['PROXMOX_ENDPOINT']
+                    node = app.config['PROXMOX_NODE']
+                    auth = proxmox_api_auth()
+                    if not auth:
+                        lock_free = False
+                    else:
+                        url = f"{proxmox_url}/api2/json/nodes/{node}/qemu/{vmid}/config"
+                        headers = {
+                            'Cookie': f'PVEAuthCookie={auth["ticket"]}',
+                            'CSRFPreventionToken': auth['csrf']
+                        }
+                        resp = requests.get(url, headers=headers, verify=False)
+                        if resp.status_code == 200:
+                            data = resp.json().get('data', {})
+                            lock_free = ('lock' not in data)
+                        else:
+                            lock_free = False
+                except Exception:
+                    lock_free = False
+                if lock_free:
+                    stop_ok = True
+                    break
+            time.sleep(poll_interval)
+            waited += poll_interval
+        if not stop_ok:
+            update_task(task_id, 'error', 'stop(강제종료) 후 30초 내에 lock이 해제되지 않음')
             return
-        # 4. shutdown 성공 시에만 tfvars/DB/terraform 삭제
+        # 4. stop+lock 해제 성공 시에만 tfvars/DB/terraform 삭제
         servers = read_servers_from_tfvars()
         tfvars_existed = server_name in servers
         if tfvars_existed:
@@ -767,7 +803,6 @@ def do_delete_server(task_id, server_name):
             if not ok:
                 update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
                 return
-        # DB에서 삭제
         db.delete_server_by_name(server_name)
         update_task(task_id, 'success', f'{server_name} 서버 삭제 완료')
     except Exception as e:
