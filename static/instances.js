@@ -218,6 +218,7 @@ $(function() {
       const modal = new bootstrap.Modal(document.getElementById('multiServerSummaryModal'));
       modal.show();
       // 서버 생성 버튼 클릭 시
+      // 다중 서버 생성 버튼 클릭 시 서버 정보 배열을 한 번에 전송
       $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
         // 수정된 값 반영
         $('#multiServerSummaryModal tbody tr').each(function() {
@@ -232,50 +233,42 @@ $(function() {
           serverList[sidx].networks[nidx].subnet = $(this).find('.summary-subnet').val();
           serverList[sidx].networks[nidx].gateway = $(this).find('.summary-gateway').val();
         });
-        // 서버별 생성 API 호출
-        let created = 0, failed = 0;
-        serverList.forEach(function(s, idx) {
-          const data = {
-            name: s.name,
-            role: s.role,
-            cpu: s.cpu,
-            memory: s.memory,
-            disks: s.disks,
-            network_devices: s.networks.map(net => ({
-              bridge: net.bridge,
-              ip_address: net.ip.includes('/') ? net.ip : (net.ip + '/' + net.subnet),
-              subnet: net.subnet,
-              gateway: net.gateway
-            })),
-            template_vm_id: (function(){
-              const osMap = { 'ubuntu': 9000, 'rocky': 8000, 'centos': 8001, 'debian': 9001 };
-              return osMap[s.os] || 8000;
-            })()
-          };
-          $.ajax({
-            url: '/add_server',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function(res) {
-              created++;
-              addSystemNotification('success', '서버 생성', `${s.name} 생성 요청 완료`);
-              if (created + failed === serverList.length) {
-                modal.hide();
-                $('#multiServerSummaryModal').remove();
-                loadActiveServers();
-              }
-            },
-            error: function(xhr) {
-              failed++;
-              addSystemNotification('error', '서버 생성', `${s.name} 생성 실패: ` + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
-              if (created + failed === serverList.length) {
-                modal.hide();
-                $('#multiServerSummaryModal').remove();
-                loadActiveServers();
-              }
-            }
-          });
+        // 서버 정보 배열 생성
+        const servers = serverList.map(s => ({
+          name: s.name,
+          role: s.role,
+          cpu: s.cpu,
+          memory: s.memory,
+          disks: s.disks,
+          network_devices: s.networks.map(net => ({
+            bridge: net.bridge,
+            ip_address: net.ip,
+            subnet: net.subnet,
+            gateway: net.gateway
+          })),
+          template_vm_id: (function(){
+            const osMap = { 'ubuntu': 9000, 'rocky': 8000, 'centos': 8001, 'debian': 9001 };
+            return osMap[s.os] || 8000;
+          })()
+        }));
+        // 한 번에 서버 정보 배열 전송
+        $.ajax({
+          url: '/add_servers_bulk',
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify({servers}),
+          success: function(res) {
+            addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
+            modal.hide();
+            $('#multiServerSummaryModal').remove();
+            loadActiveServers();
+          },
+          error: function(xhr) {
+            addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
+            modal.hide();
+            $('#multiServerSummaryModal').remove();
+            loadActiveServers();
+          }
         });
       });
       // 모달 닫힐 때 DOM 제거
@@ -323,12 +316,10 @@ $(function() {
       };
     }).get();
     const networks = $('#network-container-basic').find('.network-item').map(function() {
-      const ip = $(this).find('.network-ip').val();
-      const subnet = $(this).find('.network-subnet').val();
       return {
         bridge: $(this).find('.network-bridge').val(),
-        ip_address: ip.includes('/') ? ip : (ip + '/' + subnet),
-        subnet: subnet,
+        ip_address: $(this).find('.network-ip').val(), // 순수 IP만
+        subnet: $(this).find('.network-subnet').val(),
         gateway: $(this).find('.network-gateway').val()
       };
     }).get();
