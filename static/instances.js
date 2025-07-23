@@ -391,6 +391,16 @@ $(function() {
     $item.find('.remove-disk-btn').prop('disabled', false);
     $container.append($item);
   });
+
+  $(document).on('click', '.remove-network-btn', function() {
+    const $item = $(this).closest('.network-item');
+    const $container = $item.closest('.network-container');
+    $item.remove();
+    // 마지막 하나 남았을 때 삭제 버튼 비활성화
+    if ($container.find('.network-item').length === 1) {
+      $container.find('.network-item:first .remove-network-btn').prop('disabled', true);
+    }
+  });
 });
 
 // =========================
