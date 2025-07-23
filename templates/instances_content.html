@@ -1,0 +1,50 @@
+<div class="mb-4">
+  <label class="form-label fw-bold">서버 생성 모드</label>
+  <div class="d-flex gap-3" id="server-mode-group">
+    <div class="mode-card active" data-mode="single">
+      <i class="fas fa-server fa-2x mb-2"></i>
+      <div>단일 서버</div>
+    </div>
+    <div class="mode-card" data-mode="multi">
+      <i class="fas fa-layer-group fa-2x mb-2"></i>
+      <div>다중 서버</div>
+    </div>
+  </div>
+  <input type="hidden" id="server_mode" name="server_mode" value="single">
+</div>
+<div id="multi-server-options" style="display:none;">
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <label>서버 개수</label>
+      <input type="number" id="multi-server-count" class="form-control" min="2" max="20" value="2">
+    </div>
+    <div class="col-md-6">
+      <label>서버 이름 prefix</label>
+      <input type="text" id="multi-server-prefix" class="form-control" value="my-server">
+    </div>
+  </div>
+</div>
+<style>
+#server-mode-group { user-select: none; }
+.mode-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 24px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: #fafbfc;
+  min-width: 120px;
+  font-size: 1.1rem;
+}
+.mode-card.active {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px #007bff33;
+  background: #eaf4ff;
+  color: #007bff;
+}
+.mode-card i {
+  display: block;
+  margin-bottom: 8px;
+}
+</style> 
