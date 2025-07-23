@@ -373,6 +373,24 @@ $(function() {
       addSystemNotification(); // 빈 알림으로 드롭다운 갱신
     }
   });
+
+  // 네트워크 추가 버튼 클릭 시 네트워크 입력란 추가
+  $(document).on('click', '.add-network-btn', function() {
+    const $container = $('#network-container-basic');
+    const $item = $container.find('.network-item').first().clone();
+    $item.find('input, select').val('');
+    $item.find('.remove-network-btn').prop('disabled', false);
+    $container.append($item);
+  });
+
+  // 디스크 추가 버튼 클릭 시 디스크 입력란 추가
+  $(document).on('click', '.add-disk-btn', function() {
+    const $container = $('#disk-container-basic');
+    const $item = $container.find('.disk-item').first().clone();
+    $item.find('input, select').val('');
+    $item.find('.remove-disk-btn').prop('disabled', false);
+    $container.append($item);
+  });
 });
 
 // =========================
