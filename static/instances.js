@@ -474,13 +474,13 @@ $(function() {
     }
   });
 
-  // 서버 삭제
-  $(document).on('click', '.delete-btn', function() {
+  // 서버 삭제 버튼 안전하게 중복 바인딩 없이 처리
+  $(document).off('click', '.delete-btn').on('click', '.delete-btn', async function() {
     console.log('[instances.js] .delete-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    // confirm 없이 바로 삭제 진행
+    // confirm 없이 바로 삭제 진행 또는 confirmModal 사용 시 await
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
     btn.closest('tr').addClass('table-warning');
     $('#delete-status-message').remove();
@@ -491,7 +491,6 @@ $(function() {
         pollTaskStatus(res.task_id, '서버 삭제', name);
       }
       $('#delete-status-message').remove();
-      // 삭제중 메시지는 알림에서만 안내
       addSystemNotification('success', '서버 삭제', `${name} 서버 삭제를 시작합니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /delete_server 실패', xhr);
