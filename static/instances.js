@@ -351,6 +351,27 @@ $(function() {
     console.log('[instances.js] .refresh-btn 클릭');
     loadActiveServers();
   });
+
+  // 모든 알림 삭제 버튼 핸들러
+  $(document).on('click', '#clear-all-notifications', function(e) {
+    e.preventDefault();
+    if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
+    $.post('/notifications/clear-all', function(res) {
+      window.systemNotifications = [];
+      if (typeof addSystemNotification === 'function') {
+        addSystemNotification('success', '알림', '모든 알림이 삭제되었습니다.');
+      }
+    }).fail(function(xhr) {
+      if (typeof addSystemNotification === 'function') {
+        addSystemNotification('error', '알림', '알림 삭제 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
+      }
+    });
+    // 즉시 클라이언트 알림 드롭다운 갱신
+    if (typeof addSystemNotification === 'function') {
+      window.systemNotifications = [];
+      addSystemNotification(); // 빈 알림으로 드롭다운 갱신
+    }
+  });
 });
 
 // =========================
