@@ -640,4 +640,76 @@ $(function() {
       $badge.hide();
     }
   };
-})(); 
+})();
+
+// Bootstrap 기반 커스텀 confirm 모달 함수
+window.confirmModal = function(message) {
+  return new Promise(function(resolve) {
+    // 기존 confirm 모달이 있으면 제거
+    $('#customConfirmModal').remove();
+    const html = `
+      <div class="modal fade" id="customConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">확인</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div>${message}</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-primary" id="customConfirmOk">확인</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    $('body').append(html);
+    const modal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+    modal.show();
+    $('#customConfirmOk').off('click').on('click', function() {
+      modal.hide();
+      resolve(true);
+    });
+    $('#customConfirmModal').on('hidden.bs.modal', function(){
+      $('#customConfirmModal').remove();
+      resolve(false);
+    });
+  });
+};
+
+// Bootstrap 기반 커스텀 alert 모달 함수
+window.alertModal = function(message) {
+  return new Promise(function(resolve) {
+    $('#customAlertModal').remove();
+    const html = `
+      <div class="modal fade" id="customAlertModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">알림</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div>${message}</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" id="customAlertOk">확인</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    $('body').append(html);
+    const modal = new bootstrap.Modal(document.getElementById('customAlertModal'));
+    modal.show();
+    $('#customAlertOk').off('click').on('click', function() {
+      modal.hide();
+      resolve();
+    });
+    $('#customAlertModal').on('hidden.bs.modal', function(){
+      $('#customAlertModal').remove();
+      resolve();
+    });
+  });
+}; 
