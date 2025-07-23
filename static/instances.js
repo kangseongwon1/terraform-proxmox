@@ -70,16 +70,17 @@ $(function() {
   let activeTasks = {};
   function pollTaskStatus(task_id, type, name) {
     if (!task_id) return;
+    let progressNotified = false;
     activeTasks[task_id] = setInterval(function() {
       $.get('/tasks/status', { task_id }, function(res) {
-        if (res.status === 'progress' || res.status === 'pending') {
-          // 진행중: 알림 드롭다운에 "서버 test1 생성 중..." 등 표시
+        if ((res.status === 'progress' || res.status === 'pending') && !progressNotified) {
           addSystemNotification('info', type, `${name} ${type} 중...`);
+          progressNotified = true;
         } else if (res.status === 'success') {
           addSystemNotification('success', type, `${name} ${type} 완료`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
-          loadActiveServers(); // 성공 시 목록 갱신
+          loadActiveServers();
         } else if (res.status === 'error') {
           addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
           clearInterval(activeTasks[task_id]);
@@ -353,73 +354,46 @@ $(function() {
 });
 
 // =========================
-// 시스템 알림 드롭다운/토스트 구현
+// 시스템 알림 드롭다운 구현 (상단 네비게이션 notification-list만 사용)
 // =========================
 (function(){
-  // 알림 컨테이너가 없으면 추가
-  if (!document.getElementById('system-notification-dropdown')) {
-    const html = `
-      <div id="system-notification-root" style="position:fixed;top:24px;right:24px;z-index:1055;">
-        <div id="system-notification-toast" style="min-width:280px;display:none;"></div>
-      </div>
-      <div style="position:fixed;top:18px;right:80px;z-index:1056;">
-        <div class="dropdown">
-          <button class="btn btn-light position-relative" id="system-notification-bell" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="fas fa-bell"></i>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="system-notification-badge" style="display:none;">0</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end" id="system-notification-dropdown" style="min-width:320px;max-width:400px;max-height:350px;overflow-y:auto;"></ul>
-        </div>
-      </div>
-    `;
-    $(document.body).append(html);
-  }
-
   // 알림 목록 관리
   window.systemNotifications = window.systemNotifications || [];
   window.addSystemNotification = function(type, title, message) {
     // type: 'success' | 'info' | 'error'
-    const icon = type==='success' ? 'fa-check-circle text-success' : type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
     const now = new Date();
     const timeStr = now.toLocaleTimeString('ko-KR', {hour12:false});
-    // 알림 객체 추가 (최대 5개 유지)
+    // 알림 객체 추가 (최대 10개 유지)
     window.systemNotifications.unshift({type, title, message, time: timeStr});
-    if (window.systemNotifications.length > 5) window.systemNotifications.length = 5;
-    // 드롭다운 렌더링
-    const $dropdown = $('#system-notification-dropdown');
-    $dropdown.empty();
-    window.systemNotifications.forEach(function(noti, idx){
-      $dropdown.append(`
-        <li class="px-3 py-2 border-bottom small">
-          <div class="d-flex align-items-center gap-2 mb-1">
-            <i class="fas ${icon} me-1"></i>
-            <span class="fw-bold">${noti.title}</span>
-            <span class="ms-auto text-muted" style="font-size:0.92em;">${noti.time}</span>
+    if (window.systemNotifications.length > 10) window.systemNotifications.length = 10;
+    // 드롭다운 렌더링 (상단 네비게이션)
+    const $list = $('#notification-list');
+    let html = '';
+    window.systemNotifications.forEach(function(noti){
+      const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
+      html += `
+        <li>
+          <div class="dropdown-item d-flex align-items-start small">
+            <i class="fas ${icon} me-2 mt-1"></i>
+            <div class="flex-grow-1">
+              <div class="fw-bold">${noti.title}</div>
+              <div class="text-muted">${noti.message}</div>
+              <div class="text-muted small">${noti.time}</div>
+            </div>
           </div>
-          <div class="ps-4">${noti.message}</div>
         </li>
-      `);
+      `;
     });
     if (window.systemNotifications.length === 0) {
-      $dropdown.append('<li class="text-center text-muted py-3">알림 없음</li>');
+      html = '<li class="text-center text-muted py-3">알림이 없습니다</li>';
     }
-    // 뱃지 표시
-    const $badge = $('#system-notification-badge');
+    $list.html(html);
+    // 뱃지 갱신
+    const $badge = $('#notification-badge');
     if (window.systemNotifications.length > 0) {
       $badge.text(window.systemNotifications.length).show();
     } else {
       $badge.hide();
     }
-    // 토스트(우측 상단)도 잠깐 표시
-    const $toast = $('#system-notification-toast');
-    $toast.html(`
-      <div class="toast align-items-center text-bg-${type==='error'?'danger':type==='success'?'success':'info'} border-0 show" role="alert" aria-live="assertive" aria-atomic="true" style="min-width:280px;">
-        <div class="d-flex">
-          <div class="toast-body"><i class="fas ${icon} me-2"></i><strong>${title}</strong> <span class="ms-2">${message}</span></div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-    `).fadeIn(150);
-    setTimeout(function(){ $toast.fadeOut(400); }, 2600);
   };
 })(); 
