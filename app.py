@@ -1251,6 +1251,33 @@ def get_vm_info_from_proxmox(server_name):
             }
     return None
 
+def check_proxmox_vm_exists(server_name):
+    proxmox_url = app.config['PROXMOX_ENDPOINT']
+    username = app.config['PROXMOX_USERNAME']
+    password = app.config['PROXMOX_PASSWORD']
+    node = app.config['PROXMOX_NODE']
+    # 인증
+    auth_url = f"{proxmox_url}/api2/json/access/ticket"
+    auth_data = {'username': username, 'password': password}
+    auth_response = requests.post(auth_url, data=auth_data, verify=False)
+    if auth_response.status_code != 200:
+        return False  # 인증 실패 시 존재하지 않는 것으로 간주
+    ticket = auth_response.json()['data']['ticket']
+    csrf_token = auth_response.json()['data']['CSRFPreventionToken']
+    headers = {
+        'Cookie': f'PVEAuthCookie={ticket}',
+        'CSRFPreventionToken': csrf_token
+    }
+    vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
+    vms_response = requests.get(vms_url, headers=headers, verify=False)
+    if vms_response.status_code != 200:
+        return False  # 조회 실패 시 존재하지 않는 것으로 간주
+    vms = vms_response.json().get('data', [])
+    for vm in vms:
+        if vm['name'] == server_name:
+            return True  # 아직 존재함
+    return False  # 존재하지 않음
+
 @app.route('/status/<project_name>')
 def get_status(project_name):
     """프로젝트 상태 조회"""
