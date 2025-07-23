@@ -67,7 +67,7 @@ PROJECTS_DIR = 'projects'
 TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
 
 PERMISSION_LIST = [
-    'view_all', 'create_server', 'delete_server', 'assign_roles', 'remove_roles', 'manage_users', 'view_logs', 'manage_roles'
+    'view_all', 'create_server', 'start_server', 'stop_server', 'reboot_server', 'delete_server', 'assign_roles', 'remove_roles', 'manage_users', 'view_logs', 'manage_roles'
 ]
 
 def admin_required(f):
@@ -1428,7 +1428,7 @@ def remove_role(server_name):
     return jsonify({'success': True, 'message': '역할이 삭제되었습니다.'})
 
 @app.route('/start_server/<server_name>', methods=['POST'])
-@permission_required('delete_server')  # 필요시 권한 조정
+@permission_required('start_server')  # 필요시 권한 조정
 def start_server(server_name):
     logger.info(f"[start_server] 요청: {server_name}")
     try:

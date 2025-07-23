@@ -313,7 +313,7 @@ $(function() {
       }
       $('#delete-status-message').remove();
       // 삭제중 메시지는 알림에서만 안내
-      addSystemNotification('success', '서버 삭제', `${name} 서버가 삭제되었습니다.`);
+      addSystemNotification('success', '서버 삭제', `${name} 서버 삭제를 시작합니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /delete_server 실패', xhr);
       $('#delete-status-message').remove();
@@ -382,6 +382,17 @@ $(function() {
   // 알림 목록 관리
   window.systemNotifications = window.systemNotifications || [];
   window.addSystemNotification = function(type, title, message) {
+    if (typeof type === 'undefined' && typeof title === 'undefined' && typeof message === 'undefined') {
+      // 알림 추가 없이 드롭다운만 갱신
+      const $list = $('#notification-list');
+      let html = '';
+      if (!window.systemNotifications || window.systemNotifications.length === 0) {
+        html = '<li class="text-center text-muted py-3">알림이 없습니다</li>';
+      }
+      $list.html(html);
+      $('#notification-badge').hide();
+      return;
+    }
     // type: 'success' | 'info' | 'error'
     const now = new Date();
     const timeStr = now.toLocaleTimeString('ko-KR', {hour12:false});
