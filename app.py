@@ -26,6 +26,8 @@ except ImportError:
 # 설정 파일 import
 from config import config
 
+app = Flask(__name__)
+
 # 전역 작업 상태 dict (확장 시 Redis 등으로 교체)
 tasks = {}  # task_id: {status, type, message, ...}
 
@@ -53,7 +55,6 @@ def get_task_status():
 # Thread(target=실제_작업_함수, args=(task_id, ...)).start()
 # 실제_작업_함수 내에서 update_task(task_id, 'success'/'error', '메시지')
 
-app = Flask(__name__)
 
 # 환경 변수에서 설정 로드
 config_name = os.environ.get('FLASK_ENV', 'development')
