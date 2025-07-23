@@ -243,7 +243,7 @@ $(function() {
             disks: s.disks,
             network_devices: s.networks.map(net => ({
               bridge: net.bridge,
-              ip_address: net.ip + '/' + net.subnet,
+              ip_address: net.ip.includes('/') ? net.ip : (net.ip + '/' + net.subnet),
               subnet: net.subnet,
               gateway: net.gateway
             })),
@@ -323,10 +323,12 @@ $(function() {
       };
     }).get();
     const networks = $('#network-container-basic').find('.network-item').map(function() {
+      const ip = $(this).find('.network-ip').val();
+      const subnet = $(this).find('.network-subnet').val();
       return {
         bridge: $(this).find('.network-bridge').val(),
-        ip_address: $(this).find('.network-ip').val(),
-        subnet: $(this).find('.network-subnet').val(),
+        ip_address: ip.includes('/') ? ip : (ip + '/' + subnet),
+        subnet: subnet,
         gateway: $(this).find('.network-gateway').val()
       };
     }).get();
