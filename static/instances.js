@@ -424,7 +424,7 @@ $(function() {
     e.preventDefault();
     // 입력값 수집
     const count = parseInt($('#multi-server-count').val());
-    const prefix = $('#multi-server-prefix').val();
+    const baseName = $('input[name="name_basic"]').val();
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
     const cpu = parseInt($('input[name="cpu_basic"]').val());
@@ -445,14 +445,14 @@ $(function() {
         gateway: $(this).find('.network-gateway').val()
       };
     }).get();
-    if (!selectedOS) { alert('OS를 선택해주세요.'); return; }
-    if (!prefix || prefix.trim() === '') { alert('서버 이름 prefix를 입력해주세요.'); return; }
-    if (!count || count < 2) { alert('서버 개수는 2 이상이어야 합니다.'); return; }
+    if (!selectedOS) { alertModal('OS를 선택해주세요.'); return; }
+    if (!baseName || baseName.trim() === '') { alertModal('서버 이름을 입력해주세요.'); return; }
+    if (!count || count < 2) { alertModal('서버 개수는 2 이상이어야 합니다.'); return; }
     // 네트워크 입력값 검증 (IP, 서브넷, 게이트웨이 모두 필수)
     let hasError = false;
     networks.forEach(function(n, idx) {
       if (!n.ip || !n.subnet || !n.gateway) {
-        alert(`네트워크 카드 #${idx+1}의 IP, 서브넷, 게이트웨이를 모두 입력해주세요.`);
+        alertModal(`네트워크 카드 #${idx+1}의 IP, 서브넷, 게이트웨이를 모두 입력해주세요.`);
         hasError = true;
       }
     });
@@ -470,7 +470,7 @@ $(function() {
       const net = {...networks[0]};
       if (i > 0) net.ip = ipAdd(networks[0].ip, i);
       serverList.push({
-        name: `${prefix}-${i+1}`,
+        name: `${baseName}-${i+1}`,
         role: selectedRole,
         os: selectedOS,
         cpu: cpu,
