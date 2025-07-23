@@ -276,6 +276,14 @@ class Database:
             cursor.execute('SELECT * FROM servers WHERE name = ?', (name,))
             return cursor.fetchone()
     
+    def delete_server_by_name(self, name):
+        """서버명으로 서버 삭제"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM servers WHERE name = ?', (name,))
+            conn.commit()
+            return cursor.rowcount > 0
+    
     # 프로젝트 관리
     def add_project(self, name, status='pending'):
         """프로젝트 추가"""

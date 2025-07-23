@@ -740,19 +740,35 @@ def delete_server(server_name):
 # --- 서버 삭제 비동기 처리 ---
 def do_delete_server(task_id, server_name):
     try:
-        update_task(task_id, 'progress', '서버 삭제 중...')
+        update_task(task_id, 'progress', '서버 shutdown 시도 중...')
+        # 1. VMID 조회
+        server_row = db.get_server_by_name(server_name)
+        if not server_row or not server_row['vmid']:
+            update_task(task_id, 'error', 'DB에서 VMID 정보를 찾을 수 없습니다.')
+            return
+        vmid = server_row['vmid']
+        # 2. Proxmox에 shutdown 요청
+        ok, err = proxmox_vm_action(vmid, 'shutdown')
+        if not ok:
+            update_task(task_id, 'error', f'Proxmox shutdown 요청 실패: {err}')
+            return
+        # 3. 30초 대기 (shutdown 완료까지)
+        ok, err = wait_for_vm_shutdown(server_name, max_wait=30)
+        if not ok:
+            update_task(task_id, 'error', f'shutdown 대기 실패: {err}')
+            return
+        # 4. shutdown 성공 시에만 tfvars/DB/terraform 삭제
         servers = read_servers_from_tfvars()
         tfvars_existed = server_name in servers
         if tfvars_existed:
             del servers[server_name]
             write_servers_to_tfvars(servers)
-            ok, out, err = run_terraform_apply()
+            ok, out, terr = run_terraform_apply()
             if not ok:
-                update_task(task_id, 'error', f'Terraform apply 실패: {err}')
+                update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
                 return
-        # Proxmox에서 VM 삭제 확인 등 기존 로직
-        # ...
-        # DB 삭제 등 추가 로직
+        # DB에서 삭제
+        db.delete_server_by_name(server_name)
         update_task(task_id, 'success', f'{server_name} 서버 삭제 완료')
     except Exception as e:
         update_task(task_id, 'error', f'서버 삭제 중 예외: {str(e)}')
