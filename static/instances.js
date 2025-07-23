@@ -358,8 +358,9 @@ $(function() {
     if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
     $.post('/notifications/clear-all', function(res) {
       window.systemNotifications = [];
+      // 알림 드롭다운만 갱신(성공 알림은 띄우지 않음)
       if (typeof addSystemNotification === 'function') {
-        addSystemNotification('success', '알림', '모든 알림이 삭제되었습니다.');
+        addSystemNotification(); // 빈 알림으로 드롭다운 갱신
       }
     }).fail(function(xhr) {
       if (typeof addSystemNotification === 'function') {

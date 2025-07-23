@@ -688,6 +688,53 @@ def add_server():
     threading.Thread(target=do_add_server, args=(task_id, data)).start()
     return jsonify({'success': True, 'task_id': task_id})
 
+@app.route('/add_servers_bulk', methods=['POST'])
+@permission_required('create_server')
+def add_servers_bulk():
+    data = request.json
+    name_prefix = data.get('name_prefix')
+    count = int(data.get('count', 1))
+    ip_addresses = data.get('ip_addresses', [])
+    # 기타 스펙
+    role = data.get('role', '')
+    cpu = data.get('cpu')
+    memory = data.get('memory')
+    disks = data.get('disks', [])
+    networks = data.get('network_devices', [])
+    template_vm_id = data.get('template_vm_id')
+    # 유효성 검사
+    if not name_prefix or count < 1 or len(ip_addresses) != count:
+        return jsonify({'success': False, 'error': '입력값 오류: prefix, count, ip_addresses'}), 400
+    servers = read_servers_from_tfvars()
+    created = []
+    failed = []
+    for i in range(count):
+        name = f"{name_prefix}-{i+1}"
+        if name in servers:
+            failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
+            continue
+        # 네트워크 정보 복사 및 IP만 변경
+        net = [dict(n) for n in networks]
+        if net:
+            net[0]['ip_address'] = ip_addresses[i]
+        server_data = {
+            'name': name,
+            'role': role,
+            'cpu': cpu,
+            'memory': memory,
+            'disks': disks,
+            'network_devices': net,
+            'template_vm_id': template_vm_id
+        }
+        servers[name] = server_data
+        created.append(name)
+    write_servers_to_tfvars(servers)
+    ok, out, terr = run_terraform_apply()
+    if not ok:
+        return jsonify({'success': False, 'created': created, 'failed': failed, 'error': f'Terraform apply 실패: {terr}'})
+    # DB 저장 등 추가 로직 필요시 여기에
+    return jsonify({'success': True, 'created': created, 'failed': failed})
+
 # --- 서버 생성 비동기 처리 ---
 def do_add_server(task_id, data):
     try:
@@ -721,9 +768,9 @@ def do_add_server(task_id, data):
                     net['gateway'] = ''
         servers[server_name] = data
         write_servers_to_tfvars(servers)
-        ok, out, err = run_terraform_apply()
+        ok, out, terr = run_terraform_apply()
         if not ok:
-            update_task(task_id, 'error', f'Terraform apply 실패: {err}')
+            update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
             return
         # DB 저장 등 추가 로직
         update_task(task_id, 'success', f'{server_name} 서버 생성 완료')
@@ -744,7 +791,12 @@ def do_delete_server(task_id, server_name):
         # 1. VMID 조회
         server_row = db.get_server_by_name(server_name)
         if not server_row or not server_row['vmid']:
-            update_task(task_id, 'error', 'DB에서 VMID 정보를 찾을 수 없습니다.')
+            # Proxmox에 실제로 서버가 존재하는지 확인
+            exists = check_proxmox_vm_exists(server_name)
+            if exists:
+                update_task(task_id, 'error', f'{server_name} 서버 삭제 실패: DB에 VMID 정보가 없으나 Proxmox에는 서버가 존재합니다. 관리자에게 문의하세요.')
+            else:
+                update_task(task_id, 'success', f'{server_name} 서버가 이미 삭제되어 있습니다.')
             return
         vmid = server_row['vmid']
         # 2. Proxmox에 stop(강제종료) 요청 (lock 에러 시 unlock 후 재시도)
