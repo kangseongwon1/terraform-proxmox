@@ -692,40 +692,30 @@ def add_server():
 @permission_required('create_server')
 def add_servers_bulk():
     data = request.json
-    name_prefix = data.get('name_prefix')
-    count = int(data.get('count', 1))
-    ip_addresses = data.get('ip_addresses', [])
-    # 기타 스펙
-    role = data.get('role', '')
-    cpu = data.get('cpu')
-    memory = data.get('memory')
-    disks = data.get('disks', [])
-    networks = data.get('network_devices', [])
-    template_vm_id = data.get('template_vm_id')
-    # 유효성 검사
-    if not name_prefix or count < 1 or len(ip_addresses) != count:
-        return jsonify({'success': False, 'error': '입력값 오류: prefix, count, ip_addresses'}), 400
+    servers_input = data.get('servers')
+    if not servers_input or not isinstance(servers_input, list) or len(servers_input) == 0:
+        return jsonify({'success': False, 'error': '입력값 오류: servers 배열이 필요합니다.'}), 400
     servers = read_servers_from_tfvars()
     created = []
     failed = []
     names = []
-    for i in range(count):
-        name = f"{name_prefix}-{i+1}"
+    for s in servers_input:
+        name = s.get('name')
+        if not name or not s.get('network_devices'):
+            failed.append({'name': name or '(이름없음)', 'error': '서버명, 네트워크 정보 필요'})
+            continue
         if name in servers:
             failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
             continue
-        # 네트워크 정보 복사 및 IP만 변경
-        net = [dict(n) for n in networks]
-        if net:
-            net[0]['ip_address'] = ip_addresses[i]
+        # 서버 데이터 복사
         server_data = {
             'name': name,
-            'role': role,
-            'cpu': cpu,
-            'memory': memory,
-            'disks': disks,
-            'network_devices': net,
-            'template_vm_id': template_vm_id
+            'role': s.get('role', ''),
+            'cpu': s.get('cpu'),
+            'memory': s.get('memory'),
+            'disks': s.get('disks', []),
+            'network_devices': s.get('network_devices', []),
+            'template_vm_id': s.get('template_vm_id'),
         }
         servers[name] = server_data
         created.append(name)
@@ -743,10 +733,10 @@ def add_servers_bulk():
                 vmid=vm_info.get('vmid'),
                 status=vm_info.get('status', 'pending'),
                 ip_address=vm_info.get('ip_address'),
-                role=role,
-                os_type=data.get('os_type', ''),
-                cpu=int(cpu) if cpu is not None else None,
-                memory=int(memory) if memory is not None else None
+                role=servers[name].get('role', ''),
+                os_type=servers[name].get('os_type', ''),
+                cpu=int(servers[name].get('cpu')) if servers[name].get('cpu') is not None else None,
+                memory=int(servers[name].get('memory')) if servers[name].get('memory') is not None else None
             )
     return jsonify({'success': True, 'created': created, 'failed': failed})
 
