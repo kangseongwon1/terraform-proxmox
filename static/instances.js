@@ -401,19 +401,6 @@ $(function() {
       $container.find('.network-item:first .remove-network-btn').prop('disabled', true);
     }
   });
-
-  // 카드형 서버 생성 모드 선택 동작
-  $(document).on('click', '.mode-card', function() {
-    $('.mode-card').removeClass('active');
-    $(this).addClass('active');
-    const mode = $(this).data('mode');
-    if (mode === 'multi') {
-      $('#multi-server-options').show();
-    } else {
-      $('#multi-server-options').hide();
-    }
-    $('#server_mode').val(mode);
-  });
 });
 
 // =========================
