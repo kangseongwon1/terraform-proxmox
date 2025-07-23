@@ -372,7 +372,7 @@ $(function() {
   }
 
   // 역할 적용
-  $(document).on('click', '.server-role-apply', function() {
+  $(document).off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
     console.log('[instances.js] .server-role-apply 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
@@ -392,12 +392,13 @@ $(function() {
   });
 
   // 역할 삭제
-  $(document).on('click', '.server-role-remove', function() {
+  $(document).off('click', '.server-role-remove').on('click', '.server-role-remove', async function() {
     console.log('[instances.js] .server-role-remove 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
     const server = tr.data('server');
-    if (!confirm('정말로 이 서버의 역할을 삭제하시겠습니까?')) return;
+    const ok = await confirmModal('정말로 이 서버의 역할을 삭제하시겠습니까?');
+    if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 삭제 중...</span>');
     $.post(`/remove_role/${server}`, {}, function(res) {
       console.log('[instances.js] /remove_role 성공', res);
@@ -412,66 +413,66 @@ $(function() {
   });
 
   // 서버 시작
-  $(document).on('click', '.start-btn', function() {
+  $(document).off('click', '.start-btn').on('click', '.start-btn', async function() {
     console.log('[instances.js] .start-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    if (confirm(`${name} 서버를 시작하시겠습니까?`)) {
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
-      $.post('/start_server/' + name, function(res) {
-        console.log('[instances.js] /start_server 성공', res);
-        btn.prop('disabled', false).html(originalText);
-        loadActiveServers();
-        addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
-      }).fail(function(xhr){
-        console.error('[instances.js] /start_server 실패', xhr);
-        btn.prop('disabled', false).html(originalText);
-        addSystemNotification('error', '서버 시작', `시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-      });
-    }
+    const ok = await confirmModal(`${name} 서버를 시작하시겠습니까?`);
+    if (!ok) return;
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
+    $.post('/start_server/' + name, function(res) {
+      console.log('[instances.js] /start_server 성공', res);
+      btn.prop('disabled', false).html(originalText);
+      loadActiveServers();
+      addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
+    }).fail(function(xhr){
+      console.error('[instances.js] /start_server 실패', xhr);
+      btn.prop('disabled', false).html(originalText);
+      addSystemNotification('error', '서버 시작', `시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+    });
   });
 
   // 서버 중지
-  $(document).on('click', '.stop-btn', function() {
+  $(document).off('click', '.stop-btn').on('click', '.stop-btn', async function() {
     console.log('[instances.js] .stop-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    if (confirm(`${name} 서버를 중지하시겠습니까?`)) {
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
-      $.post('/stop_server/' + name, function(res) {
-        console.log('[instances.js] /stop_server 성공', res);
-        btn.prop('disabled', false).html(originalText);
-        loadActiveServers();
-        addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
-      }).fail(function(xhr){
-        console.error('[instances.js] /stop_server 실패', xhr);
-        btn.prop('disabled', false).html(originalText);
-        addSystemNotification('error', '서버 중지', `중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-      });
-    }
+    const ok = await confirmModal(`${name} 서버를 중지하시겠습니까?`);
+    if (!ok) return;
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
+    $.post('/stop_server/' + name, function(res) {
+      console.log('[instances.js] /stop_server 성공', res);
+      btn.prop('disabled', false).html(originalText);
+      loadActiveServers();
+      addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
+    }).fail(function(xhr){
+      console.error('[instances.js] /stop_server 실패', xhr);
+      btn.prop('disabled', false).html(originalText);
+      addSystemNotification('error', '서버 중지', `중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+    });
   });
 
   // 서버 리부팅
-  $(document).on('click', '.reboot-btn', function() {
+  $(document).off('click', '.reboot-btn').on('click', '.reboot-btn', async function() {
     console.log('[instances.js] .reboot-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    if (confirm(`${name} 서버를 리부팅하시겠습니까?`)) {
-      btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
-      $.post('/reboot_server/' + name, function(res) {
-        console.log('[instances.js] /reboot_server 성공', res);
-        btn.prop('disabled', false).html(originalText);
-        loadActiveServers();
-        addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
-      }).fail(function(xhr){
-        console.error('[instances.js] /reboot_server 실패', xhr);
-        btn.prop('disabled', false).html(originalText);
-        addSystemNotification('error', '서버 리부팅', `리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
-      });
-    }
+    const ok = await confirmModal(`${name} 서버를 리부팅하시겠습니까?`);
+    if (!ok) return;
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
+    $.post('/reboot_server/' + name, function(res) {
+      console.log('[instances.js] /reboot_server 성공', res);
+      btn.prop('disabled', false).html(originalText);
+      loadActiveServers();
+      addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
+    }).fail(function(xhr){
+      console.error('[instances.js] /reboot_server 실패', xhr);
+      btn.prop('disabled', false).html(originalText);
+      addSystemNotification('error', '서버 리부팅', `리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+    });
   });
 
   // 서버 삭제 버튼 안전하게 중복 바인딩 없이 처리
@@ -510,8 +511,8 @@ $(function() {
   });
 
   // 상세 모달 내 역할 적용/삭제
-  $(document).on('click', '.server-detail-role-apply', function() { /* ... */ });
-  $(document).on('click', '.server-detail-role-remove', function() { /* ... */ });
+  $(document).off('click', '.server-detail-role-apply').on('click', '.server-detail-role-apply', function() { /* ... */ });
+  $(document).off('click', '.server-detail-role-remove').on('click', '.server-detail-role-remove', function() { /* ... */ });
 
   // removeDisk 인라인 이벤트 대체
   $(document).on('click', '.remove-disk-btn', function() {
@@ -525,15 +526,16 @@ $(function() {
   });
 
   // 새로고침 버튼 클릭 시 서버 목록 갱신
-  $(document).on('click', '.refresh-btn', function() {
+  $(document).off('click', '.refresh-btn').on('click', '.refresh-btn', function() {
     console.log('[instances.js] .refresh-btn 클릭');
     loadActiveServers();
   });
 
   // 모든 알림 삭제 버튼 핸들러
-  $(document).on('click', '#clear-all-notifications', function(e) {
+  $(document).off('click', '#clear-all-notifications').on('click', '#clear-all-notifications', async function(e) {
     e.preventDefault();
-    if (!confirm('모든 알림을 삭제하시겠습니까?')) return;
+    const ok = await confirmModal('모든 알림을 삭제하시겠습니까?');
+    if (!ok) return;
     $.post('/notifications/clear-all', function(res) {
       window.systemNotifications = [];
       // 알림 드롭다운만 갱신(성공 알림은 띄우지 않음)
