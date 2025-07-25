@@ -600,77 +600,57 @@
             <div class="tab-pane fade show active" id="create" role="tabpanel">
               {% if 'create_server' in session['permissions'] %}
               <form id="server-create-form">
-                <!-- 다중서버 생성 토글 및 대수 입력 -->
-                <div class="mb-3 d-flex align-items-center gap-3">
-                  <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="multi-server-toggle">
-                    <label class="form-check-label" for="multi-server-toggle">다중서버 생성</label>
-                  </div>
-                  <div id="multi-server-count-group" style="display:none;">
-                    <label class="form-label mb-0 me-2">생성할 서버 대수</label>
-                    <input type="number" id="multi-server-count" class="form-control d-inline-block" style="width:80px;" min="2" max="20" value="2">
-                  </div>
+                <!-- 서버 이름, OS, CPU, 메모리, 디스크, 네트워크, 역할 등 기존 단일 입력 UI만 남김 -->
+                <div class="mb-3">
+                  <label class="form-label">서버 이름</label>
+                  <input type="text" class="form-control" name="name_basic" placeholder="서버 이름">
                 </div>
-                <!-- 기존 서버 생성 버튼 -->
-                <div class="text-center mt-4">
-                  <div id="creation-status" class="mb-3" style="display: none;">
-                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
-                      <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
-                      <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
-                    </div>
-                  </div>
-                  <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
-                  <button id="multi-server-next-btn" class="btn btn-success mb-3" style="display:none;"><i class="fas fa-arrow-right"></i> 다음</button>
+                <div class="mb-3">
+                  <label class="form-label">OS</label>
+                  <select class="form-select" name="os_basic">
+                    <option value="">선택하세요</option>
+                    {% for os in os_list %}
+                      <option value="{{ os }}">{{ os }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
-                <!-- 다중서버 스펙 리스트/네트워크 수정 UI -->
-                <div id="multi-server-spec-list" style="display:none;"></div>
-                <!-- 디스크 설정 -->
-                <div class="mb-4">
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-                    <label class="form-label mb-0"><i class="fas fa-hdd me-1"></i>디스크 설정</label>
-                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="addDisk('basic')">
-                      <i class="fas fa-plus me-1"></i>디스크 추가
-                    </button>
-                  </div>
-                  <div class="disk-container" id="disk-container-basic">
-                    <div class="disk-item mb-3">
-                      <div class="row">
-                        <div class="col-md-4">
-                          <label class="form-label">디스크 크기</label>
-                          <div class="input-group">
-                            <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
-                            <span class="input-group-text">GB</span>
-                          </div>
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">인터페이스</label>
-                          <select class="form-select disk-interface">
-                            <option value="scsi0">SCSI 0</option>
-                            <option value="scsi1">SCSI 1</option>
-                            <option value="scsi2">SCSI 2</option>
-                            <option value="scsi3">SCSI 3</option>
-                            <option value="sata0">SATA 0</option>
-                            <option value="sata1">SATA 1</option>
-                            <option value="virtio0">VirtIO 0</option>
-                            <option value="virtio1">VirtIO 1</option>
-                          </select>
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">스토리지 타입</label>
-                          <select class="form-select disk-datastore">
-                            <option value="local-lvm" selected>HDD (local-lvm)</option>
-                            <option value="ssd">SSD (ssd)</option>
-                          </select>
-                          <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
-                            <i class="fas fa-trash me-1"></i>삭제
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div class="mb-3">
+                  <label class="form-label">CPU</label>
+                  <input type="number" class="form-control" name="cpu_basic" placeholder="CPU 코어 수">
                 </div>
-                <!-- 네트워크 설정 -->
-                <div class="mb-4">
+                <div class="mb-3">
+                  <label class="form-label">메모리 (GB)</label>
+                  <input type="number" class="form-control" name="memory_basic" placeholder="메모리 용량">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">디스크 크기 (GB)</label>
+                  <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">인터페이스</label>
+                  <select class="form-select disk-interface">
+                    <option value="scsi0">SCSI 0</option>
+                    <option value="scsi1">SCSI 1</option>
+                    <option value="scsi2">SCSI 2</option>
+                    <option value="scsi3">SCSI 3</option>
+                    <option value="sata0">SATA 0</option>
+                    <option value="sata1">SATA 1</option>
+                    <option value="virtio0">VirtIO 0</option>
+                    <option value="virtio1">VirtIO 1</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">스토리지 타입</label>
+                  <select class="form-select disk-datastore">
+                    <option value="local-lvm" selected>HDD (local-lvm)</option>
+                    <option value="ssd">SSD (ssd)</option>
+                  </select>
+                  <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
+                    <i class="fas fa-trash me-1"></i>삭제
+                  </button>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">네트워크 설정</label>
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <label class="form-label mb-0"><i class="fas fa-network-wired me-1"></i>네트워크 설정</label>
                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNetwork('basic')">
@@ -709,7 +689,6 @@
                     </div>
                   </div>
                 </div>
-                <!-- 역할 선택: 맨 아래, 완전 선택사항 -->
                 <div class="mb-4">
                   <label class="form-label">서버 역할 선택 <span class="text-muted">(선택사항, 한 가지만 선택 가능)</span></label>
                   <select id="role-select" class="form-select">
@@ -720,6 +699,15 @@
                   </select>
                   <div id="role-desc" class="form-text text-info mt-1"></div>
                   <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다. (한 가지만 선택 가능)</small>
+                </div>
+                <div class="text-center mt-4">
+                  <div id="creation-status" class="mb-3" style="display: none;">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
+                      <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
+                      <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
+                    </div>
+                  </div>
+                  <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
                 </div>
               </form>
               {% else %}
@@ -879,79 +867,59 @@
   </div>
   <!-- 단일/다중 서버 생성 폼 -->
   <div id="single-server-pane">
-    <!-- 기존 단일 서버 생성 폼 전체 복원/유지 -->
+    <!-- 기존 단일 서버 생성 폼 전체 복원/유지 (다중서버 토글/대수/다음 버튼 등 완전 삭제) -->
     <form id="server-create-form">
-      <!-- 다중서버 생성 토글 및 대수 입력 -->
-      <div class="mb-3 d-flex align-items-center gap-3">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="multi-server-toggle">
-          <label class="form-check-label" for="multi-server-toggle">다중서버 생성</label>
-        </div>
-        <div id="multi-server-count-group" style="display:none;">
-          <label class="form-label mb-0 me-2">생성할 서버 대수</label>
-          <input type="number" id="multi-server-count" class="form-control d-inline-block" style="width:80px;" min="2" max="20" value="2">
-        </div>
+      <!-- 서버 이름, OS, CPU, 메모리, 디스크, 네트워크, 역할 등 기존 단일 입력 UI만 남김 -->
+      <div class="mb-3">
+        <label class="form-label">서버 이름</label>
+        <input type="text" class="form-control" name="name_basic" placeholder="서버 이름">
       </div>
-      <!-- 기존 서버 생성 버튼 -->
-      <div class="text-center mt-4">
-        <div id="creation-status" class="mb-3" style="display: none;">
-          <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
-            <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
-            <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
-          </div>
-        </div>
-        <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
-        <button id="multi-server-next-btn" class="btn btn-success mb-3" style="display:none;"><i class="fas fa-arrow-right"></i> 다음</button>
+      <div class="mb-3">
+        <label class="form-label">OS</label>
+        <select class="form-select" name="os_basic">
+          <option value="">선택하세요</option>
+          {% for os in os_list %}
+            <option value="{{ os }}">{{ os }}</option>
+          {% endfor %}
+        </select>
       </div>
-      <!-- 다중서버 스펙 리스트/네트워크 수정 UI -->
-      <div id="multi-server-spec-list" style="display:none;"></div>
-      <!-- 디스크 설정 -->
-      <div class="mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <label class="form-label mb-0"><i class="fas fa-hdd me-1"></i>디스크 설정</label>
-          <button type="button" class="btn btn-outline-primary btn-sm" onclick="addDisk('basic')">
-            <i class="fas fa-plus me-1"></i>디스크 추가
-          </button>
-        </div>
-        <div class="disk-container" id="disk-container-basic">
-          <div class="disk-item mb-3">
-            <div class="row">
-              <div class="col-md-4">
-                <label class="form-label">디스크 크기</label>
-                <div class="input-group">
-                  <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
-                  <span class="input-group-text">GB</span>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">인터페이스</label>
-                <select class="form-select disk-interface">
-                  <option value="scsi0">SCSI 0</option>
-                  <option value="scsi1">SCSI 1</option>
-                  <option value="scsi2">SCSI 2</option>
-                  <option value="scsi3">SCSI 3</option>
-                  <option value="sata0">SATA 0</option>
-                  <option value="sata1">SATA 1</option>
-                  <option value="virtio0">VirtIO 0</option>
-                  <option value="virtio1">VirtIO 1</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">스토리지 타입</label>
-                <select class="form-select disk-datastore">
-                  <option value="local-lvm" selected>HDD (local-lvm)</option>
-                  <option value="ssd">SSD (ssd)</option>
-                </select>
-                <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
-                  <i class="fas fa-trash me-1"></i>삭제
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="mb-3">
+        <label class="form-label">CPU</label>
+        <input type="number" class="form-control" name="cpu_basic" placeholder="CPU 코어 수">
       </div>
-      <!-- 네트워크 설정 -->
-      <div class="mb-4">
+      <div class="mb-3">
+        <label class="form-label">메모리 (GB)</label>
+        <input type="number" class="form-control" name="memory_basic" placeholder="메모리 용량">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">디스크 크기 (GB)</label>
+        <input type="number" class="form-control disk-size" value="20" min="1" max="1000">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">인터페이스</label>
+        <select class="form-select disk-interface">
+          <option value="scsi0">SCSI 0</option>
+          <option value="scsi1">SCSI 1</option>
+          <option value="scsi2">SCSI 2</option>
+          <option value="scsi3">SCSI 3</option>
+          <option value="sata0">SATA 0</option>
+          <option value="sata1">SATA 1</option>
+          <option value="virtio0">VirtIO 0</option>
+          <option value="virtio1">VirtIO 1</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">스토리지 타입</label>
+        <select class="form-select disk-datastore">
+          <option value="local-lvm" selected>HDD (local-lvm)</option>
+          <option value="ssd">SSD (ssd)</option>
+        </select>
+        <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="removeDisk(this)">
+          <i class="fas fa-trash me-1"></i>삭제
+        </button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">네트워크 설정</label>
         <div class="d-flex justify-content-between align-items-center mb-3">
           <label class="form-label mb-0"><i class="fas fa-network-wired me-1"></i>네트워크 설정</label>
           <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNetwork('basic')">
@@ -990,7 +958,6 @@
           </div>
         </div>
       </div>
-      <!-- 역할 선택: 맨 아래, 완전 선택사항 -->
       <div class="mb-4">
         <label class="form-label">서버 역할 선택 <span class="text-muted">(선택사항, 한 가지만 선택 가능)</span></label>
         <select id="role-select" class="form-select">
@@ -1001,6 +968,15 @@
         </select>
         <div id="role-desc" class="form-text text-info mt-1"></div>
         <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다. (한 가지만 선택 가능)</small>
+      </div>
+      <div class="text-center mt-4">
+        <div id="creation-status" class="mb-3" style="display: none;">
+          <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
+            <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
+            <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
+          </div>
+        </div>
+        <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
       </div>
     </form>
   </div>
@@ -2050,19 +2026,7 @@
   </script>
   <script>
   $(function(){
-    // 다중서버 토글
-    $('#multi-server-toggle').change(function(){
-      if(this.checked){
-        $('#multi-server-count-group').show();
-        $('#create-server-btn').hide();
-        $('#multi-server-next-btn').show();
-      }else{
-        $('#multi-server-count-group').hide();
-        $('#create-server-btn').show();
-        $('#multi-server-next-btn').hide();
-        $('#multi-server-spec-list').hide().empty();
-      }
-    });
+
     // 다음 버튼 클릭 시 서버 스펙 리스트 동적 생성
     $('#multi-server-next-btn').click(function(){
       const count = parseInt($('#multi-server-count').val());
@@ -2099,134 +2063,7 @@
     // ... 이하 추가 UX 구현 ...
   });
   </script>
-  <script>
-  $(function(){
-    // ... 기존 다중서버 토글/다음 버튼 ...
-    // 디스크/네트워크 편집 모달 로직
-    let currentEditType = null, currentEditIdx = null;
-    $(document).on('click', '.edit-disk, .edit-network', function(){
-      const tr = $(this).closest('tr');
-      currentEditIdx = tr.data('idx');
-      currentEditType = $(this).hasClass('edit-disk') ? 'disk' : 'network';
-      let html = '';
-      if(currentEditType==='disk'){
-        html += '<h6>디스크 목록</h6>';
-        html += '<div id="modal-disk-list"></div>';
-        html += '<button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addModalDisk">디스크 추가</button>';
-      }else{
-        html += '<h6>네트워크 목록</h6>';
-        html += '<div id="modal-network-list"></div>';
-        html += '<button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addModalNetwork">네트워크 추가</button>';
-      }
-      $('#editSpecModalBody').html(html);
-      // 기존 값 로드(없으면 1개 기본)
-      let specData = tr.data(currentEditType+'s') || [];
-      if(!Array.isArray(specData)||specData.length===0){
-        specData = [currentEditType==='disk'?{size:20,interface:'scsi0',datastore:'local-lvm'}:{bridge:'vmbr0',ip:'',subnet:'24',gateway:''}];
-      }
-      renderModalSpecList(specData);
-      $('#editSpecModal').modal('show');
-    });
-    // 모달 내 디스크/네트워크 추가/삭제/저장
-    function renderModalSpecList(list){
-      let html = '';
-      if(currentEditType==='disk'){
-        list.forEach((d,i)=>{
-          html += `<div class="row mb-2 align-items-end modal-disk-item" data-idx="${i}">
-            <div class="col-md-4"><input type="number" class="form-control modal-disk-size" value="${d.size||20}" min="1" max="1000"> GB</div>
-            <div class="col-md-4"><select class="form-select modal-disk-interface">
-              <option value="scsi0"${d.interface==='scsi0'?' selected':''}>SCSI 0</option>
-              <option value="scsi1"${d.interface==='scsi1'?' selected':''}>SCSI 1</option>
-              <option value="virtio0"${d.interface==='virtio0'?' selected':''}>VirtIO 0</option>
-            </select></div>
-            <div class="col-md-3"><select class="form-select modal-disk-datastore">
-              <option value="local-lvm"${d.datastore==='local-lvm'?' selected':''}>HDD (local-lvm)</option>
-              <option value="ssd"${d.datastore==='ssd'?' selected':''}>SSD (ssd)</option>
-            </select></div>
-            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm remove-modal-disk">삭제</button></div>
-          </div>`;
-        });
-        $('#modal-disk-list').html(html);
-      }else{
-        list.forEach((n,i)=>{
-          html += `<div class="row mb-2 align-items-end modal-network-item" data-idx="${i}">
-            <div class="col-md-3"><select class="form-select modal-network-bridge">
-              <option value="vmbr0"${n.bridge==='vmbr0'?' selected':''}>vmbr0</option>
-              <option value="vmbr1"${n.bridge==='vmbr1'?' selected':''}>vmbr1</option>
-            </select></div>
-            <div class="col-md-3"><input type="text" class="form-control modal-network-ip" value="${n.ip||''}" placeholder="IP"></div>
-            <div class="col-md-2"><input type="text" class="form-control modal-network-subnet" value="${n.subnet||'24'}" placeholder="서브넷"></div>
-            <div class="col-md-3"><input type="text" class="form-control modal-network-gateway" value="${n.gateway||''}" placeholder="게이트웨이"></div>
-            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm remove-modal-network">삭제</button></div>
-          </div>`;
-        });
-        $('#modal-network-list').html(html);
-      }
-    }
-    // 디스크/네트워크 추가
-    $(document).on('click','#addModalDisk',function(){
-      let list = [];
-      $('#modal-disk-list .modal-disk-item').each(function(){
-        list.push({size:parseInt($(this).find('.modal-disk-size').val()),interface:$(this).find('.modal-disk-interface').val(),datastore:$(this).find('.modal-disk-datastore').val()});
-      });
-      list.push({size:20,interface:'scsi0',datastore:'local-lvm'});
-      renderModalSpecList(list);
-    });
-    $(document).on('click','#addModalNetwork',function(){
-      let list = [];
-      $('#modal-network-list .modal-network-item').each(function(){
-        list.push({bridge:$(this).find('.modal-network-bridge').val(),ip:$(this).find('.modal-network-ip').val(),subnet:$(this).find('.modal-network-subnet').val(),gateway:$(this).find('.modal-network-gateway').val()});
-      });
-      list.push({bridge:'vmbr0',ip:'',subnet:'24',gateway:''});
-      renderModalSpecList(list);
-    });
-    // 디스크/네트워크 삭제
-    $(document).on('click','.remove-modal-disk',function(){
-      $(this).closest('.modal-disk-item').remove();
-    });
-    $(document).on('click','.remove-modal-network',function(){
-      $(this).closest('.modal-network-item').remove();
-    });
-    // 모달 저장
-    $('#saveSpecBtn').click(function(){
-      let list = [];
-      if(currentEditType==='disk'){
-        $('#modal-disk-list .modal-disk-item').each(function(){
-          list.push({size:parseInt($(this).find('.modal-disk-size').val()),interface:$(this).find('.modal-disk-interface').val(),datastore:$(this).find('.modal-disk-datastore').val()});
-        });
-      }else{
-        $('#modal-network-list .modal-network-item').each(function(){
-          list.push({bridge:$(this).find('.modal-network-bridge').val(),ip:$(this).find('.modal-network-ip').val(),subnet:$(this).find('.modal-network-subnet').val(),gateway:$(this).find('.modal-network-gateway').val()});
-        });
-      }
-      // 서버 행에 데이터 저장
-      const tr = $(`#multi-server-spec-list tr[data-idx="${currentEditIdx}"]`);
-      tr.data(currentEditType+'s',list);
-      $('#editSpecModal').modal('hide');
-    });
-    // 다중서버 생성 버튼 클릭 시 서버별 데이터 취합 후 생성
-    $(document).on('click','#multi-server-create-btn',function(){
-      const servers = [];
-      $('#multi-server-spec-list tbody tr').each(function(){
-        const name = $(this).find('.server-name').val();
-        const os = $(this).find('.server-os').val();
-        const cpu = parseInt($(this).find('.server-cpu').val());
-        const memory = parseInt($(this).find('.server-memory').val());
-        const disks = $(this).data('disks')||[{size:20,interface:'scsi0',datastore:'local-lvm'}];
-        const networks = $(this).data('networks')||[{bridge:'vmbr0',ip:'',subnet:'24',gateway:''}];
-        servers.push({name,os_type:os,cpu,memory,disks,network_devices:networks});
-      });
-      if(servers.length===0){alert('생성할 서버가 없습니다.');return;}
-      $.ajax({
-        url:'/create_servers_bulk',method:'POST',contentType:'application/json',data:JSON.stringify({servers}),
-        success:function(res){addSystemNotification('success',res.message||'다중 서버 생성 완료');loadNotifications();},
-        error:function(xhr){addSystemNotification('error',xhr.responseJSON?.error||'다중 서버 생성 실패');loadNotifications();}
-      });
-      $('#multi-server-spec-list').hide().empty();
-      $('#multi-server-toggle').prop('checked',false).trigger('change');
-    });
-  });
-  </script>
+
   <script>
   $(function(){
     // 카드 클릭 시 active 효과 및 폼 전환
