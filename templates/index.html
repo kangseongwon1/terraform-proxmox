@@ -1300,38 +1300,51 @@
       const originalText = btn.html();
       
       if (confirm(`${name} 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
-        
-        $.post('/delete_server/' + name, function(res) {
-          btn.prop('disabled', false).html(originalText);
-          loadActiveServers();
-          showNotification('success', `${name} 서버가 삭제되었습니다.`);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>종료 중...');
+        // 1. 종료 요청
+        $.post('/stop_server/' + name, function(stopRes) {
+          // 2. 종료 상태 폴링
+          function pollStatus(retry) {
+            if (retry <= 0) {
+              btn.prop('disabled', false).html(originalText);
+              addSystemNotification('error', `${name} 서버 종료 확인 실패`);
+              loadNotifications();
+              return;
+            }
+            $.get('/server_status/' + name, function(statusRes) {
+              if (statusRes.status === 'stopped') {
+                btn.html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
+                // 3. 삭제 요청
+                $.post('/delete_server/' + name, function(delRes) {
+                  btn.prop('disabled', false).html(originalText);
+                  loadActiveServers();
+                  addSystemNotification('success', `${name} 서버가 삭제되었습니다.`);
+                  loadNotifications();
+                }).fail(function(xhr){
+                  btn.prop('disabled', false).html(originalText);
+                  addSystemNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+                  loadNotifications();
+                });
+              } else {
+                setTimeout(function(){ pollStatus(retry-1); }, 2000);
+              }
+            }).fail(function(){
+              setTimeout(function(){ pollStatus(retry-1); }, 2000);
+            });
+          }
+          pollStatus(15); // 최대 30초(2초*15) 대기
         }).fail(function(xhr){
           btn.prop('disabled', false).html(originalText);
-          showNotification('error', `삭제 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+          addSystemNotification('error', `서버 종료 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+          loadNotifications();
         });
       }
     });
-    
-    // 알림 표시 함수
+
+    // 알림 표시 함수(드롭다운만 사용)
     function showNotification(type, message) {
-      const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-      const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-      
-      const notification = $(`
-        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
-          <i class="fas ${icon} me-2"></i>${message}
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-      `);
-      
-      $('body').append(notification);
-      
-      // 5초 후 자동 제거
-      setTimeout(function() {
-        notification.alert('close');
-      }, 5000);
+      addSystemNotification(type, message);
+      loadNotifications();
     }
 
     // 스토리지 정보 불러오기
