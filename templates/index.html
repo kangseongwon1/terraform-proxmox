@@ -600,36 +600,30 @@
             <div class="tab-pane fade show active" id="create" role="tabpanel">
               {% if 'create_server' in session['permissions'] %}
               <form id="server-create-form">
-                <div class="row">
-                  <div class="col-md-6 mb-3">
-                    <label class="form-label">서버 이름</label>
-                    <input type="text" class="form-control" name="name_basic" placeholder="예: my-server-01" required>
+                <!-- 다중서버 생성 토글 및 대수 입력 -->
+                <div class="mb-3 d-flex align-items-center gap-3">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="multi-server-toggle">
+                    <label class="form-check-label" for="multi-server-toggle">다중서버 생성</label>
                   </div>
-                  <div class="col-md-6 mb-3">
-                    <label class="form-label">OS 선택</label>
-                    <select id="os-select" class="form-select" name="os">
-                      <option value="">OS를 선택하세요</option>
-                      <option value="ubuntu">Ubuntu 20.04 (Template ID: 9000)</option>
-                      <option value="rocky">Rocky Linux 8 (Template ID: 8000)</option>
-                      <option value="centos">CentOS 8 (Template ID: 8001)</option>
-                      <option value="debian">Debian 11 (Template ID: 9001)</option>
-                    </select>
-                  </div>
-                  <div class="col-md-6 mb-3">
-                    <label class="form-label">CPU 코어</label>
-                    <div class="input-group">
-                      <input type="number" class="form-control" name="cpu_basic" value="2" min="1" max="32">
-                      <span class="input-group-text">코어</span>
-                    </div>
-                  </div>
-                  <div class="col-md-6 mb-3">
-                    <label class="form-label">메모리</label>
-                    <div class="input-group">
-                      <input type="number" class="form-control" name="memory_basic" value="2048" min="512" step="512">
-                      <span class="input-group-text">MB</span>
-                    </div>
+                  <div id="multi-server-count-group" style="display:none;">
+                    <label class="form-label mb-0 me-2">생성할 서버 대수</label>
+                    <input type="number" id="multi-server-count" class="form-control d-inline-block" style="width:80px;" min="2" max="20" value="2">
                   </div>
                 </div>
+                <!-- 기존 서버 생성 버튼 -->
+                <div class="text-center mt-4">
+                  <div id="creation-status" class="mb-3" style="display: none;">
+                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
+                      <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
+                      <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
+                    </div>
+                  </div>
+                  <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
+                  <button id="multi-server-next-btn" class="btn btn-success mb-3" style="display:none;"><i class="fas fa-arrow-right"></i> 다음</button>
+                </div>
+                <!-- 다중서버 스펙 리스트/네트워크 수정 UI -->
+                <div id="multi-server-spec-list" style="display:none;"></div>
                 <!-- 디스크 설정 -->
                 <div class="mb-4">
                   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -726,15 +720,6 @@
                   </select>
                   <div id="role-desc" class="form-text text-info mt-1"></div>
                   <small class="form-text text-muted">선택 시 해당 역할에 맞는 패키지가 추가로 설치됩니다. (한 가지만 선택 가능)</small>
-                </div>
-                <div class="text-center mt-4">
-                  <div id="creation-status" class="mb-3" style="display: none;">
-                    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">
-                      <i class="fas fa-spinner fa-spin fa-3x mb-3 text-primary"></i>
-                      <div class="fw-bold" id="status-message">서버 생성 중입니다. 잠시만 기다려주세요...</div>
-                    </div>
-                  </div>
-                  <button id="create-server-btn" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> 서버 생성</button>
                 </div>
               </form>
               {% else %}
@@ -853,6 +838,25 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- 디스크/네트워크 편집 모달 -->
+  <div class="modal fade" id="editSpecModal" tabindex="-1" aria-labelledby="editSpecModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editSpecModalLabel">스펙 편집</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="editSpecModalBody">
+          <!-- 동적 폼 삽입 -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          <button type="button" class="btn btn-primary" id="saveSpecBtn">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
   $(document).ready(function() {
@@ -1107,7 +1111,7 @@
       $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
       
       $.ajax({
-        url: '/add_server',
+        url: '/create_server',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(data),
@@ -1117,7 +1121,7 @@
             $('#creation-status').hide();
             btn.prop('disabled', false).html(originalText);
             loadActiveServers();
-            alert('서버가 성공적으로 생성되었습니다!');
+            // alert('서버가 성공적으로 생성되었습니다!'); // 알림 드롭다운만 사용
           }, 2000);
         },
         error: function(xhr) {
@@ -1892,6 +1896,185 @@
     return Number(val).toFixed(2);
   }
   // ... 이하 기존 JS 코드 ...
+  </script>
+  <script>
+  $(function(){
+    // 다중서버 토글
+    $('#multi-server-toggle').change(function(){
+      if(this.checked){
+        $('#multi-server-count-group').show();
+        $('#create-server-btn').hide();
+        $('#multi-server-next-btn').show();
+      }else{
+        $('#multi-server-count-group').hide();
+        $('#create-server-btn').show();
+        $('#multi-server-next-btn').hide();
+        $('#multi-server-spec-list').hide().empty();
+      }
+    });
+    // 다음 버튼 클릭 시 서버 스펙 리스트 동적 생성
+    $('#multi-server-next-btn').click(function(){
+      const count = parseInt($('#multi-server-count').val());
+      if(isNaN(count)||count<2||count>20){
+        alert('2~20 사이의 서버 대수를 입력하세요.');
+        return;
+      }
+      let html = '<h5 class="mb-3">생성될 서버 스펙/네트워크 정보</h5>';
+      html += '<div class="table-responsive"><table class="table table-bordered align-middle"><thead><tr>'+
+        '<th>서버명</th><th>OS</th><th>CPU</th><th>메모리(MB)</th><th>디스크</th><th>네트워크</th><th>수정</th></tr></thead><tbody>';
+      for(let i=0;i<count;i++){
+        html += `<tr data-idx="${i}">
+          <td><input type="text" class="form-control server-name" value="multi-server-${i+1}"></td>
+          <td><select class="form-select server-os">
+            <option value="ubuntu">Ubuntu 20.04</option>
+            <option value="rocky">Rocky Linux 8</option>
+            <option value="centos">CentOS 8</option>
+            <option value="debian">Debian 11</option>
+          </select></td>
+          <td><input type="number" class="form-control server-cpu" value="2" min="1" max="32"></td>
+          <td><input type="number" class="form-control server-memory" value="2048" min="512" step="512"></td>
+          <td><button type="button" class="btn btn-outline-primary btn-sm edit-disk">디스크 편집</button></td>
+          <td><button type="button" class="btn btn-outline-primary btn-sm edit-network">네트워크 편집</button></td>
+          <td><button type="button" class="btn btn-outline-danger btn-sm remove-server"><i class="fas fa-trash"></i></button></td>
+        </tr>`;
+      }
+      html += '</tbody></table></div>';
+      html += '<div class="text-end"><button class="btn btn-primary" id="multi-server-create-btn"><i class="fas fa-plus"></i> 생성</button></div>';
+      $('#multi-server-spec-list').html(html).show();
+    });
+    // 서버 행 삭제
+    $(document).on('click','.remove-server',function(){ $(this).closest('tr').remove(); });
+    // 디스크/네트워크 편집(모달 등 추가 구현 필요)
+    // ... 이하 추가 UX 구현 ...
+  });
+  </script>
+  <script>
+  $(function(){
+    // ... 기존 다중서버 토글/다음 버튼 ...
+    // 디스크/네트워크 편집 모달 로직
+    let currentEditType = null, currentEditIdx = null;
+    $(document).on('click', '.edit-disk, .edit-network', function(){
+      const tr = $(this).closest('tr');
+      currentEditIdx = tr.data('idx');
+      currentEditType = $(this).hasClass('edit-disk') ? 'disk' : 'network';
+      let html = '';
+      if(currentEditType==='disk'){
+        html += '<h6>디스크 목록</h6>';
+        html += '<div id="modal-disk-list"></div>';
+        html += '<button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addModalDisk">디스크 추가</button>';
+      }else{
+        html += '<h6>네트워크 목록</h6>';
+        html += '<div id="modal-network-list"></div>';
+        html += '<button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addModalNetwork">네트워크 추가</button>';
+      }
+      $('#editSpecModalBody').html(html);
+      // 기존 값 로드(없으면 1개 기본)
+      let specData = tr.data(currentEditType+'s') || [];
+      if(!Array.isArray(specData)||specData.length===0){
+        specData = [currentEditType==='disk'?{size:20,interface:'scsi0',datastore:'local-lvm'}:{bridge:'vmbr0',ip:'',subnet:'24',gateway:''}];
+      }
+      renderModalSpecList(specData);
+      $('#editSpecModal').modal('show');
+    });
+    // 모달 내 디스크/네트워크 추가/삭제/저장
+    function renderModalSpecList(list){
+      let html = '';
+      if(currentEditType==='disk'){
+        list.forEach((d,i)=>{
+          html += `<div class="row mb-2 align-items-end modal-disk-item" data-idx="${i}">
+            <div class="col-md-4"><input type="number" class="form-control modal-disk-size" value="${d.size||20}" min="1" max="1000"> GB</div>
+            <div class="col-md-4"><select class="form-select modal-disk-interface">
+              <option value="scsi0"${d.interface==='scsi0'?' selected':''}>SCSI 0</option>
+              <option value="scsi1"${d.interface==='scsi1'?' selected':''}>SCSI 1</option>
+              <option value="virtio0"${d.interface==='virtio0'?' selected':''}>VirtIO 0</option>
+            </select></div>
+            <div class="col-md-3"><select class="form-select modal-disk-datastore">
+              <option value="local-lvm"${d.datastore==='local-lvm'?' selected':''}>HDD (local-lvm)</option>
+              <option value="ssd"${d.datastore==='ssd'?' selected':''}>SSD (ssd)</option>
+            </select></div>
+            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm remove-modal-disk">삭제</button></div>
+          </div>`;
+        });
+        $('#modal-disk-list').html(html);
+      }else{
+        list.forEach((n,i)=>{
+          html += `<div class="row mb-2 align-items-end modal-network-item" data-idx="${i}">
+            <div class="col-md-3"><select class="form-select modal-network-bridge">
+              <option value="vmbr0"${n.bridge==='vmbr0'?' selected':''}>vmbr0</option>
+              <option value="vmbr1"${n.bridge==='vmbr1'?' selected':''}>vmbr1</option>
+            </select></div>
+            <div class="col-md-3"><input type="text" class="form-control modal-network-ip" value="${n.ip||''}" placeholder="IP"></div>
+            <div class="col-md-2"><input type="text" class="form-control modal-network-subnet" value="${n.subnet||'24'}" placeholder="서브넷"></div>
+            <div class="col-md-3"><input type="text" class="form-control modal-network-gateway" value="${n.gateway||''}" placeholder="게이트웨이"></div>
+            <div class="col-md-1"><button type="button" class="btn btn-outline-danger btn-sm remove-modal-network">삭제</button></div>
+          </div>`;
+        });
+        $('#modal-network-list').html(html);
+      }
+    }
+    // 디스크/네트워크 추가
+    $(document).on('click','#addModalDisk',function(){
+      let list = [];
+      $('#modal-disk-list .modal-disk-item').each(function(){
+        list.push({size:parseInt($(this).find('.modal-disk-size').val()),interface:$(this).find('.modal-disk-interface').val(),datastore:$(this).find('.modal-disk-datastore').val()});
+      });
+      list.push({size:20,interface:'scsi0',datastore:'local-lvm'});
+      renderModalSpecList(list);
+    });
+    $(document).on('click','#addModalNetwork',function(){
+      let list = [];
+      $('#modal-network-list .modal-network-item').each(function(){
+        list.push({bridge:$(this).find('.modal-network-bridge').val(),ip:$(this).find('.modal-network-ip').val(),subnet:$(this).find('.modal-network-subnet').val(),gateway:$(this).find('.modal-network-gateway').val()});
+      });
+      list.push({bridge:'vmbr0',ip:'',subnet:'24',gateway:''});
+      renderModalSpecList(list);
+    });
+    // 디스크/네트워크 삭제
+    $(document).on('click','.remove-modal-disk',function(){
+      $(this).closest('.modal-disk-item').remove();
+    });
+    $(document).on('click','.remove-modal-network',function(){
+      $(this).closest('.modal-network-item').remove();
+    });
+    // 모달 저장
+    $('#saveSpecBtn').click(function(){
+      let list = [];
+      if(currentEditType==='disk'){
+        $('#modal-disk-list .modal-disk-item').each(function(){
+          list.push({size:parseInt($(this).find('.modal-disk-size').val()),interface:$(this).find('.modal-disk-interface').val(),datastore:$(this).find('.modal-disk-datastore').val()});
+        });
+      }else{
+        $('#modal-network-list .modal-network-item').each(function(){
+          list.push({bridge:$(this).find('.modal-network-bridge').val(),ip:$(this).find('.modal-network-ip').val(),subnet:$(this).find('.modal-network-subnet').val(),gateway:$(this).find('.modal-network-gateway').val()});
+        });
+      }
+      // 서버 행에 데이터 저장
+      const tr = $(`#multi-server-spec-list tr[data-idx="${currentEditIdx}"]`);
+      tr.data(currentEditType+'s',list);
+      $('#editSpecModal').modal('hide');
+    });
+    // 다중서버 생성 버튼 클릭 시 서버별 데이터 취합 후 생성
+    $(document).on('click','#multi-server-create-btn',function(){
+      const servers = [];
+      $('#multi-server-spec-list tbody tr').each(function(){
+        const name = $(this).find('.server-name').val();
+        const os = $(this).find('.server-os').val();
+        const cpu = parseInt($(this).find('.server-cpu').val());
+        const memory = parseInt($(this).find('.server-memory').val());
+        const disks = $(this).data('disks')||[{size:20,interface:'scsi0',datastore:'local-lvm'}];
+        const networks = $(this).data('networks')||[{bridge:'vmbr0',ip:'',subnet:'24',gateway:''}];
+        servers.push({name,os_type:os,cpu,memory,disks,network_devices:networks});
+      });
+      if(servers.length===0){alert('생성할 서버가 없습니다.');return;}
+      $.ajax({
+        url:'/create_servers_bulk',method:'POST',contentType:'application/json',data:JSON.stringify({servers}),
+        success:function(res){addSystemNotification('success',res.message||'다중 서버 생성 완료');loadNotifications();},
+        error:function(xhr){addSystemNotification('error',xhr.responseJSON?.error||'다중 서버 생성 실패');loadNotifications();}
+      });
+      $('#multi-server-spec-list').hide().empty();
+      $('#multi-server-toggle').prop('checked',false).trigger('change');
+    });
+  });
   </script>
 </body>
 </html>
