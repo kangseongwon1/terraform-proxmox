@@ -862,25 +862,7 @@
         </div>
       </div>
     </div>
-    <div id="single-server-pane">
-      <!-- 기존 단일 서버 생성 폼 전체 -->
-      ... (단일 서버 생성 폼) ...
-    </div>
-    <div id="multi-server-pane" style="display:none;">
-      <!-- 1단계: 서버 대수/기본 스펙 입력 (여기서만 '다음' 버튼 보임) -->
-      <div id="multi-server-step1">
-        <div class="mb-3">
-          <label>생성할 서버 대수</label>
-          <input type="number" id="multi-server-count" min="2" max="20" value="2" class="form-control d-inline-block" style="width:100px; margin:0 10px;">
-          <button class="btn btn-primary" id="multi-server-next-btn">다음</button>
-        </div>
-        <!-- (필요시 기본 스펙 입력 폼도 여기에 추가) -->
-      </div>
-      <!-- 2단계: 서버별 스펙/네트워크 리스트 (다음 클릭 시만 보임) -->
-      <div id="multi-server-step2" style="display:none;">
-        ... (서버별 입력 표/리스트/생성 버튼 등) ...
-      </div>
-    </div>
+    <div id="server-main-content"></div>
   </div>
 
   <script>
@@ -1984,6 +1966,23 @@
       $('#multi-server-step2').show();
     });
     // ... 이하 기존 다중서버/단일서버 JS 유지 ...
+  });
+  </script>
+  <script>
+  $(function(){
+    // 카드 클릭 시 해당 생성 폼을 동적으로 로드
+    $('#card-single').click(function(){
+      $('#server-main-content').load('single_server_create.html');
+      $('.server-mode-card').removeClass('active').css('border','1px solid #dee2e6');
+      $(this).addClass('active').css('border','2px solid #0d6efd');
+    });
+    $('#card-multi').click(function(){
+      $('#server-main-content').load('multi_server_create.html');
+      $('.server-mode-card').removeClass('active').css('border','1px solid #dee2e6');
+      $(this).addClass('active').css('border','2px solid #0d6efd');
+    });
+    // 최초 진입 시 단일 서버 생성 폼 로드
+    $('#server-main-content').load('single_server_create.html');
   });
   </script>
 </body>
