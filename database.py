@@ -242,14 +242,18 @@ class Database:
     # 서버 관리
     def add_server(self, name, vmid=None, status='pending', ip_address=None, role=None, os_type=None, cpu=None, memory=None):
         """서버 정보 추가"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO servers (name, vmid, status, ip_address, role, os_type, cpu, memory)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (name, vmid, status, ip_address, role, os_type, cpu, memory))
-            conn.commit()
-            return cursor.lastrowid
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO servers (name, vmid, status, ip_address, role, os_type, cpu, memory)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (name, vmid, status, ip_address, role, os_type, cpu, memory))
+                conn.commit()
+                return cursor.lastrowid
+        except Exception as e:
+            print(f"[add_server] DB 에러: {e}")
+            raise
     
     def update_server(self, name, **kwargs):
         """서버 정보 업데이트"""
