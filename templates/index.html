@@ -846,36 +846,40 @@
     </div>
   </div>
 
-  <!-- 서버 생성 방식 카드 선택 (가운데 정렬, 상단 고정) -->
-  <div class="d-flex justify-content-center gap-4 my-4">
-    <div class="card server-mode-card active" id="card-single" style="width:220px; cursor:pointer; border:2px solid #0d6efd; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-      <div class="card-body text-center">
-        <h5>단일 서버 생성</h5>
-        <i class="fas fa-server fa-2x"></i>
+  <!-- 서버 생성 전체 컨테이너 -->
+  <div class="server-create-container" style="max-width:900px; margin:0 auto;">
+    <div class="d-flex justify-content-center gap-4 my-4">
+      <div class="card server-mode-card active" id="card-single" style="width:220px; cursor:pointer; border:2px solid #0d6efd; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        <div class="card-body text-center">
+          <h5>단일 서버 생성</h5>
+          <i class="fas fa-server fa-2x"></i>
+        </div>
+      </div>
+      <div class="card server-mode-card" id="card-multi" style="width:220px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        <div class="card-body text-center">
+          <h5>여러 대 서버 생성</h5>
+          <i class="fas fa-layer-group fa-2x"></i>
+        </div>
       </div>
     </div>
-    <div class="card server-mode-card" id="card-multi" style="width:220px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-      <div class="card-body text-center">
-        <h5>여러 대 서버 생성</h5>
-        <i class="fas fa-layer-group fa-2x"></i>
+    <div id="single-server-pane">
+      <!-- 기존 단일 서버 생성 폼 전체 -->
+      ... (단일 서버 생성 폼) ...
+    </div>
+    <div id="multi-server-pane" style="display:none;">
+      <!-- 1단계: 서버 대수/기본 스펙 입력 (여기서만 '다음' 버튼 보임) -->
+      <div id="multi-server-step1">
+        <div class="mb-3">
+          <label>생성할 서버 대수</label>
+          <input type="number" id="multi-server-count" min="2" max="20" value="2" class="form-control d-inline-block" style="width:100px; margin:0 10px;">
+          <button class="btn btn-primary" id="multi-server-next-btn">다음</button>
+        </div>
+        <!-- (필요시 기본 스펙 입력 폼도 여기에 추가) -->
       </div>
-    </div>
-  </div>
-  <!-- 단일/다중 서버 생성 폼 -->
-  <div id="single-server-pane">
-    <!-- 기존 단일 서버 생성 폼 전체 -->
-    ... (단일 서버 생성 폼) ...
-  </div>
-  <div id="multi-server-pane" style="display:none;">
-    <!-- 1단계: 서버 대수/기본 스펙 입력 -->
-    <div id="multi-server-step1">
-      <label>생성할 서버 대수</label>
-      <input type="number" id="multi-server-count" min="2" max="20" value="2" class="form-control d-inline-block" style="width:100px; margin:0 10px;">
-      <button class="btn btn-primary" id="multi-server-next-btn">다음</button>
-    </div>
-    <!-- 2단계: 서버별 스펙/네트워크 리스트 (다음 클릭 시만 보임) -->
-    <div id="multi-server-step2" style="display:none;">
-      ... (서버별 입력 표/리스트/생성 버튼 등) ...
+      <!-- 2단계: 서버별 스펙/네트워크 리스트 (다음 클릭 시만 보임) -->
+      <div id="multi-server-step2" style="display:none;">
+        ... (서버별 입력 표/리스트/생성 버튼 등) ...
+      </div>
     </div>
   </div>
 
@@ -1976,7 +1980,6 @@
     });
     // 다중서버 '다음' 버튼 클릭 시 2단계로 전환
     $('#multi-server-next-btn').click(function(){
-      // 입력값 검증 후
       $('#multi-server-step1').hide();
       $('#multi-server-step2').show();
     });
