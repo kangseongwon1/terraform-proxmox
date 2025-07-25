@@ -569,27 +569,40 @@ def create_server():
             'ip_addresses': request.form.getlist('ip_address'),
             'project_name': request.form.get('project_name', f'project_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
         }
-        
         # 프로젝트 디렉토리 생성 (이미 존재하면 에러 반환)
         project_path = os.path.join(PROJECTS_DIR, server_config['project_name'])
         if os.path.exists(project_path):
             return jsonify({'success': False, 'error': '동일한 프로젝트명이 이미 존재합니다. 다른 이름을 사용하세요.'}), 400
         os.makedirs(project_path, exist_ok=False)
-        
-        
-        # 백그라운드에서 인프라 생성 시작
-        thread = threading.Thread(target=deploy_infrastructure, args=(project_path, server_config))
-        thread.daemon = True
-        thread.start()
-        
-        # 알림 추가
+        # 알림: 서버 생성 시작
         add_notification(
             type='server_create',
             title='서버 생성 시작',
             message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성이 시작되었습니다.',
             severity='info'
         )
-        
+        # 백그라운드에서 인프라 생성 시작
+        def infra_and_notify():
+            try:
+                deploy_infrastructure(project_path, server_config)
+                # 알림: 서버 생성 완료
+                add_notification(
+                    type='server_create',
+                    title='서버 생성 완료',
+                    message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성이 완료되었습니다.',
+                    severity='success'
+                )
+            except Exception as e:
+                add_notification(
+                    type='server_error',
+                    title='서버 생성 실패',
+                    message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성 중 오류가 발생했습니다.',
+                    details=str(e),
+                    severity='error'
+                )
+        thread = threading.Thread(target=infra_and_notify)
+        thread.daemon = True
+        thread.start()
         print("[DEBUG] 서버 생성 성공")
         logger.info("[DEBUG] 서버 생성 성공")
         logger.info(f"[create_server] 서버 생성 성공: {request.form.get('project_name')}")
@@ -598,7 +611,6 @@ def create_server():
             'message': '서버 생성이 시작되었습니다.',
             'project_name': server_config['project_name']
         })
-        
     except Exception as e:
         logger.exception("[create_server] 서버 생성 중 예외 발생")
         print(f"[DEBUG] 예외 발생: {e}")
@@ -608,6 +620,57 @@ def create_server():
             title='서버 생성 실패',
             message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성 중 오류가 발생했습니다.',
             details=str(e),
+            severity='error'
+        )
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/create_servers_bulk', methods=['POST'])
+@permission_required('create_server')
+def create_servers_bulk():
+    try:
+        servers_data = request.json.get('servers')
+        if not servers_data or not isinstance(servers_data, list):
+            return jsonify({'success': False, 'error': '서버 리스트가 올바르지 않습니다.'}), 400
+        # 알림: 전체 서버 생성 시작
+        add_notification(
+            type='server_create',
+            title='다중 서버 생성 시작',
+            message=f'{len(servers_data)}개의 서버 생성이 시작되었습니다.',
+            severity='info'
+        )
+        # 기존 서버 목록 불러오기
+        servers = read_servers_from_tfvars()
+        # 이름 중복 체크 및 추가
+        for srv in servers_data:
+            name = srv.get('name')
+            if not name or name in servers:
+                return jsonify({'success': False, 'error': f'서버 이름({name})이 중복되었거나 누락되었습니다.'}), 400
+            servers[name] = srv
+        write_servers_to_tfvars(servers)
+        # terraform apply 한 번만 실행
+        ok, out, err = run_terraform_apply()
+        if not ok:
+            add_notification(
+                type='server_error',
+                title='다중 서버 생성 실패',
+                message=f'서버 생성 중 오류 발생: {err}',
+                details=out,
+                severity='error'
+            )
+            return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
+        # 알림: 전체 서버 생성 완료
+        add_notification(
+            type='server_create',
+            title='다중 서버 생성 완료',
+            message=f'{len(servers_data)}개의 서버가 성공적으로 생성되었습니다.',
+            severity='success'
+        )
+        return jsonify({'success': True, 'message': f'{len(servers_data)}개 서버 생성 완료'})
+    except Exception as e:
+        add_notification(
+            type='server_error',
+            title='다중 서버 생성 실패',
+            message=f'서버 생성 중 예외 발생: {str(e)}',
             severity='error'
         )
         return jsonify({'success': False, 'error': str(e)}), 500
