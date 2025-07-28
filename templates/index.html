@@ -833,15 +833,7 @@
         $('#iam-overlay').hide();
     });
 
-    // 페이지 로드 시 대시보드 내용 불러오기
-    $(document).ready(function() {
-        $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
-        $.get('/dashboard/content', function(html) {
-            $('#main-content').html(html);
-        }).fail(function() {
-            $('#main-content').html('<div class="text-danger">대시보드 정보를 불러올 수 없습니다.</div>');
-        });
-    });
+
 
     // 예시: 대시보드 메뉴 클릭 시
     $(document).on('click', '#dashboard-menu', function(e) {
@@ -876,24 +868,65 @@
   // 메뉴 클릭 이벤트
   $(document).on('click', '.sidebar .nav-link', function(e) {
     const href = $(this).attr('href');
+    e.preventDefault();
+    
+    // URL 해시 업데이트
+    if (href.startsWith('#')) {
+      window.location.hash = href;
+    } else {
+      window.location.hash = href;
+    }
+    
+    // 페이지 로드
     if (href === '/admin/iam') {
-      e.preventDefault();
       loadSPA('/admin/iam/content', '/static/iam.js');
     } else if (href === '#dashboard') {
-      e.preventDefault();
       loadSPA('/dashboard/content', '/static/dashboard.js');
     } else if (href === '#instances') {
-      e.preventDefault();
       loadSPA('/instances/content', '/static/instances.js');
     } else if (href === '#storage') {
-      e.preventDefault();
       loadSPA('/storage/content', '/static/storage.js');
     }
     // 필요시 네트워크, 모니터링 등 추가
   });
-  // 초기 진입 시 대시보드 자동 로드
+  // URL 해시 기반 라우팅 함수
+  function handleRoute() {
+    const hash = window.location.hash || '#dashboard';
+    console.log('[index.html] 현재 해시:', hash);
+    
+    switch(hash) {
+      case '#dashboard':
+        loadSPA('/dashboard/content', '/static/dashboard.js');
+        break;
+      case '#instances':
+        loadSPA('/instances/content', '/static/instances.js');
+        break;
+      case '#storage':
+        loadSPA('/storage/content', '/static/storage.js');
+        break;
+      case '/admin/iam':
+        loadSPA('/admin/iam/content', '/static/iam.js');
+        break;
+      default:
+        loadSPA('/dashboard/content', '/static/dashboard.js');
+        break;
+    }
+  }
+  
+  // 초기 진입 시 URL 해시에 따른 페이지 로드
   $(document).ready(function() {
-    loadSPA('/dashboard/content', '/static/dashboard.js');
+    const hash = window.location.hash || '#dashboard';
+    console.log('[index.html] 초기 해시:', hash);
+    
+    if (hash === '#instances') {
+      loadSPA('/instances/content', '/static/instances.js');
+    } else if (hash === '#storage') {
+      loadSPA('/storage/content', '/static/storage.js');
+    } else if (hash === '/admin/iam') {
+      loadSPA('/admin/iam/content', '/static/iam.js');
+    } else {
+      loadSPA('/dashboard/content', '/static/dashboard.js');
+    }
   });
   </script>
 
