@@ -568,8 +568,8 @@ function initializeServerForm() {
   $(document).off('click', '.server-detail-role-apply').on('click', '.server-detail-role-apply', function() { /* ... */ });
   $(document).off('click', '.server-detail-role-remove').on('click', '.server-detail-role-remove', function() { /* ... */ });
 
-  // removeDisk 인라인 이벤트 대체
-  $(document).on('click', '.remove-disk-btn', function() {
+  // 디스크 삭제 버튼 클릭 시 (중복 바인딩 방지)
+  $(document).off('click', '.remove-disk-btn').on('click', '.remove-disk-btn', function() {
     const diskItem = $(this).closest('.disk-item');
     const container = diskItem.closest('.disk-container');
     diskItem.remove();
@@ -608,8 +608,8 @@ function initializeServerForm() {
     }
   });
 
-  // 네트워크 추가 버튼 클릭 시 네트워크 입력란 추가
-  $(document).on('click', '.add-network-btn', function() {
+  // 네트워크 추가 버튼 클릭 시 네트워크 입력란 추가 (중복 바인딩 방지)
+  $(document).off('click', '.add-network-btn').on('click', '.add-network-btn', function() {
     const $container = $('#network-container-basic');
     const $item = $container.find('.network-item').first().clone();
     $item.find('input, select').val('');
@@ -617,8 +617,8 @@ function initializeServerForm() {
     $container.append($item);
   });
 
-  // 디스크 추가 버튼 클릭 시 디스크 입력란 추가
-  $(document).on('click', '.add-disk-btn', function() {
+  // 디스크 추가 버튼 클릭 시 디스크 입력란 추가 (중복 바인딩 방지)
+  $(document).off('click', '.add-disk-btn').on('click', '.add-disk-btn', function() {
     const $container = $('#disk-container-basic');
     const $item = $container.find('.disk-item').first().clone();
     $item.find('input, select').val('');
@@ -626,7 +626,8 @@ function initializeServerForm() {
     $container.append($item);
   });
 
-  $(document).on('click', '.remove-network-btn', function() {
+  // 네트워크 삭제 버튼 클릭 시 (중복 바인딩 방지)
+  $(document).off('click', '.remove-network-btn').on('click', '.remove-network-btn', function() {
     const $item = $(this).closest('.network-item');
     const $container = $item.closest('.network-container');
     $item.remove();
@@ -636,8 +637,8 @@ function initializeServerForm() {
     }
   });
 
-  // 카드형 서버 생성 모드 UI 연동
-  $(document).on('click', '.mode-card', function() {
+  // 카드형 서버 생성 모드 UI 연동 (중복 바인딩 방지)
+  $(document).off('click', '.mode-card').on('click', '.mode-card', function() {
     $('.mode-card').removeClass('active');
     $(this).addClass('active');
     const mode = $(this).data('mode');
