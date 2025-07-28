@@ -458,16 +458,20 @@ function initializeServerForm() {
     const tr = btn.closest('tr');
     const server = tr.data('server');
     const role = tr.find('.server-role-select').val();
+    
+    // 시작 알림 추가
+    addSystemNotification('info', '역할 변경', `${server} 서버에 ${role} 역할을 적용하는 중...`);
+    
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 적용 중...</span>');
     $.post(`/assign_role/${server}`, { role }, function(res) {
       console.log('[instances.js] /assign_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       loadActiveServers();
-      addSystemNotification('success', '역할 변경', '역할이 성공적으로 변경되었습니다.');
+      addSystemNotification('success', '역할 변경', `${server} 서버에 ${role} 역할이 성공적으로 적용되었습니다.`);
     }).fail(function(xhr) {
       console.error('[instances.js] /assign_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-      addSystemNotification('error', '역할 변경', xhr.responseJSON?.error || '역할 변경 실패');
+      addSystemNotification('error', '역할 변경', `${server} 서버 역할 적용 실패: ${xhr.responseJSON?.error || '알 수 없는 오류'}`);
     });
   });
 
@@ -479,16 +483,20 @@ function initializeServerForm() {
     const server = tr.data('server');
     const ok = await confirmModal('정말로 이 서버의 역할을 삭제하시겠습니까?');
     if (!ok) return;
+    
+    // 시작 알림 추가
+    addSystemNotification('info', '역할 삭제', `${server} 서버의 역할을 삭제하는 중...`);
+    
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 삭제 중...</span>');
     $.post(`/remove_role/${server}`, {}, function(res) {
       console.log('[instances.js] /remove_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
       loadActiveServers();
-      addSystemNotification('success', '역할 삭제', '역할이 삭제되었습니다.');
+      addSystemNotification('success', '역할 삭제', `${server} 서버의 역할이 성공적으로 삭제되었습니다.`);
     }).fail(function(xhr) {
       console.error('[instances.js] /remove_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
-      addSystemNotification('error', '역할 삭제', xhr.responseJSON?.error || '역할 삭제 실패');
+      addSystemNotification('error', '역할 삭제', `${server} 서버 역할 삭제 실패: ${xhr.responseJSON?.error || '알 수 없는 오류'}`);
     });
   });
 

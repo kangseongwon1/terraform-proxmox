@@ -595,30 +595,6 @@ def add_notification_api():
     )
     return jsonify({'success': True})
 
-@app.route('/projects', methods=['GET'])
-def list_projects():
-    """프로젝트(서버 그룹) 리스트 반환"""
-    try:
-        projects = [d for d in os.listdir(PROJECTS_DIR) if os.path.isdir(os.path.join(PROJECTS_DIR, d))]
-        return jsonify({'projects': projects})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/delete_project/<project_name>', methods=['POST'])
-def delete_project(project_name):
-    """프로젝트(서버 그룹) 삭제"""
-    project_path = os.path.join(PROJECTS_DIR, project_name)
-    if not os.path.exists(project_path):
-        return jsonify({'success': False, 'error': 'Project not found'}), 404
-    try:
-        # terraform destroy 실행
-        subprocess.run(['terraform', 'destroy', '-auto-approve'], cwd=project_path, check=True)
-        # 디렉토리 삭제
-        import shutil
-        shutil.rmtree(project_path)
-        return jsonify({'success': True, 'message': f'{project_name} 프로젝트가 삭제되었습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/create_server', methods=['POST'])
 @permission_required('create_server')
@@ -1301,7 +1277,7 @@ def proxmox_storage():
         logger.exception(f"[proxmox_storage] 예외 발생: {e}")
         return {'error': str(e)}, 500
 
-# 기타 projects 디렉토리, 동적 파일 생성, ansible/terraform 파일 생성 관련 코드 모두 삭제
+
 # app.py는 변수 전달 및 결과 처리만 담당
 
 def deploy_infrastructure(project_path, config):
@@ -1432,36 +1408,6 @@ def proxmox_vm_action(vmid, action):
     else:
         return False, resp.text
 
-@app.route('/status/<project_name>')
-def get_status(project_name):
-    """프로젝트 상태 조회"""
-    project_path = os.path.join(PROJECTS_DIR, project_name)
-    
-    if not os.path.exists(project_path):
-        return jsonify({'error': 'Project not found'}), 404
-    
-    try:
-        # Terraform 상태 확인
-        result = subprocess.run(['terraform', 'show', '-json'], 
-                              cwd=project_path, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            state = json.loads(result.stdout)
-            return jsonify({
-                'project_name': project_name,
-                'status': 'deployed',
-                'resources': len(state.get('values', {}).get('root_module', {}).get('resources', []))
-            })
-        else:
-            return jsonify({
-                'project_name': project_name,
-                'status': 'not_deployed',
-                'resources': 0
-            })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
@@ -1516,6 +1462,7 @@ def assign_role(server_name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/remove_role/<server_name>', methods=['POST'])
+@permission_required('remove_role')
 def remove_role(server_name):
     servers = read_servers_from_tfvars()
     if server_name not in servers:
@@ -1677,7 +1624,6 @@ def admin_iam_content():
 
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
-    os.makedirs(PROJECTS_DIR, exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
     app.run(debug=True, host='0.0.0.0', port=5000)
