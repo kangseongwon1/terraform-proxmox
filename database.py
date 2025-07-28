@@ -22,6 +22,12 @@ class Database:
         conn.row_factory = sqlite3.Row  # 딕셔너리 형태로 결과 반환
         return conn
     
+    def row_to_dict(self, row):
+        """sqlite3.Row 객체를 딕셔너리로 변환"""
+        if row is None:
+            return None
+        return dict(row)
+    
     def init_database(self):
         """데이터베이스 초기화 및 테이블 생성"""
         with self.get_connection() as conn:
@@ -153,14 +159,16 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
-            return cursor.fetchone()
+            row = cursor.fetchone()
+            return self.row_to_dict(row)
     
     def get_all_users(self):
         """모든 사용자 조회"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM users ORDER BY created_at DESC')
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            return [self.row_to_dict(row) for row in rows]
     
     def update_user_password(self, username, new_password):
         """사용자 비밀번호 변경"""

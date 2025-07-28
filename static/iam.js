@@ -53,7 +53,16 @@ $(function() {
       }[user.role] || 'bg-light';
       let roleSel = `<div class="d-flex align-items-center gap-2"><span class="badge ${roleBadge}">${user.role}</span></div>`;
       tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`); // 역할
-      tr.append(`<td class="align-middle text-center" style="width:160px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn w-100" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`); // 권한 관리 버튼
+                  tr.append(`<td class="align-middle text-center" style="width:200px;">
+              <div class="btn-group" role="group">
+                <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}" title="권한 관리">
+                  <i class="fas fa-edit"></i>
+                </button>
+                ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제">
+                  <i class="fas fa-trash"></i>
+                </button>` : ''}
+              </div>
+            </td>`); // 권한 관리 및 삭제 버튼
       // ===== 테이블 컬럼 너비 설정 끝 =====
       
       tbody.append(tr);
@@ -327,6 +336,111 @@ $(function() {
         showIAMAlert('danger', xhr.responseJSON?.error || '권한 변경 실패');
       }
     });
+  });
+
+  // 사용자 추가 버튼 클릭
+  $(document).off('click', '#add-user-btn').on('click', '#add-user-btn', function() {
+    console.log('[iam.js] #add-user-btn 클릭');
+    $('#add-user-modal').modal('show');
+  });
+
+  // 사용자 추가 저장 버튼 클릭
+  $(document).off('click', '#save-user-btn').on('click', '#save-user-btn', function() {
+    console.log('[iam.js] #save-user-btn 클릭');
+    addNewUser();
+  });
+
+  // 사용자 추가 함수
+  function addNewUser() {
+    const formData = {
+      username: $('#new-username').val().trim(),
+      password: $('#new-password').val(),
+      confirm_password: $('#new-confirm-password').val(),
+      name: $('#new-name').val().trim(),
+      email: $('#new-email').val().trim(),
+      role: $('#new-role').val()
+    };
+
+    // 유효성 검사
+    if (!formData.username) {
+      showIAMAlert('danger', '사용자명을 입력해주세요.');
+      return;
+    }
+    if (!formData.password) {
+      showIAMAlert('danger', '비밀번호를 입력해주세요.');
+      return;
+    }
+    if (formData.password !== formData.confirm_password) {
+      showIAMAlert('danger', '비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (formData.password.length < 6) {
+      showIAMAlert('danger', '비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    // 기본 권한 설정
+    formData.permissions = ['view_all'];
+
+    console.log('[iam.js] 새 사용자 추가 요청:', formData);
+
+    $.ajax({
+      url: '/users',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify(formData),
+      success: function(res) {
+        console.log('[iam.js] 사용자 추가 성공:', res);
+        showIAMAlert('success', res.message);
+        $('#add-user-modal').modal('hide');
+        resetAddUserForm();
+        loadIAM(); // 목록 새로고침
+      },
+      error: function(xhr) {
+        console.error('[iam.js] 사용자 추가 실패:', xhr);
+        showIAMAlert('danger', xhr.responseJSON?.error || '사용자 추가 실패');
+      }
+    });
+  }
+
+  // 사용자 추가 폼 초기화
+  function resetAddUserForm() {
+    $('#add-user-form')[0].reset();
+    $('#new-username').focus();
+  }
+
+  // 사용자 삭제 버튼 클릭
+  $(document).off('click', '.iam-delete-btn').on('click', '.iam-delete-btn', function() {
+    const username = $(this).data('username');
+    console.log('[iam.js] .iam-delete-btn 클릭', username);
+    
+    if (confirm(`정말로 사용자 '${username}'을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      deleteUser(username);
+    }
+  });
+
+  // 사용자 삭제 함수
+  function deleteUser(username) {
+    console.log('[iam.js] 사용자 삭제 요청:', username);
+    
+    $.ajax({
+      url: `/users/${username}`,
+      method: 'DELETE',
+      success: function(res) {
+        console.log('[iam.js] 사용자 삭제 성공:', res);
+        showIAMAlert('success', res.message);
+        loadIAM(); // 목록 새로고침
+      },
+      error: function(xhr) {
+        console.error('[iam.js] 사용자 삭제 실패:', xhr);
+        showIAMAlert('danger', xhr.responseJSON?.error || '사용자 삭제 실패');
+      }
+    });
+  }
+
+  // 모달 닫힐 때 폼 초기화
+  $('#add-user-modal').on('hidden.bs.modal', function() {
+    resetAddUserForm();
   });
 
   // 초기 로드

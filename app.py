@@ -184,13 +184,13 @@ def migrate_users_from_json():
             user_id = db.create_user_with_hash(
                 username=username,
                 password_hash=user_data['password_hash'],
-                name=user_data.get('name', username),
-                email=user_data.get('email', ''),
-                role=user_data.get('role', 'developer')
+                name=user_data['name'] if 'name' in user_data else username,
+                email=user_data['email'] if 'email' in user_data else '',
+                role=user_data['role'] if 'role' in user_data else 'developer'
             )
             
             # 권한 부여
-            permissions = user_data.get('permissions', ['view_all'])
+            permissions = user_data['permissions'] if 'permissions' in user_data else ['view_all']
             db.add_user_permissions(user_id, permissions)
             
             migrated_count += 1
@@ -350,11 +350,11 @@ def login():
         
         # DB에서 사용자 인증
         user = db.verify_user(username, password)
-        if user and user.get('is_active', True):
+        if user and user['is_active'] if 'is_active' in user else True:
             session['user_id'] = username
             session['role'] = user['role']
-            session['user_name'] = user.get('name', username)
-            session['user_email'] = user.get('email', '')
+            session['user_name'] = user['name'] if 'name' in user else username
+            session['user_email'] = user['email'] if 'email' in user else ''
             # 권한 정보 가져오기
             permissions = db.get_user_permissions(user['id'])
             session['permissions'] = permissions
@@ -377,13 +377,13 @@ def list_users():
     safe_users = {}
     for username, user_data in users.items():
         safe_users[username] = {
-            'name': user_data.get('name', username),
-            'email': user_data.get('email', ''),
-            'role': user_data.get('role', 'user'),
-            'is_active': user_data.get('is_active', True),
-            'created_at': user_data.get('created_at', ''),
-            'last_login': user_data.get('last_login', ''),
-            'permissions': user_data.get('permissions', [])
+            'name': user_data['name'] if 'name' in user_data else username,
+            'email': user_data['email'] if 'email' in user_data else '',
+            'role': user_data['role'] if 'role' in user_data else 'user',
+            'is_active': user_data['is_active'] if 'is_active' in user_data else True,
+            'created_at': user_data['created_at'] if 'created_at' in user_data else '',
+            'last_login': user_data['last_login'] if 'last_login' in user_data else '',
+            'permissions': user_data['permissions'] if 'permissions' in user_data else []
         }
     return jsonify({'users': safe_users})
 
@@ -417,6 +417,25 @@ def create_user():
     db.add_user_permissions(user_id, permissions)
     
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
+
+@app.route('/users/<username>', methods=['DELETE'])
+@permission_required('manage_users')
+def delete_user(username):
+    """사용자 삭제 (권한 필요)"""
+    user = db.get_user_by_username(username)
+    if not user:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    
+    if user['role'] == 'admin':
+        return jsonify({'error': '관리자 계정은 삭제할 수 없습니다.'}), 400
+    
+    # 사용자 삭제 (권한은 CASCADE로 자동 삭제됨)
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM users WHERE username = ?', (username,))
+        conn.commit()
+    
+    return jsonify({'success': True, 'message': f'사용자 {username}이(가) 삭제되었습니다.'})
 
 @app.route('/users/<username>/permissions', methods=['POST'])
 @permission_required('manage_users')
