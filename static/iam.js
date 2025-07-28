@@ -10,6 +10,11 @@ $(function() {
     const alert = $('#iam-alert');
     alert.removeClass('d-none alert-success alert-danger alert-info').addClass('alert-' + type).html(`<i class="fas fa-info-circle me-2"></i>${msg}`).fadeIn(200);
     setTimeout(() => alert.fadeOut(200), 2000);
+    
+    // 전역 알림 시스템에도 추가
+    if (typeof window.addSystemNotification === 'function') {
+      window.addSystemNotification(type, '사용자 관리', msg);
+    }
   }
 
   function renderSummary() {
@@ -55,8 +60,8 @@ $(function() {
       tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`); // 역할
                   tr.append(`<td class="align-middle text-center" style="width:200px;">
               <div class="btn-group" role="group">
-                <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}" title="권한 관리">
-                  <i class="fas fa-edit"></i>
+                <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}">
+                  <i class="fas fa-edit"></i> 권한 관리
                 </button>
                 ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제">
                   <i class="fas fa-trash"></i>
@@ -205,6 +210,15 @@ $(function() {
       $('#iam-overlay-content').empty();
     }).fail(function(xhr) {
       console.error('[iam.js] /admin/iam 실패:', xhr);
+      let errorMsg = '사용자 목록을 불러올 수 없습니다.';
+      
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 관리자 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      showIAMAlert('danger', errorMsg);
     });
   }
 
@@ -333,7 +347,15 @@ $(function() {
       },
       error: function(xhr) {
         console.error('[iam.js] /admin/iam/permissions 실패', xhr);
-        showIAMAlert('danger', xhr.responseJSON?.error || '권한 변경 실패');
+        let errorMsg = '권한 변경 실패';
+        
+        if (xhr.status === 403) {
+          errorMsg = '권한이 없습니다. 사용자 관리 권한이 필요합니다.';
+        } else if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        
+        showIAMAlert('danger', errorMsg);
       }
     });
   });
@@ -398,7 +420,15 @@ $(function() {
       },
       error: function(xhr) {
         console.error('[iam.js] 사용자 추가 실패:', xhr);
-        showIAMAlert('danger', xhr.responseJSON?.error || '사용자 추가 실패');
+        let errorMsg = '사용자 추가 실패';
+        
+        if (xhr.status === 403) {
+          errorMsg = '권한이 없습니다. 사용자 관리 권한이 필요합니다.';
+        } else if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        
+        showIAMAlert('danger', errorMsg);
       }
     });
   }
@@ -433,7 +463,15 @@ $(function() {
       },
       error: function(xhr) {
         console.error('[iam.js] 사용자 삭제 실패:', xhr);
-        showIAMAlert('danger', xhr.responseJSON?.error || '사용자 삭제 실패');
+        let errorMsg = '사용자 삭제 실패';
+        
+        if (xhr.status === 403) {
+          errorMsg = '권한이 없습니다. 사용자 관리 권한이 필요합니다.';
+        } else if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        
+        showIAMAlert('danger', errorMsg);
       }
     });
   }
