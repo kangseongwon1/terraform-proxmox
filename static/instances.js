@@ -15,10 +15,14 @@ $(function() {
     'db': 'DB(MariaDB10.11)'
   };
   
-  // 시스템 알림 함수
+  // 시스템 알림 함수 (전역 함수 사용)
   function addSystemNotification(type, title, message) {
     console.log(`[알림] ${type}: ${title} - ${message}`);
-    // 실제 알림 UI는 나중에 구현
+    
+    // 전역 알림 시스템 사용
+    if (typeof window.addSystemNotification === 'function') {
+      window.addSystemNotification(type, title, message);
+    }
   }
   
   // 알림 모달 함수
@@ -29,6 +33,13 @@ $(function() {
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
   window.loadActiveServers = function() {
     console.log('[instances.js] loadActiveServers 호출');
+    
+    // 현재 사용자 권한 디버깅 (개발용)
+    $.get('/users', function(res) {
+      console.log('[instances.js] 현재 사용자 정보:', res);
+    }).fail(function(xhr) {
+      console.log('[instances.js] 사용자 정보 조회 실패 (권한 없음):', xhr.status);
+    });
     $.get('/all_server_status', function(res) {
       console.log('[instances.js] /all_server_status 응답:', res);
       let html = '';
@@ -471,7 +482,15 @@ function initializeServerForm() {
     }).fail(function(xhr) {
       console.error('[instances.js] /assign_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-      addSystemNotification('error', '역할 변경', `${server} 서버 역할 적용 실패: ${xhr.responseJSON?.error || '알 수 없는 오류'}`);
+      
+      let errorMsg = '알 수 없는 오류';
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 역할 부여 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '역할 변경', `${server} 서버 역할 적용 실패: ${errorMsg}`);
     });
   });
 
@@ -496,7 +515,15 @@ function initializeServerForm() {
     }).fail(function(xhr) {
       console.error('[instances.js] /remove_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
-      addSystemNotification('error', '역할 삭제', `${server} 서버 역할 삭제 실패: ${xhr.responseJSON?.error || '알 수 없는 오류'}`);
+      
+      let errorMsg = '알 수 없는 오류';
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 역할 삭제 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '역할 삭제', `${server} 서버 역할 삭제 실패: ${errorMsg}`);
     });
   });
 
@@ -517,7 +544,15 @@ function initializeServerForm() {
     }).fail(function(xhr){
       console.error('[instances.js] /start_server 실패', xhr);
       btn.prop('disabled', false).html(originalText);
-      addSystemNotification('error', '서버 시작', `시작 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      
+      let errorMsg = xhr.statusText;
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 서버 시작 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '서버 시작', `${name} 서버 시작 실패: ${errorMsg}`);
     });
   });
 
@@ -538,7 +573,15 @@ function initializeServerForm() {
     }).fail(function(xhr){
       console.error('[instances.js] /stop_server 실패', xhr);
       btn.prop('disabled', false).html(originalText);
-      addSystemNotification('error', '서버 중지', `중지 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      
+      let errorMsg = xhr.statusText;
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 서버 중지 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '서버 중지', `${name} 서버 중지 실패: ${errorMsg}`);
     });
   });
 
@@ -559,7 +602,15 @@ function initializeServerForm() {
     }).fail(function(xhr){
       console.error('[instances.js] /reboot_server 실패', xhr);
       btn.prop('disabled', false).html(originalText);
-      addSystemNotification('error', '서버 리부팅', `리부팅 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      
+      let errorMsg = xhr.statusText;
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 서버 리부팅 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '서버 리부팅', `${name} 서버 리부팅 실패: ${errorMsg}`);
     });
   });
 
@@ -586,7 +637,15 @@ function initializeServerForm() {
       $('#delete-status-message').remove();
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
-      addSystemNotification('error', '서버 삭제', `삭제 요청 실패: ${xhr.responseJSON?.error || xhr.statusText}`);
+      
+      let errorMsg = xhr.statusText;
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 서버 삭제 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '서버 삭제', `${name} 서버 삭제 실패: ${errorMsg}`);
     });
   });
 
