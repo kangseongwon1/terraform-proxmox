@@ -213,13 +213,21 @@ $(function() {
           </div>
         </div>
       </div>`;
+      // 기존 모달이 있으면 제거
+      $('#multiServerSummaryModal').remove();
+      
       // 모달 DOM 추가 및 표시
       $('body').append(modalHtml);
       const modal = new bootstrap.Modal(document.getElementById('multiServerSummaryModal'));
       modal.show();
-      // 서버 생성 버튼 클릭 시
-      // 다중 서버 생성 버튼 클릭 시 서버 정보 배열을 한 번에 전송
+      // 서버 생성 버튼 클릭 시 - 중복 바인딩 방지
       $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
+        const $btn = $(this);
+        const $modal = $('#multiServerSummaryModal');
+        
+        // 버튼 비활성화로 중복 클릭 방지
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
+        
         // 수정된 값 반영
         $('#multiServerSummaryModal tbody tr').each(function() {
           const sidx = $(this).data('sidx');
@@ -233,6 +241,7 @@ $(function() {
           serverList[sidx].networks[nidx].subnet = $(this).find('.summary-subnet').val();
           serverList[sidx].networks[nidx].gateway = $(this).find('.summary-gateway').val();
         });
+        
         // 서버 정보 배열 생성
         const servers = serverList.map(s => ({
           name: s.name,
@@ -251,6 +260,7 @@ $(function() {
             return osMap[s.os] || 8000;
           })()
         }));
+        
         // 한 번에 서버 정보 배열 전송
         $.ajax({
           url: '/add_servers_bulk',
@@ -259,21 +269,37 @@ $(function() {
           data: JSON.stringify({servers}),
           success: function(res) {
             addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
-            modal.hide();
-            $('#multiServerSummaryModal').remove();
+            // 모달 강제 닫기 및 DOM 정리
+            $modal.modal('hide');
+            setTimeout(function() {
+              $modal.remove();
+            }, 300);
             loadActiveServers();
           },
           error: function(xhr) {
             addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
-            modal.hide();
-            $('#multiServerSummaryModal').remove();
+            // 모달 강제 닫기 및 DOM 정리
+            $modal.modal('hide');
+            setTimeout(function() {
+              $modal.remove();
+            }, 300);
             loadActiveServers();
+          },
+          complete: function() {
+            // 버튼 상태 복원
+            $btn.prop('disabled', false).html('서버 생성');
           }
         });
       });
-      // 모달 닫힐 때 DOM 제거
-      $('#multiServerSummaryModal').on('hidden.bs.modal', function(){
-        $('#multiServerSummaryModal').remove();
+      
+      // 모달 닫기 이벤트 - 중복 바인딩 방지
+      $modal.off('hidden.bs.modal').on('hidden.bs.modal', function(){
+        $(this).remove();
+      });
+      
+      // 모달 닫기 버튼들에 대한 이벤트 처리
+      $modal.find('[data-bs-dismiss="modal"]').off('click').on('click', function() {
+        $modal.modal('hide');
       });
       return; // 다중 서버 모드에서는 여기서 종료
     }
