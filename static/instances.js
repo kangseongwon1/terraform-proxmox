@@ -1,5 +1,31 @@
 // instances.js
 $(function() {
+  // 숫자를 소수점 2자리까지 포맷팅하는 함수
+  function format2f(num) {
+    return parseFloat(num).toFixed(2);
+  }
+  
+  // 서버 역할 매핑
+  window.dashboardRoleMap = {
+    'web': '웹서버(Nginx)',
+    'was': 'WAS(Python3.12)',
+    'java': 'JAVA(17.0.7)',
+    'search': '검색(Elasticsearch7)',
+    'ftp': 'FTP(vsftpd)',
+    'db': 'DB(MariaDB10.11)'
+  };
+  
+  // 시스템 알림 함수
+  function addSystemNotification(type, title, message) {
+    console.log(`[알림] ${type}: ${title} - ${message}`);
+    // 실제 알림 UI는 나중에 구현
+  }
+  
+  // 알림 모달 함수
+  function alertModal(message) {
+    alert(message);
+  }
+  
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
   window.loadActiveServers = function() {
     console.log('[instances.js] loadActiveServers 호출');
