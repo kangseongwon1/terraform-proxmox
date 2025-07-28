@@ -38,9 +38,13 @@ $(function() {
       const isAdmin = user.role === 'admin';
       const isInactive = user.is_active === false;
       let tr = $('<tr>').toggleClass('iam-admin-row', isAdmin).toggleClass('table-secondary', isInactive).addClass('iam-user-row').attr('data-username', username);
-      tr.append(`<td class="align-middle text-center" style="width:48px;"><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`);
-      tr.append(`<td class="fw-bold align-middle" style="min-width:100px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`);
-      tr.append(`<td class="align-middle" style="min-width:180px;">${user.email || ''}</td>`);
+      
+      // ===== 테이블 컬럼 너비 설정 (admin_iam_content.html의 th와 일치해야 함) =====
+      tr.append(`<td class="align-middle text-center" style="width:48px;"><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`); // 프로필 아이콘
+      tr.append(`<td class="fw-bold align-middle" style="min-width:100px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`); // 사용자명
+      tr.append(`<td class="align-middle" style="min-width:160px;">${user.email || ''}</td>`); // 이메일
+      
+      // 역할 배지 색상 설정
       let roleBadge = {
         'admin': 'bg-success',
         'developer': 'bg-info',
@@ -48,8 +52,10 @@ $(function() {
         'viewer': 'bg-secondary'
       }[user.role] || 'bg-light';
       let roleSel = `<div class="d-flex align-items-center gap-2"><span class="badge ${roleBadge}">${user.role}</span></div>`;
-      tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`);
-      tr.append(`<td class="align-middle text-center" style="width:140px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn w-100" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`);
+      tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`); // 역할
+      tr.append(`<td class="align-middle text-center" style="width:160px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn w-100" data-username="${username}"><i class="fas fa-edit"></i> 권한 관리</button></td>`); // 권한 관리 버튼
+      // ===== 테이블 컬럼 너비 설정 끝 =====
+      
       tbody.append(tr);
     });
     tbody.find('tr.iam-user-row').hover(
@@ -67,7 +73,7 @@ $(function() {
     const unassigned = PERMISSIONS.filter(p => !perms.includes(p));
     const assigned = perms;
     
-    // 권한 설명 매핑
+    // ===== 권한 설명 매핑 (새로운 권한 추가 시 여기에 추가) =====
     const permDescriptions = {
       'view_all': '모든 리소스 조회',
       'create_server': '서버 생성',
@@ -79,7 +85,10 @@ $(function() {
       'view_logs': '로그 조회',
       'manage_storage': '스토리지 관리',
       'manage_network': '네트워크 관리'
+      // 새로운 권한 추가 예시:
+      // 'new_permission': '새로운 권한 설명'
     };
+    // ===== 권한 설명 매핑 끝 =====
     
     let html = `
       <div class="iam-overlay-header mb-4">
