@@ -22,10 +22,10 @@
           <tr>
             <!-- ===== 테이블 헤더 너비 설정 (iam.js의 renderTable 함수와 일치해야 함) ===== -->
             <th style="width:48px;"></th> <!-- 프로필 아이콘 -->
-            <th class="text-center" style="min-width:100px;">사용자명</th> <!-- 사용자명 -->
-            <th class="text-center" style="min-width:160px;">이메일</th> <!-- 이메일 -->
-            <th class="text-center" style="width:110px;">역할</th> <!-- 역할 -->
-            <th class="text-center" style="width:200px;">관리</th> <!-- 권한 관리 및 삭제 버튼 -->
+            <th class="text-center" style="min-width:90px;">사용자명</th> <!-- 사용자명 -->
+            <th class="text-center" style="min-width:120px; max-width:180px;">이메일</th> <!-- 이메일 -->
+            <th class="text-center" style="width:90px;">역할</th> <!-- 역할 -->
+            <th class="text-center" style="width:180px;">관리</th> <!-- 권한 관리 및 삭제 버튼 -->
             <!-- ===== 테이블 헤더 너비 설정 끝 ===== -->
           </tr>
         </thead>
@@ -313,6 +313,12 @@
     
     .iam-perm-list::-webkit-scrollbar-thumb:hover {
       background: #a8a8a8;
+    }
+
+    .iam-table td {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   </style>
 </div> 
