@@ -59,15 +59,18 @@ $(function() {
       let roleSel = `<div class="d-flex align-items-center gap-2"><span class="badge ${roleBadge}">${user.role}</span></div>`;
       tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`); // 역할
                   tr.append(`<td class="align-middle text-center" style="width:200px;">
-              <div class="btn-group" role="group">
-                <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}">
-                  <i class="fas fa-edit"></i> 권한 관리
-                </button>
-                ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제">
-                  <i class="fas fa-trash"></i>
-                </button>` : ''}
-              </div>
-            </td>`); // 권한 관리 및 삭제 버튼
+  <div class="btn-group" role="group">
+    <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}">
+      <i class="fas fa-edit"></i> 권한 관리
+    </button>
+    <button class="btn btn-outline-secondary btn-sm iam-password-btn" data-username="${username}" title="비밀번호 변경">
+      <i class="fas fa-key"></i>
+    </button>
+    ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제">
+      <i class="fas fa-trash"></i>
+    </button>` : ''}
+  </div>
+</td>`); // 권한 관리/비번/삭제 버튼
       // ===== 테이블 컬럼 너비 설정 끝 =====
       
       tbody.append(tr);
@@ -475,6 +478,59 @@ $(function() {
       }
     });
   }
+
+  // 비밀번호 변경 버튼 클릭
+  $(document).off('click', '.iam-password-btn').on('click', '.iam-password-btn', function() {
+    const username = $(this).data('username');
+    $('#iam-password-username').val(username);
+    $('#iam-new-password').val('');
+    $('#iam-confirm-password').val('');
+    $('#iam-password-alert').addClass('d-none').text('');
+    $('#iam-password-modal').modal('show');
+  });
+  // 비밀번호 변경 저장 버튼 클릭
+  $(document).off('click', '#iam-password-save-btn').on('click', '#iam-password-save-btn', function() {
+    const username = $('#iam-password-username').val();
+    const newPassword = $('#iam-new-password').val();
+    const confirmPassword = $('#iam-confirm-password').val();
+    const alert = $('#iam-password-alert');
+    alert.addClass('d-none').removeClass('alert-success alert-danger').text('');
+    if (!newPassword || !confirmPassword) {
+      alert.removeClass('d-none').addClass('alert-danger').text('새 비밀번호와 확인을 입력해주세요.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert.removeClass('d-none').addClass('alert-danger').text('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      alert.removeClass('d-none').addClass('alert-danger').text('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+    $.ajax({
+      url: `/users/${username}/password`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ new_password: newPassword, confirm_password: confirmPassword }),
+      success: function(res) {
+        alert.removeClass('d-none alert-danger').addClass('alert-success').text(res.message);
+        setTimeout(function() {
+          $('#iam-password-modal').modal('hide');
+        }, 1500);
+        showIAMAlert('success', res.message);
+      },
+      error: function(xhr) {
+        let errorMsg = xhr.responseJSON?.error || '비밀번호 변경 실패';
+        alert.removeClass('d-none alert-success').addClass('alert-danger').text(errorMsg);
+        showIAMAlert('danger', errorMsg);
+      }
+    });
+  });
+  // 모달 닫힐 때 폼 초기화
+  $('#iam-password-modal').on('hidden.bs.modal', function() {
+    $('#iam-password-form')[0].reset();
+    $('#iam-password-alert').addClass('d-none').text('');
+  });
 
   // 모달 닫힐 때 폼 초기화
   $('#add-user-modal').on('hidden.bs.modal', function() {

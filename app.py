@@ -1622,6 +1622,35 @@ def storage_content():
 def admin_iam_content():
     return render_template('partials/admin_iam_content.html')
 
+@app.route('/users/<username>/password', methods=['POST'])
+@permission_required('manage_users')
+def admin_change_user_password(username):
+    """관리자가 특정 사용자의 비밀번호를 변경"""
+    data = request.json
+    new_password = data.get('new_password')
+    confirm_password = data.get('confirm_password')
+
+    if not new_password or not confirm_password:
+        return jsonify({'error': '새 비밀번호와 확인을 입력해주세요.'}), 400
+    if new_password != confirm_password:
+        return jsonify({'error': '새 비밀번호가 일치하지 않습니다.'}), 400
+    if len(new_password) < 6:
+        return jsonify({'error': '새 비밀번호는 최소 6자 이상이어야 합니다.'}), 400
+
+    user = db.get_user_by_username(username)
+    if not user:
+        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+
+    db.update_user_password(username, new_password)
+    add_notification(
+        type='password_change',
+        title='비밀번호 변경',
+        message=f'관리자가 {username}의 비밀번호를 변경했습니다.',
+        severity='info',
+        user_id=user['id']
+    )
+    return jsonify({'success': True, 'message': f'{username}의 비밀번호가 변경되었습니다.'})
+
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
     os.makedirs('templates', exist_ok=True)

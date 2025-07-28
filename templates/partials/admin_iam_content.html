@@ -112,6 +112,38 @@
     </div>
   </div>
   
+  <!-- 사용자 비밀번호 변경 모달 (공통) -->
+  <div id="iam-password-modal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-key me-2"></i>비밀번호 변경</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="iam-password-alert" class="alert d-none"></div>
+          <form id="iam-password-form">
+            <input type="hidden" id="iam-password-username">
+            <div class="mb-3">
+              <label for="iam-new-password" class="form-label">새 비밀번호</label>
+              <input type="password" class="form-control" id="iam-new-password" required>
+            </div>
+            <div class="mb-3">
+              <label for="iam-confirm-password" class="form-label">새 비밀번호 확인</label>
+              <input type="password" class="form-control" id="iam-confirm-password" required>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" class="btn btn-primary" id="iam-password-save-btn">
+            <i class="fas fa-save me-2"></i>변경
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <style>
     .iam-table th, .iam-table td { vertical-align: middle; text-align: center; }
     .iam-table th { font-weight: 600; letter-spacing: 0.5px; }
