@@ -46,8 +46,8 @@ $(function() {
       
       // ===== 테이블 컬럼 너비 설정 (admin_iam_content.html의 th와 일치해야 함) =====
       tr.append(`<td class="align-middle text-center" style="width:48px;"><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`); // 프로필 아이콘
-      tr.append(`<td class="fw-bold align-middle" style="min-width:90px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`); // 사용자명
-      tr.append(`<td class="align-middle" style="min-width:120px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${user.email || ''}</td>`); // 이메일
+      tr.append(`<td class="fw-bold align-middle" style="min-width:80px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`); // 사용자명
+      tr.append(`<td class="align-middle" style="min-width:100px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.97em;">${user.email || ''}</td>`); // 이메일
       
       // 역할 배지 색상 설정
       let roleBadge = {
@@ -57,19 +57,10 @@ $(function() {
         'viewer': 'bg-secondary'
       }[user.role] || 'bg-light';
       let roleSel = `<div class="d-flex align-items-center gap-2"><span class="badge ${roleBadge}">${user.role}</span></div>`;
-      tr.append(`<td class="align-middle text-center" style="width:110px;">${roleSel}</td>`); // 역할
-      tr.append(`<td class="align-middle text-center" style="width:200px;">
-  <div class="btn-group" role="group">
-    <button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}">
-      <i class="fas fa-edit"></i> 권한 관리
-    </button>
-    <button class="btn btn-outline-secondary btn-sm iam-password-btn" data-username="${username}" title="비밀번호 변경">
-      <i class="fas fa-key"></i>
-    </button>
-    ${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제">
-      <i class="fas fa-trash"></i>
-    </button>` : ''}
-  </div></td>`); // 권한 관리/비번/삭제 버튼
+      tr.append(`<td class="align-middle text-center" style="width:110px;"><span class="badge ${user.role === 'admin' ? 'bg-success' : 'bg-info'}">${user.role}</span></td>`); // 역할
+      tr.append(`<td class="align-middle text-center" style="width:140px;"><button class="btn btn-outline-primary btn-sm iam-expand-btn" data-username="${username}" title="권한 관리"><i class="fas fa-edit"></i> 권한관리</button></td>`); // 권한관리
+      tr.append(`<td class="align-middle text-center" style="width:80px;"><button class="btn btn-outline-secondary btn-sm iam-password-btn" data-username="${username}" title="비밀번호 변경"><i class="fas fa-key"></i></button></td>`); // 비밀번호 변경
+      tr.append(`<td class="align-middle text-center" style="width:60px;">${user.role !== 'admin' ? `<button class="btn btn-outline-danger btn-sm iam-delete-btn" data-username="${username}" title="사용자 삭제"><i class="fas fa-trash"></i></button>` : ''}</td>`); // 삭제
   
       // ===== 테이블 컬럼 너비 설정 끝 =====
       
