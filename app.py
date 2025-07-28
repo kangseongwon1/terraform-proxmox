@@ -1600,6 +1600,10 @@ def instances_content():
     }
     return render_template('partials/instances_content.html', roles=roles)
 
+@app.route('/instances/multi-server-summary')
+def multi_server_summary():
+    return render_template('partials/multi_server_summary.html')
+
 @app.route('/storage/content')
 def storage_content():
     return render_template('partials/storage_content.html')
