@@ -288,13 +288,28 @@ $(function() {
       });
       
       return; // 다중 서버 모드에서는 여기서 종료
-    } catch (error) {
-      console.error('서버 생성 중 오류:', error);
-    } finally {
-      // 작업 완료 후 처리 상태 해제
-      $(this).data('processing', false);
     }
-}
+    
+    // 단일 서버 로직 (기존 단일 서버 코드)
+    const selectedRole = $('#role-select').val() || '';
+    const selectedOS = $('#os-select').val();
+    if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
+    const name = $('input[name="name_basic"]').val();
+    if (!name || name.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
+    // IP 주소 검증
+    let hasError = false;
+    $('#network-container-basic').find('.network-ip').each(function() {
+      const ip = $(this).val();
+      if (!ip || ip.trim() === '') {
+        alertModal('IP 주소를 입력해주세요.');
+        hasError = true;
+        return false;
+      }
+    });
+    if (hasError) return;
+    // 서버 생성
+    createBasicServer(name, selectedOS, selectedRole);
+  });
 
 // 서버 생성 폼 복원 함수
 function restoreServerForm() {
@@ -333,32 +348,15 @@ function initializeServerForm() {
   $('.remove-network-btn:first').prop('disabled', true);
 }
 
-  // 단일 서버 로직 (기존 단일 서버 코드)
-    const selectedRole = $('#role-select').val() || '';
-    const selectedOS = $('#os-select').val();
-    if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
-    const name = $('input[name="name_basic"]').val();
-    if (!name || name.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
-    // IP 주소 검증
-    let hasError = false;
-    $('#network-container-basic').find('.network-ip').each(function() {
-      const ip = $(this).val();
-      if (!ip || ip.trim() === '') {
-        alertModal('IP 주소를 입력해주세요.');
-        hasError = true;
-        return false;
-      }
-    });
-    if (hasError) return;
-    // 서버 생성
-    createBasicServer(name, selectedOS, selectedRole);
-  });
-
   // 기본 서버 생성 함수 (기존 로직 복원)
   function createBasicServer(name, selectedOS, selectedRole) {
     console.log('[instances.js] createBasicServer 호출', name, selectedOS, selectedRole);
     const btn = $('#create-server-btn');
     const originalText = btn.html();
+    
+    // 중복 실행 방지 해제
+    btn.data('processing', false);
+    
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
     $('#creation-status').show();
     $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
