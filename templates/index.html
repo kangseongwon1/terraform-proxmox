@@ -630,7 +630,7 @@
       if (scriptUrl) $.getScript(scriptUrl);
     });
   }
-  // 메뉴 클릭 이벤트
+  // 메뉴 클릭 이벤트 (사이드바 네비게이션)
   $(document).on('click', '.sidebar .nav-link', function(e) {
     const href = $(this).attr('href');
     e.preventDefault();
@@ -657,6 +657,55 @@
       loadSPA('/storage/content', '/static/storage.js');
     }
     // 필요시 네트워크, 모니터링 등 추가
+  });
+
+  // 드롭다운 메뉴 클릭 이벤트 (사용자 관리 등)
+  $(document).on('click', '.sidebar .dropdown-item', function(e) {
+    const href = $(this).attr('href');
+    e.preventDefault();
+    
+    // 사이드바 메뉴 활성화 상태 설정 (드롭다운 부모 메뉴도 활성화)
+    $('.sidebar .nav-link').removeClass('active');
+    $('.sidebar .dropdown-item').removeClass('active');
+    $(this).addClass('active');
+    $(this).closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    
+    // URL 해시 업데이트
+    if (href.startsWith('#')) {
+      window.location.hash = href;
+    } else {
+      window.location.hash = href;
+    }
+    
+    // 페이지 로드
+    if (href === '#iam') {
+      loadSPA('/admin/iam/content', '/static/iam.js');
+    } else if (href === '#dashboard') {
+      loadSPA('/dashboard/content', '/static/dashboard.js');
+    } else if (href === '#instances') {
+      loadSPA('/instances/content', '/static/instances.js');
+    } else if (href === '#storage') {
+      loadSPA('/storage/content', '/static/storage.js');
+    }
+    // 필요시 네트워크, 모니터링 등 추가
+  });
+
+  // 상단 네비게이션 사용자 관리 버튼 클릭 이벤트
+  $(document).on('click', '#user-management-btn', function(e) {
+    e.preventDefault();
+    const href = $(this).attr('href');
+    
+    // 사이드바 메뉴 활성화 상태 설정
+    $('.sidebar .nav-link').removeClass('active');
+    $('.sidebar .dropdown-item').removeClass('active');
+    $('.sidebar .dropdown-item[href="#iam"]').addClass('active');
+    $('.sidebar .dropdown-item[href="#iam"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    
+    // URL 해시 업데이트
+    window.location.hash = href;
+    
+    // 페이지 로드
+    loadSPA('/admin/iam/content', '/static/iam.js');
   });
   // URL 해시 기반 라우팅 함수
   function handleRoute() {
@@ -689,6 +738,7 @@
     
     // 사이드바 메뉴 활성화 상태 설정
     $('.sidebar .nav-link').removeClass('active');
+    $('.sidebar .dropdown-item').removeClass('active');
     if (hash === '#instances') {
       loadSPA('/instances/content', '/static/instances.js');
       $('.sidebar .nav-link[href="#instances"]').addClass('active');
@@ -697,7 +747,32 @@
       $('.sidebar .nav-link[href="#storage"]').addClass('active');
     } else if (hash === '#iam') {
       loadSPA('/admin/iam/content', '/static/iam.js');
-      $('.sidebar .nav-link[href="#iam"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#iam"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#iam"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else {
+      loadSPA('/dashboard/content', '/static/dashboard.js');
+      $('.sidebar .nav-link[href="#dashboard"]').addClass('active');
+    }
+  });
+
+  // 브라우저 뒤로가기/앞으로가기 버튼 처리
+  $(window).on('popstate', function() {
+    const hash = window.location.hash || '#dashboard';
+    console.log('[index.html] popstate 해시:', hash);
+    
+    // 사이드바 메뉴 활성화 상태 설정
+    $('.sidebar .nav-link').removeClass('active');
+    $('.sidebar .dropdown-item').removeClass('active');
+    if (hash === '#instances') {
+      loadSPA('/instances/content', '/static/instances.js');
+      $('.sidebar .nav-link[href="#instances"]').addClass('active');
+    } else if (hash === '#storage') {
+      loadSPA('/storage/content', '/static/storage.js');
+      $('.sidebar .nav-link[href="#storage"]').addClass('active');
+    } else if (hash === '#iam') {
+      loadSPA('/admin/iam/content', '/static/iam.js');
+      $('.sidebar .dropdown-item[href="#iam"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#iam"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {
       loadSPA('/dashboard/content', '/static/dashboard.js');
       $('.sidebar .nav-link[href="#dashboard"]').addClass('active');
