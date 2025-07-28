@@ -86,6 +86,18 @@ class Database:
                 )
             ''')
             
+            # 사용자 권한 테이블
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_permissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    permission TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+                    UNIQUE(user_id, permission)
+                )
+            ''')
+            
             conn.commit()
             
             # 기본 관리자 계정 생성 (없는 경우)
@@ -107,13 +119,19 @@ class Database:
             if not admin_user:
                 # 평문 비밀번호는 코드에 남기지 않고, 해시만 저장
                 admin_hash = generate_password_hash('admin123')
-                self.create_user_with_hash(
+                admin_id = self.create_user_with_hash(
                     username='admin',
                     password_hash=admin_hash,
                     name='시스템 관리자',
                     email='admin@dmcmedia.co.kr',
                     role='admin'
                 )
+                # 관리자에게 모든 권한 부여
+                self.add_user_permissions(admin_id, [
+                    'view_all', 'create_server', 'start_server', 'stop_server', 
+                    'reboot_server', 'delete_server', 'assign_roles', 'remove_roles', 
+                    'manage_users', 'view_logs', 'manage_roles'
+                ])
                 print("기본 관리자 계정이 생성되었습니다. (비밀번호는 별도 안내)")
         except Exception as e:
             print(f"기본 관리자 계정 생성 실패: {e}")
@@ -318,6 +336,78 @@ class Database:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM projects ORDER BY created_at DESC')
             return cursor.fetchall()
+
+    # 사용자 권한 관리
+    def add_user_permissions(self, user_id, permissions):
+        """사용자에게 권한 추가"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for permission in permissions:
+                try:
+                    cursor.execute('''
+                        INSERT INTO user_permissions (user_id, permission)
+                        VALUES (?, ?)
+                    ''', (user_id, permission))
+                except sqlite3.IntegrityError:
+                    # 이미 존재하는 권한은 무시
+                    pass
+            conn.commit()
+    
+    def remove_user_permissions(self, user_id, permissions):
+        """사용자 권한 제거"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            for permission in permissions:
+                cursor.execute('''
+                    DELETE FROM user_permissions 
+                    WHERE user_id = ? AND permission = ?
+                ''', (user_id, permission))
+            conn.commit()
+    
+    def get_user_permissions(self, user_id):
+        """사용자의 모든 권한 조회"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT permission FROM user_permissions 
+                WHERE user_id = ?
+                ORDER BY permission
+            ''', (user_id,))
+            return [row['permission'] for row in cursor.fetchall()]
+    
+    def set_user_permissions(self, user_id, permissions):
+        """사용자 권한을 완전히 교체"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # 기존 권한 모두 삭제
+            cursor.execute('DELETE FROM user_permissions WHERE user_id = ?', (user_id,))
+            # 새 권한 추가
+            for permission in permissions:
+                cursor.execute('''
+                    INSERT INTO user_permissions (user_id, permission)
+                    VALUES (?, ?)
+                ''', (user_id, permission))
+            conn.commit()
+    
+    def has_permission(self, user_id, permission):
+        """사용자가 특정 권한을 가지고 있는지 확인"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT COUNT(*) FROM user_permissions 
+                WHERE user_id = ? AND permission = ?
+            ''', (user_id, permission))
+            return cursor.fetchone()[0] > 0
+    
+    def get_user_with_permissions(self, username):
+        """사용자 정보와 권한을 함께 조회"""
+        user = self.get_user_by_username(username)
+        if user:
+            permissions = self.get_user_permissions(user['id'])
+            user_dict = dict(user)
+            user_dict['permissions'] = permissions
+            return user_dict
+        return None
 
     def secure_db_file(self):
         """데이터베이스 파일 보안 처리"""

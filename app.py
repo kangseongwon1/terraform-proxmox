@@ -86,15 +86,28 @@ def permission_required(permission):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user_id' not in session:
+                print(f"[권한검증] 세션에 user_id 없음")
                 return jsonify({'error': '로그인이 필요합니다.'}), 401
-            user = get_user(session['user_id'])
+            
+            user = db.get_user_by_username(session['user_id'])
             if not user:
+                print(f"[권한검증] 사용자 정보를 찾을 수 없음: {session['user_id']}")
                 return jsonify({'error': '사용자 정보를 찾을 수 없습니다.'}), 403
+            
             # admin은 무조건 통과
             if user.get('role') == 'admin':
+                print(f"[권한검증] admin 사용자 통과: {session['user_id']}")
                 return f(*args, **kwargs)
-            if permission not in user.get('permissions', []):
+            
+            # DB에서 권한 확인
+            has_perm = db.has_permission(user['id'], permission)
+            print(f"[권한검증] 사용자: {session['user_id']}, 요청권한: {permission}, 권한보유: {has_perm}")
+            
+            if not has_perm:
+                print(f"[권한검증] 권한 없음: {session['user_id']} -> {permission}")
                 return jsonify({'error': '권한이 없습니다.'}), 403
+            
+            print(f"[권한검증] 권한 통과: {session['user_id']} -> {permission}")
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -124,61 +137,80 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# 파일 기반 사용자 관리
-def load_users():
-    """users.json에서 사용자 정보 로드 및 permissions 필드 마이그레이션"""
-    try:
-        with open('users.json', 'r', encoding='utf-8') as f:
-            users = json.load(f)
-    except FileNotFoundError:
-        # 기본 사용자 생성
-        users = {
-            'admin': {
-                'password_hash': generate_password_hash('admin123!'),
-                'role': 'admin',
-                'email': 'admin@dmcmedia.co.kr',
-                'name': '시스템 관리자',
-                'created_at': datetime.now().isoformat(),
-                'last_login': None,
-                'is_active': True,
-                'permissions': PERMISSION_LIST.copy()
-            }
-        }
-        save_users(users)
-        return users
-    # 마이그레이션: permissions 필드가 없으면 추가
-    changed = False
-    for username, user in users.items():
-        if 'permissions' not in user:
-            if user.get('role') == 'admin':
-                user['permissions'] = PERMISSION_LIST.copy()
-            else:
-                # 기본 권한: view_all만 부여
-                user['permissions'] = ['view_all']
-            changed = True
-    if changed:
-        save_users(users)
-    return users
-
-def save_users(users):
-    """사용자 정보를 users.json에 저장"""
-    with open('users.json', 'w', encoding='utf-8') as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
-
+# 데이터베이스 기반 사용자 관리
 def get_user(username):
-    """사용자 정보 조회"""
-    users = load_users()
-    return users.get(username)
+    """사용자 정보 조회 (DB에서)"""
+    return db.get_user_with_permissions(username)
 
 def update_user_login(username):
-    """사용자 마지막 로그인 시간 업데이트"""
-    users = load_users()
-    if username in users:
-        users[username]['last_login'] = datetime.now().isoformat()
-        save_users(users)
+    """사용자 마지막 로그인 시간 업데이트 (DB에서)"""
+    db.update_user_login(username)
 
-# 초기 사용자 로드
-USERS = load_users()
+def get_all_users():
+    """모든 사용자 정보 조회 (DB에서)"""
+    users = db.get_all_users()
+    result = {}
+    for user in users:
+        permissions = db.get_user_permissions(user['id'])
+        result[user['username']] = {
+            'id': user['id'],
+            'username': user['username'],
+            'name': user['name'],
+            'email': user['email'],
+            'role': user['role'],
+            'is_active': user['is_active'],
+            'created_at': user['created_at'],
+            'last_login': user['last_login'],
+            'permissions': permissions
+        }
+    return result
+
+# 기존 JSON 사용자들을 DB로 마이그레이션
+def migrate_users_from_json():
+    """기존 users.json 파일의 사용자들을 DB로 마이그레이션"""
+    try:
+        with open('users.json', 'r', encoding='utf-8') as f:
+            json_users = json.load(f)
+        
+        migrated_count = 0
+        for username, user_data in json_users.items():
+            # 이미 DB에 존재하는지 확인
+            existing_user = db.get_user_by_username(username)
+            if existing_user:
+                print(f"[마이그레이션] 사용자 {username}은 이미 DB에 존재합니다.")
+                continue
+            
+            # 새 사용자 생성
+            user_id = db.create_user_with_hash(
+                username=username,
+                password_hash=user_data['password_hash'],
+                name=user_data.get('name', username),
+                email=user_data.get('email', ''),
+                role=user_data.get('role', 'developer')
+            )
+            
+            # 권한 부여
+            permissions = user_data.get('permissions', ['view_all'])
+            db.add_user_permissions(user_id, permissions)
+            
+            migrated_count += 1
+            print(f"[마이그레이션] 사용자 {username} 마이그레이션 완료")
+        
+        if migrated_count > 0:
+            print(f"[마이그레이션] 총 {migrated_count}명의 사용자가 DB로 마이그레이션되었습니다.")
+        else:
+            print("[마이그레이션] 마이그레이션할 사용자가 없습니다.")
+            
+    except FileNotFoundError:
+        print("[마이그레이션] users.json 파일이 없습니다.")
+    except Exception as e:
+        print(f"[마이그레이션] 마이그레이션 중 오류 발생: {e}")
+
+# 마이그레이션 실행
+migrate_users_from_json()
+
+# 초기 사용자 로드 (DB에서)
+USERS = get_all_users()
 
 # 알림 관리 함수
 def load_notifications():
@@ -316,15 +348,16 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        user = get_user(username)
-        if user and user.get('is_active', True) and check_password_hash(user['password_hash'], password):
+        # DB에서 사용자 인증
+        user = db.verify_user(username, password)
+        if user and user.get('is_active', True):
             session['user_id'] = username
             session['role'] = user['role']
             session['user_name'] = user.get('name', username)
             session['user_email'] = user.get('email', '')
-            session['permissions'] = user.get('permissions', [])
-            # 마지막 로그인 시간 업데이트
-            update_user_login(username)
+            # 권한 정보 가져오기
+            permissions = db.get_user_permissions(user['id'])
+            session['permissions'] = permissions
             return redirect(url_for('index'))
         else:
             return render_template('login.html', error='잘못된 사용자명 또는 비밀번호입니다.')
@@ -339,7 +372,7 @@ def logout():
 @permission_required('manage_users')
 def list_users():
     """사용자 목록 조회 (권한 필요)"""
-    users = load_users()
+    users = get_all_users()
     # 비밀번호 해시는 제외하고 반환
     safe_users = {}
     for username, user_data in users.items():
@@ -372,20 +405,17 @@ def create_user():
         permissions = PERMISSION_LIST.copy()
     if not username or not password:
         return jsonify({'error': '사용자명과 비밀번호는 필수입니다.'}), 400
-    users = load_users()
-    if username in users:
+    
+    # 기존 사용자 확인
+    existing_user = db.get_user_by_username(username)
+    if existing_user:
         return jsonify({'error': '이미 존재하는 사용자명입니다.'}), 400
-    users[username] = {
-        'password_hash': generate_password_hash(password),
-        'role': role,
-        'email': email,
-        'name': name,
-        'created_at': datetime.now().isoformat(),
-        'last_login': None,
-        'is_active': True,
-        'permissions': permissions
-    }
-    save_users(users)
+    
+    # 새 사용자 생성
+    user_id = db.create_user(username, password, name, email, role)
+    # 권한 부여
+    db.add_user_permissions(user_id, permissions)
+    
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 생성되었습니다.'})
 
 @app.route('/users/<username>/permissions', methods=['POST'])
@@ -393,13 +423,17 @@ def create_user():
 def change_user_permissions(username):
     data = request.json
     permissions = data.get('permissions', [])
-    users = load_users()
-    if username not in users:
+    
+    user = db.get_user_by_username(username)
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    if users[username].get('role') == 'admin':
+    
+    if user.get('role') == 'admin':
         return jsonify({'error': 'admin 권한은 변경할 수 없습니다.'}), 400
-    users[username]['permissions'] = permissions
-    save_users(users)
+    
+    # 권한 완전 교체
+    db.set_user_permissions(user['id'], permissions)
+    
     return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
 
 @app.route('/users/<username>/role', methods=['POST'])
@@ -407,16 +441,25 @@ def change_user_permissions(username):
 def change_user_role(username):
     data = request.json
     new_role = data.get('role')
-    users = load_users()
-    if username not in users:
+    
+    user = db.get_user_by_username(username)
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    
+    # 역할 변경
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users 
+            SET role = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE username = ?
+        ''', (new_role, username))
+        conn.commit()
+    
+    # admin으로 변경 시 모든 권한 부여
     if new_role == 'admin':
-        users[username]['role'] = 'admin'
-        users[username]['permissions'] = PERMISSION_LIST.copy()
-    else:
-        users[username]['role'] = new_role
-        # 기존 권한 유지(별도 변경 가능)
-    save_users(users)
+        db.set_user_permissions(user['id'], PERMISSION_LIST.copy())
+    
     return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
 
 @app.route('/change-password', methods=['POST'])
@@ -438,18 +481,17 @@ def change_password():
         return jsonify({'error': '새 비밀번호는 최소 6자 이상이어야 합니다.'}), 400
     
     user_id = session.get('user_id')
-    users = load_users()
+    user = db.get_user_by_username(user_id)
     
-    if user_id not in users:
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
     
     # 현재 비밀번호 확인
-    if not check_password_hash(users[user_id]['password_hash'], current_password):
+    if not check_password_hash(user['password_hash'], current_password):
         return jsonify({'error': '현재 비밀번호가 올바르지 않습니다.'}), 400
     
     # 새 비밀번호로 업데이트
-    users[user_id]['password_hash'] = generate_password_hash(new_password)
-    save_users(users)
+    db.update_user_password(user_id, new_password)
     
     # 알림 추가
     add_notification(
@@ -467,19 +509,18 @@ def change_password():
 def get_profile():
     """현재 사용자 프로필 조회"""
     user_id = session.get('user_id')
-    users = load_users()
+    user = db.get_user_by_username(user_id)
     
-    if user_id not in users:
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
     
-    user_data = users[user_id]
     return jsonify({
         'username': user_id,
-        'name': user_data.get('name', user_id),
-        'email': user_data.get('email', ''),
-        'role': user_data.get('role', 'user'),
-        'created_at': user_data.get('created_at', ''),
-        'last_login': user_data.get('last_login', '')
+        'name': user.get('name', user_id),
+        'email': user.get('email', ''),
+        'role': user.get('role', 'user'),
+        'created_at': user.get('created_at', ''),
+        'last_login': user.get('last_login', '')
     })
 
 @app.route('/profile-page')
@@ -1516,20 +1557,10 @@ logger = logging.getLogger(__name__)
 @app.route('/admin/iam', methods=['GET'])
 @admin_required
 def admin_iam_api():
-    users = load_users()
-    safe_users = {}
-    for username, user_data in users.items():
-        safe_users[username] = {
-            'name': user_data.get('name', username),
-            'email': user_data.get('email', ''),
-            'role': user_data.get('role', 'user'),
-            'is_active': user_data.get('is_active', True),
-            'created_at': user_data.get('created_at', ''),
-            'last_login': user_data.get('last_login', ''),
-            'permissions': user_data.get('permissions', [])
-        }
+    """IAM 관리 API - 사용자 목록과 권한 목록 반환 (DB에서)"""
+    users = get_all_users()
     return jsonify({
-        'users': safe_users,
+        'users': users,
         'permissions': PERMISSION_LIST
     })
 
@@ -1538,13 +1569,17 @@ def admin_iam_api():
 def admin_iam_set_permissions(username):
     data = request.json
     permissions = data.get('permissions', [])
-    users = load_users()
-    if username not in users:
+    
+    user = db.get_user_by_username(username)
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    if users[username].get('role') == 'admin':
+    
+    if user.get('role') == 'admin':
         return jsonify({'error': '관리자 권한은 변경할 수 없습니다.'}), 400
-    users[username]['permissions'] = permissions
-    save_users(users)
+    
+    # 권한 완전 교체
+    db.set_user_permissions(user['id'], permissions)
+    
     return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
 
 @app.route('/admin/iam/<username>/role', methods=['POST'])
@@ -1552,16 +1587,25 @@ def admin_iam_set_permissions(username):
 def admin_iam_set_role(username):
     data = request.json
     new_role = data.get('role')
-    users = load_users()
-    if username not in users:
+    
+    user = db.get_user_by_username(username)
+    if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+    
+    # 역할 변경
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users 
+            SET role = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE username = ?
+        ''', (new_role, username))
+        conn.commit()
+    
+    # admin으로 변경 시 모든 권한 부여
     if new_role == 'admin':
-        users[username]['role'] = 'admin'
-        users[username]['permissions'] = PERMISSION_LIST.copy()
-    else:
-        users[username]['role'] = new_role
-        # 기존 권한 유지
-    save_users(users)
+        db.set_user_permissions(user['id'], PERMISSION_LIST.copy())
+    
     return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
 
 @app.route('/dashboard/content')
