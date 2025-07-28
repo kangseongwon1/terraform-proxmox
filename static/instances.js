@@ -163,11 +163,8 @@ $(function() {
       for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
         roleOptions += `<option value="${k}">${v}</option>`;
       }
-      // 기존 요약 섹션이 있으면 제거
-      $('#multiServerSummarySection').remove();
-      
-      // 서버 생성 폼 아래에 요약 섹션 추가
-      $('#create-server-form').after('<div id="multiServerSummarySection"></div>');
+      // 서버 생성 폼을 다중 서버 요약 화면으로 교체
+      $('#create-server-form').html('<div id="multiServerSummarySection"></div>');
       
       // 요약 섹션 로드
       $.get('/instances/multi-server-summary', function(html) {
@@ -269,9 +266,10 @@ $(function() {
         });
       });
       
-      // 취소 버튼 클릭 시 요약 섹션 제거
+      // 취소 버튼 클릭 시 서버 생성 폼으로 되돌리기
       $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
-        $('#multiServerSummarySection').remove();
+        // 페이지 새로고침으로 서버 생성 폼 복원
+        location.reload();
       });
       return; // 다중 서버 모드에서는 여기서 종료
     }
