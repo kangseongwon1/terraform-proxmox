@@ -203,12 +203,21 @@ def save_notifications(data):
     with open('notifications.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-def add_notification(type, title, message, details=None, severity='info'):
+def add_notification(type, title, message, details=None, severity='info', user_id=None):
     """새 알림 추가"""
     data = load_notifications()
     
     # ID 증가
     data['last_id'] += 1
+    
+    # user_id 처리: 백그라운드 스레드에서 안전하게 처리
+    if user_id is None:
+        try:
+            from flask import session
+            user_id = session.get('user_id', 'system')
+        except RuntimeError:
+            # 백그라운드 스레드에서는 'system'으로 설정
+            user_id = 'system'
     
     notification = {
         'id': data['last_id'],
@@ -219,7 +228,7 @@ def add_notification(type, title, message, details=None, severity='info'):
         'severity': severity,  # 'info', 'warning', 'error', 'success'
         'timestamp': datetime.now().isoformat(),
         'read': False,
-        'user_id': session.get('user_id', 'system')
+        'user_id': user_id
     }
     
     data['notifications'].insert(0, notification)  # 최신 알림을 맨 위에
@@ -447,7 +456,8 @@ def change_password():
         type='password_change',
         title='비밀번호 변경',
         message=f'사용자 {user_id}의 비밀번호가 변경되었습니다.',
-        severity='info'
+        severity='info',
+        user_id=user_id
     )
     
     return jsonify({'success': True, 'message': '비밀번호가 성공적으로 변경되었습니다.'})
@@ -520,7 +530,8 @@ def add_notification_api():
         type=data.get('type', 'info'),
         title=data.get('title', ''),
         message=data.get('message', ''),
-        severity=data.get('type', 'info')
+        severity=data.get('type', 'info'),
+        user_id=session.get('user_id', 'system')
     )
     return jsonify({'success': True})
 
@@ -662,7 +673,8 @@ def do_create_server(task_id, data):
             type='server_create',
             title='서버 생성 시작',
             message=f'서버 "{data.get("name", "Unknown")}" 생성이 시작되었습니다.',
-            severity='info'
+            severity='info',
+            user_id='system'
         )
         
         servers = read_servers_from_tfvars()
@@ -698,7 +710,8 @@ def do_create_server(task_id, data):
                 title='서버 생성 실패',
                 message=f'서버 "{server_name}" 생성 중 오류가 발생했습니다.',
                 details=terr,
-                severity='error'
+                severity='error',
+                user_id='system'
             )
             return
         # Proxmox에서 VM 정보 조회 및 DB 저장
@@ -720,7 +733,8 @@ def do_create_server(task_id, data):
             type='server_create',
             title='서버 생성 완료',
             message=f'서버 "{server_name}" 생성이 완료되었습니다.',
-            severity='success'
+            severity='success',
+            user_id='system'
         )
         
         update_task(task_id, 'success', f'{server_name} 서버 생성 완료')
@@ -731,7 +745,8 @@ def do_create_server(task_id, data):
             title='서버 생성 실패',
             message=f'서버 생성 중 예외가 발생했습니다.',
             details=str(e),
-            severity='error'
+            severity='error',
+            user_id='system'
         )
 
 # --- 다중 서버 생성 비동기 처리 ---
@@ -744,7 +759,8 @@ def do_create_servers_bulk(task_id, servers_input):
             type='server_create',
             title='다중 서버 생성 시작',
             message=f'{len(servers_input)}개의 서버 생성이 시작되었습니다.',
-            severity='info'
+            severity='info',
+            user_id='system'
         )
         
         servers = read_servers_from_tfvars()
@@ -783,7 +799,8 @@ def do_create_servers_bulk(task_id, servers_input):
                 title='다중 서버 생성 실패',
                 message=f'서버 생성 중 오류 발생: {terr}',
                 details=out,
-                severity='error'
+                severity='error',
+                user_id='system'
             )
             return
         
@@ -807,7 +824,8 @@ def do_create_servers_bulk(task_id, servers_input):
             type='server_create',
             title='다중 서버 생성 완료',
             message=f'{len(created)}개의 서버가 성공적으로 생성되었습니다.',
-            severity='success'
+            severity='success',
+            user_id='system'
         )
         
         update_task(task_id, 'success', f'{len(created)}개 서버 생성 완료')
@@ -817,7 +835,8 @@ def do_create_servers_bulk(task_id, servers_input):
             type='server_error',
             title='다중 서버 생성 실패',
             message=f'서버 생성 중 예외 발생: {str(e)}',
-            severity='error'
+            severity='error',
+            user_id='system'
         )
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
