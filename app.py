@@ -552,127 +552,34 @@ def delete_project(project_name):
 @app.route('/create_server', methods=['POST'])
 @permission_required('create_server')
 def create_server():
-    print("[DEBUG] create_server 진입")
-    logger.info("[DEBUG] create_server 진입")
-    logger.info(f"[create_server] 요청 데이터: {request.form.to_dict()}")
+    """단일 서버 생성 - JSON 데이터 처리"""
     try:
-        print("[DEBUG] 서버 생성 로직 시작")
-        # 2. 폼 데이터 수집 시 OS 타입 추가
-        server_config = {
-            'role': request.form.get('role'),
-            'os_type': request.form.get('os_type', 'ubuntu'),  # OS 타입 추가
-            'count': int(request.form.get('count', 1)),
-            'cpu': int(request.form.get('cpu', 2)),
-            'memory': int(request.form.get('memory', 2048)),
-            'disks': request.form.getlist('disk'),
-            'network_devices': int(request.form.get('network_devices', 1)),
-            'ip_addresses': request.form.getlist('ip_address'),
-            'project_name': request.form.get('project_name', f'project_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
-        }
-        # 프로젝트 디렉토리 생성 (이미 존재하면 에러 반환)
-        project_path = os.path.join(PROJECTS_DIR, server_config['project_name'])
-        if os.path.exists(project_path):
-            return jsonify({'success': False, 'error': '동일한 프로젝트명이 이미 존재합니다. 다른 이름을 사용하세요.'}), 400
-        os.makedirs(project_path, exist_ok=False)
-        # 알림: 서버 생성 시작
-        add_notification(
-            type='server_create',
-            title='서버 생성 시작',
-            message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성이 시작되었습니다.',
-            severity='info'
-        )
-        # 백그라운드에서 인프라 생성 시작
-        def infra_and_notify():
-            try:
-                deploy_infrastructure(project_path, server_config)
-                # 알림: 서버 생성 완료
-                add_notification(
-                    type='server_create',
-                    title='서버 생성 완료',
-                    message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성이 완료되었습니다.',
-                    severity='success'
-                )
-            except Exception as e:
-                add_notification(
-                    type='server_error',
-                    title='서버 생성 실패',
-                    message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성 중 오류가 발생했습니다.',
-                    details=str(e),
-                    severity='error'
-                )
-        thread = threading.Thread(target=infra_and_notify)
-        thread.daemon = True
-        thread.start()
-        print("[DEBUG] 서버 생성 성공")
-        logger.info("[DEBUG] 서버 생성 성공")
-        logger.info(f"[create_server] 서버 생성 성공: {request.form.get('project_name')}")
-        return jsonify({
-            'success': True,
-            'message': '서버 생성이 시작되었습니다.',
-            'project_name': server_config['project_name']
-        })
+        data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'JSON 데이터가 필요합니다.'}), 400
+        
+        task_id = create_task('pending', '서버 생성', '서버 생성 대기 중...')
+        threading.Thread(target=do_create_server, args=(task_id, data)).start()
+        return jsonify({'success': True, 'task_id': task_id})
     except Exception as e:
         logger.exception("[create_server] 서버 생성 중 예외 발생")
-        print(f"[DEBUG] 예외 발생: {e}")
-        # 에러 알림 추가
-        add_notification(
-            type='server_error',
-            title='서버 생성 실패',
-            message=f'프로젝트 "{server_config["project_name"]}"의 서버 생성 중 오류가 발생했습니다.',
-            details=str(e),
-            severity='error'
-        )
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/create_servers_bulk', methods=['POST'])
 @permission_required('create_server')
 def create_servers_bulk():
+    """다중 서버 생성 - JSON 데이터 처리"""
     try:
-        servers_data = request.json.get('servers')
-        if not servers_data or not isinstance(servers_data, list):
-            return jsonify({'success': False, 'error': '서버 리스트가 올바르지 않습니다.'}), 400
-        # 알림: 전체 서버 생성 시작
-        add_notification(
-            type='server_create',
-            title='다중 서버 생성 시작',
-            message=f'{len(servers_data)}개의 서버 생성이 시작되었습니다.',
-            severity='info'
-        )
-        # 기존 서버 목록 불러오기
-        servers = read_servers_from_tfvars()
-        # 이름 중복 체크 및 추가
-        for srv in servers_data:
-            name = srv.get('name')
-            if not name or name in servers:
-                return jsonify({'success': False, 'error': f'서버 이름({name})이 중복되었거나 누락되었습니다.'}), 400
-            servers[name] = srv
-        write_servers_to_tfvars(servers)
-        # terraform apply 한 번만 실행
-        ok, out, err = run_terraform_apply()
-        if not ok:
-            add_notification(
-                type='server_error',
-                title='다중 서버 생성 실패',
-                message=f'서버 생성 중 오류 발생: {err}',
-                details=out,
-                severity='error'
-            )
-            return jsonify({'success': False, 'error': 'Terraform apply 실패', 'stdout': out, 'stderr': err}), 500
-        # 알림: 전체 서버 생성 완료
-        add_notification(
-            type='server_create',
-            title='다중 서버 생성 완료',
-            message=f'{len(servers_data)}개의 서버가 성공적으로 생성되었습니다.',
-            severity='success'
-        )
-        return jsonify({'success': True, 'message': f'{len(servers_data)}개 서버 생성 완료'})
+        data = request.json
+        servers_input = data.get('servers')
+        if not servers_input or not isinstance(servers_input, list) or len(servers_input) == 0:
+            return jsonify({'success': False, 'error': '입력값 오류: servers 배열이 필요합니다.'}), 400
+        
+        task_id = create_task('pending', '다중 서버 생성', f'{len(servers_input)}개 서버 생성 대기 중...')
+        threading.Thread(target=do_create_servers_bulk, args=(task_id, servers_input)).start()
+        return jsonify({'success': True, 'task_id': task_id})
     except Exception as e:
-        add_notification(
-            type='server_error',
-            title='다중 서버 생성 실패',
-            message=f'서버 생성 중 예외 발생: {str(e)}',
-            severity='error'
-        )
+        logger.exception("[create_servers_bulk] 다중 서버 생성 중 예외 발생")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/servers', methods=['GET'])
@@ -743,78 +650,29 @@ def netmask_to_cidr(netmask):
 
 
 
-@app.route('/add_server', methods=['POST'])
-@permission_required('create_server')
-def add_server():
-    data = request.json
-    task_id = create_task('pending', '서버 생성', '서버 생성 대기 중...')
-    threading.Thread(target=do_add_server, args=(task_id, data)).start()
-    return jsonify({'success': True, 'task_id': task_id})
 
-@app.route('/add_servers_bulk', methods=['POST'])
-@permission_required('create_server')
-def add_servers_bulk():
-    data = request.json
-    servers_input = data.get('servers')
-    if not servers_input or not isinstance(servers_input, list) or len(servers_input) == 0:
-        return jsonify({'success': False, 'error': '입력값 오류: servers 배열이 필요합니다.'}), 400
-    servers = read_servers_from_tfvars()
-    created = []
-    failed = []
-    names = []
-    for s in servers_input:
-        name = s.get('name')
-        if not name or not s.get('network_devices'):
-            failed.append({'name': name or '(이름없음)', 'error': '서버명, 네트워크 정보 필요'})
-            continue
-        if name in servers:
-            failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
-            continue
-        # 서버 데이터 복사
-        server_data = {
-            'name': name,
-            'role': s.get('role', ''),
-            'cpu': s.get('cpu'),
-            'memory': s.get('memory'),
-            'disks': s.get('disks', []),
-            'network_devices': s.get('network_devices', []),
-            'template_vm_id': s.get('template_vm_id'),
-        }
-        servers[name] = server_data
-        created.append(name)
-        names.append(name)
-    write_servers_to_tfvars(servers)
-    ok, out, terr = run_terraform_apply()
-    if not ok:
-        return jsonify({'success': False, 'created': created, 'failed': failed, 'error': f'Terraform apply 실패: {terr}'})
-    # Proxmox에서 VM 정보 조회 및 DB 저장 (각 서버별)
-    for name in names:
-        vm_info = get_vm_info_from_proxmox(name)
-        if vm_info:
-            db.add_server(
-                name=name,
-                vmid=vm_info.get('vmid'),
-                status=vm_info.get('status', 'pending'),
-                ip_address=vm_info.get('ip_address'),
-                role=servers[name].get('role', ''),
-                os_type=servers[name].get('os_type', ''),
-                cpu=int(servers[name].get('cpu')) if servers[name].get('cpu') is not None else None,
-                memory=int(servers[name].get('memory')) if servers[name].get('memory') is not None else None
-            )
-    return jsonify({'success': True, 'created': created, 'failed': failed})
 
 # --- 서버 생성 비동기 처리 ---
-def do_add_server(task_id, data):
+def do_create_server(task_id, data):
     try:
         update_task(task_id, 'progress', '서버 생성 중...')
+        
+        # 알림: 서버 생성 시작
+        add_notification(
+            type='server_create',
+            title='서버 생성 시작',
+            message=f'서버 "{data.get("name", "Unknown")}" 생성이 시작되었습니다.',
+            severity='info'
+        )
+        
         servers = read_servers_from_tfvars()
         server_name = data['name']
         if not server_name:
-            logger.error("[add_server] 서버 이름 누락")
+            logger.error("[create_server] 서버 이름 누락")
             update_task(task_id, 'error', '서버 이름(name)을 입력해야 합니다.')
             return
         if server_name in servers:
-            logger.error(f"[add_server] 중복 서버 이름: {server_name}")
+            logger.error(f"[create_server] 중복 서버 이름: {server_name}")
             update_task(task_id, 'error', f'이미 동일한 이름({server_name})의 서버가 존재합니다.')
             return
         if 'role' not in data or not data['role']:
@@ -835,6 +693,13 @@ def do_add_server(task_id, data):
         ok, out, terr = run_terraform_apply()
         if not ok:
             update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
+            add_notification(
+                type='server_error',
+                title='서버 생성 실패',
+                message=f'서버 "{server_name}" 생성 중 오류가 발생했습니다.',
+                details=terr,
+                severity='error'
+            )
             return
         # Proxmox에서 VM 정보 조회 및 DB 저장
         vm_info = get_vm_info_from_proxmox(server_name)
@@ -849,9 +714,111 @@ def do_add_server(task_id, data):
                 cpu=int(data.get('cpu', 0)) if data.get('cpu') is not None else None,
                 memory=int(data.get('memory', 0)) if data.get('memory') is not None else None
             )
+        
+        # 알림: 서버 생성 완료
+        add_notification(
+            type='server_create',
+            title='서버 생성 완료',
+            message=f'서버 "{server_name}" 생성이 완료되었습니다.',
+            severity='success'
+        )
+        
         update_task(task_id, 'success', f'{server_name} 서버 생성 완료')
     except Exception as e:
         update_task(task_id, 'error', f'서버 생성 중 예외: {str(e)}')
+        add_notification(
+            type='server_error',
+            title='서버 생성 실패',
+            message=f'서버 생성 중 예외가 발생했습니다.',
+            details=str(e),
+            severity='error'
+        )
+
+# --- 다중 서버 생성 비동기 처리 ---
+def do_create_servers_bulk(task_id, servers_input):
+    try:
+        update_task(task_id, 'progress', f'{len(servers_input)}개 서버 생성 중...')
+        
+        # 알림: 전체 서버 생성 시작
+        add_notification(
+            type='server_create',
+            title='다중 서버 생성 시작',
+            message=f'{len(servers_input)}개의 서버 생성이 시작되었습니다.',
+            severity='info'
+        )
+        
+        servers = read_servers_from_tfvars()
+        created = []
+        failed = []
+        names = []
+        
+        for s in servers_input:
+            name = s.get('name')
+            if not name or not s.get('network_devices'):
+                failed.append({'name': name or '(이름없음)', 'error': '서버명, 네트워크 정보 필요'})
+                continue
+            if name in servers:
+                failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
+                continue
+            # 서버 데이터 복사
+            server_data = {
+                'name': name,
+                'role': s.get('role', ''),
+                'cpu': s.get('cpu'),
+                'memory': s.get('memory'),
+                'disks': s.get('disks', []),
+                'network_devices': s.get('network_devices', []),
+                'template_vm_id': s.get('template_vm_id'),
+            }
+            servers[name] = server_data
+            created.append(name)
+            names.append(name)
+        
+        write_servers_to_tfvars(servers)
+        ok, out, terr = run_terraform_apply()
+        if not ok:
+            update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
+            add_notification(
+                type='server_error',
+                title='다중 서버 생성 실패',
+                message=f'서버 생성 중 오류 발생: {terr}',
+                details=out,
+                severity='error'
+            )
+            return
+        
+        # Proxmox에서 VM 정보 조회 및 DB 저장 (각 서버별)
+        for name in names:
+            vm_info = get_vm_info_from_proxmox(name)
+            if vm_info:
+                db.add_server(
+                    name=name,
+                    vmid=vm_info.get('vmid'),
+                    status=vm_info.get('status', 'pending'),
+                    ip_address=vm_info.get('ip_address'),
+                    role=servers[name].get('role', ''),
+                    os_type=servers[name].get('os_type', ''),
+                    cpu=int(servers[name].get('cpu')) if servers[name].get('cpu') is not None else None,
+                    memory=int(servers[name].get('memory')) if servers[name].get('memory') is not None else None
+                )
+        
+        # 알림: 전체 서버 생성 완료
+        add_notification(
+            type='server_create',
+            title='다중 서버 생성 완료',
+            message=f'{len(created)}개의 서버가 성공적으로 생성되었습니다.',
+            severity='success'
+        )
+        
+        update_task(task_id, 'success', f'{len(created)}개 서버 생성 완료')
+    except Exception as e:
+        update_task(task_id, 'error', f'다중 서버 생성 중 예외: {str(e)}')
+        add_notification(
+            type='server_error',
+            title='다중 서버 생성 실패',
+            message=f'서버 생성 중 예외 발생: {str(e)}',
+            severity='error'
+        )
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')

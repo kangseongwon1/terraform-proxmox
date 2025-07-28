@@ -263,7 +263,7 @@ $(function() {
         
         // 한 번에 서버 정보 배열 전송
         $.ajax({
-          url: '/add_servers_bulk',
+          url: '/create_servers_bulk',
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify({servers}),
@@ -367,7 +367,7 @@ $(function() {
     };
     $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
     $.ajax({
-      url: '/add_server',
+      url: '/create_server',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(data),
