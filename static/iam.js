@@ -482,10 +482,17 @@ $(function() {
   // 비밀번호 변경 버튼 클릭
   $(document).off('click', '.iam-password-btn').on('click', '.iam-password-btn', function() {
     const username = $(this).data('username');
+    const user = USERS[username];
     $('#iam-password-username').val(username);
     $('#iam-new-password').val('');
     $('#iam-confirm-password').val('');
     $('#iam-password-alert').addClass('d-none').text('');
+    // 사용자 정보 표시
+    $('#iam-password-userinfo').html(`
+      <i class='fas fa-user-circle text-primary me-1'></i><b>${username}</b>
+      <span class='text-muted ms-2'>${user.email || ''}</span>
+      <span class='badge bg-${user.role==='admin'?'success':user.role==='developer'?'info':user.role==='operator'?'warning':'secondary'} ms-2'>${user.role}</span>
+    `);
     $('#iam-password-modal').modal('show');
   });
   // 비밀번호 변경 저장 버튼 클릭
