@@ -896,86 +896,9 @@
     loadSPA('/dashboard/content', '/static/dashboard.js');
   });
   </script>
-  <!-- <script>
-  $(function(){
 
-    // 다음 버튼 클릭 시 서버 스펙 리스트 동적 생성
-    $('#multi-server-next-btn').click(function(){
-      const count = parseInt($('#multi-server-count').val());
-      if(isNaN(count)||count<2||count>20){
-        alert('2~20 사이의 서버 대수를 입력하세요.');
-        return;
-      }
-      let html = '<h5 class="mb-3">생성될 서버 스펙/네트워크 정보</h5>';
-      html += '<div class="table-responsive"><table class="table table-bordered align-middle"><thead><tr>'+
-        '<th>서버명</th><th>OS</th><th>CPU</th><th>메모리(MB)</th><th>디스크</th><th>네트워크</th><th>수정</th></tr></thead><tbody>';
-      for(let i=0;i<count;i++){
-        html += `<tr data-idx="${i}">
-          <td><input type="text" class="form-control server-name" value="multi-server-${i+1}"></td>
-          <td><select class="form-select server-os">
-            <option value="ubuntu">Ubuntu 20.04</option>
-            <option value="rocky">Rocky Linux 8</option>
-            <option value="centos">CentOS 8</option>
-            <option value="debian">Debian 11</option>
-          </select></td>
-          <td><input type="number" class="form-control server-cpu" value="2" min="1" max="32"></td>
-          <td><input type="number" class="form-control server-memory" value="2048" min="512" step="512"></td>
-          <td><button type="button" class="btn btn-outline-primary btn-sm edit-disk">디스크 편집</button></td>
-          <td><button type="button" class="btn btn-outline-primary btn-sm edit-network">네트워크 편집</button></td>
-          <td><button type="button" class="btn btn-outline-danger btn-sm remove-server"><i class="fas fa-trash"></i></button></td>
-        </tr>`;
-      }
-      html += '</tbody></table></div>';
-      html += '<div class="text-end"><button class="btn btn-primary" id="multi-server-create-btn"><i class="fas fa-plus"></i> 생성</button></div>';
-      $('#multi-server-spec-list').html(html).show();
-    });
-    // 서버 행 삭제
-    $(document).on('click','.remove-server',function(){ $(this).closest('tr').remove(); });
-    // 디스크/네트워크 편집(모달 등 추가 구현 필요)
-    // ... 이하 추가 UX 구현 ...
-  });
-  </script> -->
 
-  <script>
-  $(function(){
-    // 카드 클릭 시 active 효과 및 폼 전환
-    $('.server-mode-card').click(function(){
-      $('.server-mode-card').removeClass('active').css('border','1px solid #dee2e6');
-      $(this).addClass('active').css('border','2px solid #0d6efd');
-      if($(this).attr('id')==='card-single'){
-        $('#single-server-pane').show();
-        $('#multi-server-pane').hide();
-      }else{
-        $('#single-server-pane').hide();
-        $('#multi-server-pane').show();
-        $('#multi-server-step1').show();
-        $('#multi-server-step2').hide();
-      }
-    });
-    // 다중서버 '다음' 버튼 클릭 시 2단계로 전환 (비활성화)
-    $('#multi-server-next-btn').click(function(){
-      // 이 기능은 instances.js에서 처리됨
-      console.log('다중 서버 생성은 instances.js에서 처리됩니다.');
-    });
-    // ... 이하 기존 다중서버/단일서버 JS 유지 ...
-  });
-  </script>
-  <script>
-  $(function(){
-    // 카드 클릭 시 해당 생성 폼을 동적으로 로드
-    $('#card-single').click(function(){
-      $('#server-main-content').load('single_server_create.html');
-      $('.server-mode-card').removeClass('active').css('border','1px solid #dee2e6');
-      $(this).addClass('active').css('border','2px solid #0d6efd');
-    });
-    $('#card-multi').click(function(){
-      $('#server-main-content').load('multi_server_create.html');
-      $('.server-mode-card').removeClass('active').css('border','1px solid #dee2e6');
-      $(this).addClass('active').css('border','2px solid #0d6efd');
-    });
-    // 최초 진입 시 단일 서버 생성 폼 로드
-    $('#server-main-content').load('single_server_create.html');
-  });
-  </script>
+
+
 </body>
 </html>

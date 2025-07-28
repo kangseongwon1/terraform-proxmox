@@ -92,6 +92,10 @@ $(function() {
 
   // 서버 생성 버튼 (단일/다중 모드 분기, 중복 바인딩 제거)
   $(document).off('click', '#create-server-btn').on('click', '#create-server-btn', async function(e) {
+    // 중복 실행 방지
+    if ($(this).data('processing')) return;
+    $(this).data('processing', true);
+    
     const mode = $('#server_mode').val();
     if (mode === 'multi') {
       // 다중 서버 로직 (기존 다중 서버 코드)
@@ -205,6 +209,10 @@ $(function() {
         const $btn = $(this);
         const $section = $('#multiServerSummarySection');
         
+        // 중복 실행 방지
+        if ($btn.data('processing')) return;
+        $btn.data('processing', true);
+        
         // 버튼 비활성화로 중복 클릭 방지
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
         
@@ -264,14 +272,28 @@ $(function() {
             $btn.prop('disabled', false).html('서버 생성');
           }
         });
+            });
+      
+      // 취소 버튼 클릭 시 서버 생성 폼으로 되돌리기
+      $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
+        // 중복 실행 방지
+        if ($(this).data('processing')) return;
+        $(this).data('processing', true);
+        
+        // 서버 생성 폼 복원
+        restoreServerForm();
+        
+        // 작업 완료 후 처리 상태 해제
+        $(this).data('processing', false);
       });
       
-        // 취소 버튼 클릭 시 서버 생성 폼으로 되돌리기
-  $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
-    // 서버 생성 폼 복원
-    restoreServerForm();
-  });
-  return; // 다중 서버 모드에서는 여기서 종료
+      return; // 다중 서버 모드에서는 여기서 종료
+    } catch (error) {
+      console.error('서버 생성 중 오류:', error);
+    } finally {
+      // 작업 완료 후 처리 상태 해제
+      $(this).data('processing', false);
+    }
 }
 
 // 서버 생성 폼 복원 함수
