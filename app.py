@@ -67,7 +67,7 @@ PROJECTS_DIR = 'projects'
 TFVARS_PATH = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
 
 PERMISSION_LIST = [
-    'view_all', 'create_server', 'start_server', 'stop_server', 'reboot_server', 'delete_server', 'assign_roles', 'remove_roles', 'manage_users', 'view_logs', 'manage_roles'
+    'view_all', 'create_server', 'start_server', 'stop_server', 'reboot_server', 'delete_server', 'assign_roles', 'remove_roles', 'manage_users', 'view_logs', 'manage_roles', 'manage_storage', 'manage_network'
 ]
 
 def admin_required(f):
@@ -350,7 +350,7 @@ def login():
         
         # DB에서 사용자 인증
         user = db.verify_user(username, password)
-        if user and user['is_active'] if 'is_active' in user else True:
+        if user and (user['is_active'] if 'is_active' in user else True):
             session['user_id'] = username
             session['role'] = user['role']
             session['user_name'] = user['name'] if 'name' in user else username

@@ -136,7 +136,7 @@ class Database:
                 self.add_user_permissions(admin_id, [
                     'view_all', 'create_server', 'start_server', 'stop_server', 
                     'reboot_server', 'delete_server', 'assign_roles', 'remove_roles', 
-                    'manage_users', 'view_logs', 'manage_roles'
+                    'manage_users', 'view_logs', 'manage_roles', 'manage_storage', 'manage_network'
                 ])
                 print("기본 관리자 계정이 생성되었습니다. (비밀번호는 별도 안내)")
         except Exception as e:
