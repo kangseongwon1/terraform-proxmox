@@ -780,11 +780,11 @@ function initializeServerForm() {
       const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
       html += `
         <li>
-          <div class="dropdown-item d-flex align-items-start small">
+          <div class="dropdown-item d-flex align-items-start small" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
             <i class="fas ${icon} me-2 mt-1"></i>
             <div class="flex-grow-1">
-              <div class="fw-bold">${noti.title}</div>
-              <div class="text-muted">${noti.message}</div>
+              <div class="fw-bold mb-1">${noti.title}</div>
+              <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
               <div class="text-muted small">${noti.time}</div>
             </div>
           </div>
