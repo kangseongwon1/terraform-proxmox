@@ -118,7 +118,7 @@ class Database:
             admin_user = self.get_user_by_username('admin')
             if not admin_user:
                 # 평문 비밀번호는 코드에 남기지 않고, 해시만 저장
-                admin_hash = generate_password_hash('admin123')
+                admin_hash = generate_password_hash('admin123!')
                 admin_id = self.create_user_with_hash(
                     username='admin',
                     password_hash=admin_hash,
