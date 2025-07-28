@@ -163,73 +163,72 @@ $(function() {
       for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
         roleOptions += `<option value="${k}">${v}</option>`;
       }
-      // 요약/수정 모달 HTML 생성 (네트워크 여러 개, 역할 포함)
-      let modalHtml = `
-      <div class="modal fade" id="multiServerSummaryModal" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="fas fa-layer-group me-2"></i>다중 서버 생성 요약 및 네트워크/역할 수정</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <div class="table-responsive">
-                <table class="table table-bordered align-middle text-center">
-                  <thead>
-                    <tr>
-                      <th>서버명</th><th>OS</th><th>CPU</th><th>메모리</th><th>디스크</th><th>역할</th>
-                      <th>브리지</th><th>IP</th><th>Subnet</th><th>Gateway</th>
+      // 요약/수정 섹션 HTML 생성 (페이지 내부에 직접 표시)
+      let summaryHtml = `
+      <div class="card mt-4" id="multiServerSummarySection">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-layer-group me-2"></i>다중 서버 생성 요약 및 네트워크/역할 수정</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered align-middle text-center">
+              <thead class="table-light">
+                <tr>
+                  <th>서버명</th><th>OS</th><th>CPU</th><th>메모리</th><th>디스크</th><th>역할</th>
+                  <th>브리지</th><th>IP</th><th>Subnet</th><th>Gateway</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${serverList.map((s, sidx) =>
+                  s.networks.map((net, nidx) => `
+                    <tr data-sidx="${sidx}" data-nidx="${nidx}">
+                      ${nidx === 0 ? `
+                        <td rowspan="${s.networks.length}">${s.name}</td>
+                        <td rowspan="${s.networks.length}">${s.os}</td>
+                        <td rowspan="${s.networks.length}">${s.cpu}</td>
+                        <td rowspan="${s.networks.length}">${s.memory}</td>
+                        <td rowspan="${s.networks.length}">${s.disks.map(d=>`${d.size}GB/${d.interface}/${d.datastore_id}`).join('<br>')}</td>
+                        <td rowspan="${s.networks.length}">
+                          <select class="form-select form-select-sm summary-role">${roleOptions.replace(`value=\"${s.role}\"`, `value=\"${s.role}\" selected`)}</select>
+                        </td>
+                      ` : ''}
+                      <td><input type="text" class="form-control form-control-sm summary-bridge" value="${net.bridge}"></td>
+                      <td><input type="text" class="form-control form-control-sm summary-ip" value="${net.ip}"></td>
+                      <td><input type="text" class="form-control form-control-sm summary-subnet" value="${net.subnet}"></td>
+                      <td><input type="text" class="form-control form-control-sm summary-gateway" value="${net.gateway}"></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    ${serverList.map((s, sidx) =>
-                      s.networks.map((net, nidx) => `
-                        <tr data-sidx="${sidx}" data-nidx="${nidx}">
-                          ${nidx === 0 ? `
-                            <td rowspan="${s.networks.length}">${s.name}</td>
-                            <td rowspan="${s.networks.length}">${s.os}</td>
-                            <td rowspan="${s.networks.length}">${s.cpu}</td>
-                            <td rowspan="${s.networks.length}">${s.memory}</td>
-                            <td rowspan="${s.networks.length}">${s.disks.map(d=>`${d.size}GB/${d.interface}/${d.datastore_id}`).join('<br>')}</td>
-                            <td rowspan="${s.networks.length}">
-                              <select class="form-select form-select-sm summary-role">${roleOptions.replace(`value=\"${s.role}\"`, `value=\"${s.role}\" selected`)}</select>
-                            </td>
-                          ` : ''}
-                          <td><input type="text" class="form-control form-control-sm summary-bridge" value="${net.bridge}"></td>
-                          <td><input type="text" class="form-control form-control-sm summary-ip" value="${net.ip}"></td>
-                          <td><input type="text" class="form-control form-control-sm summary-subnet" value="${net.subnet}"></td>
-                          <td><input type="text" class="form-control form-control-sm summary-gateway" value="${net.gateway}"></td>
-                        </tr>
-                      `).join('')
-                    ).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="button" class="btn btn-primary" id="multi-server-final-create">서버 생성</button>
-            </div>
+                  `).join('')
+                ).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between">
+            <button type="button" class="btn btn-secondary" id="multi-server-cancel">취소</button>
+            <button type="button" class="btn btn-primary" id="multi-server-final-create">서버 생성</button>
           </div>
         </div>
       </div>`;
-      // 기존 모달이 있으면 제거
-      $('#multiServerSummaryModal').remove();
       
-      // 모달 DOM 추가 및 표시
-      $('body').append(modalHtml);
-      const modal = new bootstrap.Modal(document.getElementById('multiServerSummaryModal'));
-      modal.show();
+      // 기존 요약 섹션이 있으면 제거
+      $('#multiServerSummarySection').remove();
+      
+      // 서버 생성 폼 아래에 요약 섹션 추가
+      $('#create-server-form').after(summaryHtml);
+      
+      // 페이지를 요약 섹션으로 스크롤
+      $('#multiServerSummarySection')[0].scrollIntoView({ behavior: 'smooth' });
       // 서버 생성 버튼 클릭 시 - 중복 바인딩 방지
       $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
         const $btn = $(this);
-        const $modal = $('#multiServerSummaryModal');
+        const $section = $('#multiServerSummarySection');
         
         // 버튼 비활성화로 중복 클릭 방지
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>생성 중...');
         
         // 수정된 값 반영
-        $('#multiServerSummaryModal tbody tr').each(function() {
+        $('#multiServerSummarySection tbody tr').each(function() {
           const sidx = $(this).data('sidx');
           const nidx = $(this).data('nidx');
           if (nidx === 0) {
@@ -269,20 +268,14 @@ $(function() {
           data: JSON.stringify({servers}),
           success: function(res) {
             addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
-            // 모달 강제 닫기 및 DOM 정리
-            $modal.modal('hide');
-            setTimeout(function() {
-              $modal.remove();
-            }, 300);
+            // 요약 섹션 제거
+            $section.remove();
             loadActiveServers();
           },
           error: function(xhr) {
             addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
-            // 모달 강제 닫기 및 DOM 정리
-            $modal.modal('hide');
-            setTimeout(function() {
-              $modal.remove();
-            }, 300);
+            // 요약 섹션 제거
+            $section.remove();
             loadActiveServers();
           },
           complete: function() {
@@ -292,14 +285,9 @@ $(function() {
         });
       });
       
-      // 모달 닫기 이벤트 - 중복 바인딩 방지
-      $modal.off('hidden.bs.modal').on('hidden.bs.modal', function(){
-        $(this).remove();
-      });
-      
-      // 모달 닫기 버튼들에 대한 이벤트 처리
-      $modal.find('[data-bs-dismiss="modal"]').off('click').on('click', function() {
-        $modal.modal('hide');
+      // 취소 버튼 클릭 시 요약 섹션 제거
+      $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
+        $('#multiServerSummarySection').remove();
       });
       return; // 다중 서버 모드에서는 여기서 종료
     }
