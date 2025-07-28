@@ -249,14 +249,14 @@ $(function() {
           data: JSON.stringify({servers}),
           success: function(res) {
             addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
-            // 요약 섹션 제거
-            $section.remove();
+            // 서버 생성 폼 복원
+            restoreServerForm();
             loadActiveServers();
           },
           error: function(xhr) {
             addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
-            // 요약 섹션 제거
-            $section.remove();
+            // 서버 생성 폼 복원
+            restoreServerForm();
             loadActiveServers();
           },
           complete: function() {
@@ -266,14 +266,52 @@ $(function() {
         });
       });
       
-      // 취소 버튼 클릭 시 서버 생성 폼으로 되돌리기
-      $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
-        // 페이지 새로고침으로 서버 생성 폼 복원
-        location.reload();
-      });
-      return; // 다중 서버 모드에서는 여기서 종료
-    }
-    // 단일 서버 로직 (기존 단일 서버 코드)
+        // 취소 버튼 클릭 시 서버 생성 폼으로 되돌리기
+  $(document).off('click', '#multi-server-cancel').on('click', '#multi-server-cancel', function() {
+    // 서버 생성 폼 복원
+    restoreServerForm();
+  });
+  return; // 다중 서버 모드에서는 여기서 종료
+}
+
+// 서버 생성 폼 복원 함수
+function restoreServerForm() {
+  // 서버 생성 폼 다시 로드
+  $.get('/instances/content', function(html) {
+    // create-server-form 부분만 추출
+    const formHtml = $(html).find('#create-server-form').html();
+    $('#create-server-form').html(formHtml);
+    
+    // 폼 초기화
+    initializeServerForm();
+  });
+}
+
+// 서버 생성 폼 초기화 함수
+function initializeServerForm() {
+  // 다중 서버 옵션 숨기기
+  $('#multi-server-options').hide();
+  
+  // 서버 모드 단일로 설정
+  $('#server_mode').val('single');
+  $('.mode-card').removeClass('active');
+  $('.mode-card[data-mode="single"]').addClass('active');
+  
+  // 폼 필드 초기화
+  $('#create-server-form')[0].reset();
+  
+  // 디스크/네트워크 기본값 설정
+  $('.disk-size').val('20');
+  $('.disk-interface').val('scsi0');
+  $('.disk-datastore').val('local-lvm');
+  $('.network-subnet').val('24');
+  
+  // 첫 번째 디스크/네트워크의 삭제 버튼 비활성화
+  $('.remove-disk-btn:first').prop('disabled', true);
+  $('.remove-network-btn:first').prop('disabled', true);
+}
+
+  // 단일 서버 로직 (기존 단일 서버 코드)
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
     if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
