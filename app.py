@@ -1651,6 +1651,44 @@ def admin_change_user_password(username):
     )
     return jsonify({'success': True, 'message': f'{username}의 비밀번호가 변경되었습니다.'})
 
+@app.route('/firewall/groups')
+def get_firewall_groups():
+    """Proxmox에서 방화벽 그룹 목록을 받아옴 (임시: 샘플 데이터 반환)"""
+    # TODO: Proxmox API 연동
+    sample = {
+        'groups': [
+            {'name': 'web-allow', 'description': '웹서버 허용', 'instance_count': 2},
+            {'name': 'db-only', 'description': 'DB 접근만 허용', 'instance_count': 1},
+        ]
+    }
+    return jsonify(sample)
+
+@app.route('/firewall/groups/<group_name>/rules')
+def get_firewall_group_rules(group_name):
+    """Proxmox에서 방화벽 그룹 규칙 목록을 받아옴 (임시: 샘플 데이터 반환)"""
+    # TODO: Proxmox API 연동
+    sample = {
+        'group': {'name': group_name, 'description': f'{group_name} 그룹 설명'},
+        'rules': [
+            {'id': 1, 'direction': 'in', 'protocol': 'tcp', 'port': '80', 'source': '0.0.0.0/0', 'description': 'HTTP 허용'},
+            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '0.0.0.0/0', 'description': 'HTTPS 허용'},,
+            {'id': 3, 'direction': 'in', 'protocol': 'tcp', 'port': '22', 'source': '0.0.0.0/0', 'description': 'SSH 허용'},
+        ]
+    }
+    return jsonify(sample)
+
+@app.route('/firewall/groups/<group_name>/rules', methods=['POST'])
+def add_firewall_group_rule(group_name):
+    """방화벽 그룹에 규칙 추가 (임시: 성공만 반환)"""
+    # TODO: Proxmox API 연동
+    return jsonify({'success': True, 'message': '규칙이 추가되었습니다.'})
+
+@app.route('/firewall/groups/<group_name>/rules/<int:rule_id>', methods=['DELETE'])
+def delete_firewall_group_rule(group_name, rule_id):
+    """방화벽 그룹에서 규칙 삭제 (임시: 성공만 반환)"""
+    # TODO: Proxmox API 연동
+    return jsonify({'success': True, 'message': '규칙이 삭제되었습니다.'})
+
 if __name__ == '__main__':
     # 필요한 디렉토리 생성
     os.makedirs('templates', exist_ok=True)
