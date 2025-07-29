@@ -1671,7 +1671,7 @@ def get_firewall_group_rules(group_name):
         'group': {'name': group_name, 'description': f'{group_name} 그룹 설명'},
         'rules': [
             {'id': 1, 'direction': 'in', 'protocol': 'tcp', 'port': '80', 'source': '0.0.0.0/0', 'description': 'HTTP 허용'},
-            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '0.0.0.0/0', 'description': 'HTTPS 허용'},,
+            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '0.0.0.0/0', 'description': 'HTTPS 허용'},
             {'id': 3, 'direction': 'in', 'protocol': 'tcp', 'port': '22', 'source': '0.0.0.0/0', 'description': 'SSH 허용'},
         ]
     }
