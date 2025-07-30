@@ -68,7 +68,11 @@ resource "proxmox_virtual_environment_vm" "this" {
 
   lifecycle {
     ignore_changes = [
-      disk[*].file_format
+      disk[0].file_format,
+      disk[1].file_format,
+      disk[2].file_format,
+      disk[3].file_format,
+      disk[4].file_format
     ]
   }
 }
