@@ -6,9 +6,11 @@ variable "servers" {
     cpu             = number
     memory          = number
     disks           = list(object({
-      size      = number
-      interface = string
+      size         = number
+      interface    = string
       datastore_id = string
+      disk_type    = optional(string, "hdd")  # "hdd", "ssd", "nvme"
+      file_format  = optional(string, "auto") # "auto", "raw", "qcow2", "vmdk"
     }))
     network_devices = list(object({
       bridge     = string

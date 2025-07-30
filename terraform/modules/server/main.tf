@@ -26,7 +26,9 @@ resource "proxmox_virtual_environment_vm" "this" {
     content {
       interface    = disk.value.interface
       size         = disk.value.size
-      file_format  = "qcow2"
+      file_format  = disk.value.file_format == "auto" ? (
+        disk.value.disk_type == "ssd" || disk.value.disk_type == "nvme" ? "raw" : "qcow2"
+      ) : disk.value.file_format
       datastore_id = disk.value.datastore_id
     }
   }

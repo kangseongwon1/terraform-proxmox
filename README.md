@@ -61,7 +61,354 @@ terraform-proxmox/
 - Ubuntu/Debian 기반 템플릿 VM
 - SSH 접근이 가능한 네트워크 환경
 
-## 🚀 빠른 시작
+## 🚀 처음 사용자를 위한 완전 가이드
+
+### 📋 사전 준비사항
+
+#### 1. Proxmox 서버 준비
+- Proxmox VE 6.0 이상이 설치된 서버
+- 템플릿 VM 준비 (Ubuntu 20.04/22.04, Rocky Linux 8/9 등)
+- API 접근 권한이 있는 사용자 계정
+
+#### 2. 클라이언트 환경 준비
+- Linux (Ubuntu 20.04+ 권장) 또는 Windows 10/11
+- 인터넷 연결 가능한 환경
+- 최소 4GB RAM, 10GB 디스크 여유 공간
+
+### 🔧 단계별 설치 가이드
+
+#### 1단계: 리포지토리 클론 및 기본 설치
+
+```bash
+# 1. Git 설치 (Ubuntu/Debian)
+sudo apt update
+sudo apt install git curl wget
+
+# 2. 프로젝트 클론
+git clone https://github.com/your-username/terraform-proxmox.git
+cd terraform-proxmox
+
+# 3. 실행 권한 부여
+chmod +x setup.sh
+```
+
+#### 2단계: 필수 소프트웨어 설치
+
+**Linux (Ubuntu/Debian) 사용자:**
+```bash
+# Python 3.8+ 설치
+sudo apt update
+sudo apt install python3 python3-pip python3-venv
+
+# Terraform 설치
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt update
+sudo apt install terraform
+
+# Ansible 설치
+sudo apt install ansible
+
+# 설치 확인
+python3 --version
+terraform --version
+ansible --version
+```
+
+**Windows 사용자:**
+```powershell
+# 1. Chocolatey 설치 (관리자 권한으로 PowerShell 실행)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# 2. Python 설치
+choco install python
+
+# 3. Terraform 설치
+choco install terraform
+
+# 4. Git Bash 설치 (Ansible 사용을 위해)
+choco install git
+
+# 5. 설치 확인
+python --version
+terraform --version
+```
+
+**macOS 사용자:**
+```bash
+# Homebrew 설치 (없는 경우)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Python 설치
+brew install python
+
+# Terraform 설치
+brew install terraform
+
+# Ansible 설치
+brew install ansible
+
+# 설치 확인
+python3 --version
+terraform --version
+ansible --version
+```
+
+#### 3단계: 환경 설정 파일 생성
+
+```bash
+# 1. 환경 설정 파일 복사
+cp env_template.txt .env
+
+# 2. .env 파일 편집
+nano .env
+```
+
+`.env` 파일에 다음 내용을 입력하세요:
+
+```env
+# Flask 애플리케이션 설정
+SECRET_KEY=your-super-secret-key-here
+FLASK_ENV=development
+DEBUG=true
+
+# Proxmox 서버 설정
+PROXMOX_ENDPOINT=https://your-proxmox-server:8006
+PROXMOX_USERNAME=root@pam
+PROXMOX_PASSWORD=your-proxmox-password
+PROXMOX_NODE=pve
+PROXMOX_DATASTORE=local-lvm
+PROXMOX_TEMPLATE_ID=9000
+
+# 세션 보안 설정
+SESSION_COOKIE_SECURE=false
+SESSION_COOKIE_HTTPONLY=true
+SESSION_COOKIE_SAMESITE=Strict
+PERMANENT_SESSION_LIFETIME=3600
+
+# 로깅 설정
+LOG_LEVEL=INFO
+LOG_FILE=app.log
+
+# SSH 설정
+SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa
+SSH_PUBLIC_KEY_PATH=~/.ssh/id_rsa.pub
+```
+
+#### 4단계: 자동 설치 스크립트 실행
+
+```bash
+# 자동 설치 스크립트 실행
+./setup.sh
+```
+
+이 스크립트는 다음 작업을 자동으로 수행합니다:
+- Python 가상환경 생성
+- 필요한 Python 패키지 설치
+- Terraform 초기화
+- 기본 디렉토리 구조 생성
+
+#### 5단계: SSH 키 설정
+
+```bash
+# SSH 키 생성 (없는 경우)
+ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+
+# SSH 키를 Proxmox에 등록
+# Proxmox 웹 UI → Datacenter → SSH Keys에서 공개키 등록
+cat ~/.ssh/id_rsa.pub
+```
+
+#### 6단계: Terraform 설정 확인
+
+```bash
+# terraform 디렉토리로 이동
+cd terraform
+
+# Terraform 초기화
+terraform init
+
+# 설정 확인
+terraform plan
+```
+
+### 🚀 애플리케이션 실행
+
+#### 방법 1: 직접 실행 (권장)
+
+**Linux/macOS:**
+```bash
+# 1. 가상환경 활성화
+source venv/bin/activate
+
+# 2. Flask 애플리케이션 실행
+python app.py
+```
+
+**Windows:**
+```cmd
+# 1. 가상환경 활성화
+venv\Scripts\activate
+
+# 2. Flask 애플리케이션 실행
+python app.py
+```
+
+#### 방법 2: 백그라운드 실행
+
+**Linux/macOS:**
+```bash
+# 1. 가상환경 활성화
+source venv/bin/activate
+
+# 2. 백그라운드에서 실행
+nohup python app.py > app.log 2>&1 &
+
+# 3. 프로세스 확인
+ps aux | grep python
+```
+
+**Windows:**
+```cmd
+# 1. 가상환경 활성화
+venv\Scripts\activate
+
+# 2. 백그라운드에서 실행 (새 명령 프롬프트 창에서)
+start /B python app.py > app.log 2>&1
+```
+
+### 🌐 웹 인터페이스 접속
+
+1. 웹 브라우저에서 `http://localhost:5000` 접속
+2. 기본 로그인 정보:
+   - **사용자명**: `admin`
+   - **비밀번호**: `admin123!`
+
+### 📝 첫 번째 서버 생성하기
+
+#### 1. 로그인 후 대시보드 확인
+- 서버 목록, 스토리지 정보 등 확인
+
+#### 2. 새 서버 생성
+1. **인스턴스** 메뉴 클릭
+2. **서버 생성** 버튼 클릭
+3. 서버 정보 입력:
+   - **서버명**: `test-server-01`
+   - **역할**: `웹서버(Nginx)`
+   - **CPU**: `2`
+   - **메모리**: `4096` (4GB)
+   - **네트워크**: IP 주소 설정
+4. **생성** 버튼 클릭
+
+#### 3. 생성 과정 모니터링
+- 알림 센터에서 진행 상황 확인
+- 서버 상태가 "running"이 될 때까지 대기
+
+### 🔍 문제 해결
+
+#### 일반적인 오류와 해결방법
+
+**1. Proxmox 연결 오류**
+```bash
+Error: failed to connect to Proxmox API
+```
+**해결방법**:
+- `.env` 파일의 Proxmox 설정 확인
+- Proxmox 서버가 실행 중인지 확인
+- 방화벽 설정 확인 (포트 8006)
+
+**2. Terraform 초기화 오류**
+```bash
+Error: Failed to install provider
+```
+**해결방법**:
+```bash
+cd terraform
+rm -rf .terraform
+terraform init
+```
+
+**3. SSH 연결 오류**
+```bash
+UNREACHABLE! => {"changed": false, "msg": "SSH timeout"}
+```
+**해결방법**:
+- SSH 키가 Proxmox에 등록되었는지 확인
+- 네트워크 연결 확인
+- VM의 SSH 서비스가 실행 중인지 확인
+
+**4. 권한 오류**
+```bash
+Error: Permission denied
+```
+**해결방법**:
+```bash
+# Linux/macOS: 파일 권한 확인 및 수정
+chmod +x setup.sh
+chmod 600 .env
+
+# Windows: 관리자 권한으로 실행
+# 명령 프롬프트를 관리자 권한으로 실행 후 다시 시도
+```
+
+**5. Windows에서 가상환경 활성화 오류**
+```cmd
+Error: 'venv' is not recognized as an internal or external command
+```
+**해결방법**:
+```cmd
+# PowerShell에서 실행 정책 변경
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 또는 cmd에서 직접 실행
+venv\Scripts\activate.bat
+```
+
+**6. Windows에서 SSH 키 생성 오류**
+```cmd
+Error: ssh-keygen command not found
+```
+**해결방법**:
+```cmd
+# Git Bash 설치 후 Git Bash에서 실행
+# 또는 WSL(Windows Subsystem for Linux) 사용
+wsl ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+```
+
+### 📚 추가 설정
+
+#### Vault 설정 (선택사항)
+```bash
+# Vault 설치 (Ubuntu)
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt update
+sudo apt install vault
+
+# Vault 시작
+vault server -dev
+```
+
+#### 모니터링 설정
+```bash
+# 로그 확인
+tail -f app.log
+
+# 시스템 리소스 모니터링
+htop
+```
+
+### 🆘 지원 및 도움말
+
+- **문서**: 이 README.md 파일 참조
+- **이슈**: GitHub Issues 페이지에서 문제 보고
+- **커뮤니티**: Discord 채널 또는 포럼 참여
+
+---
+
+## 🚀 빠른 시작 (기존 사용자용)
 
 ### 1. 설치
 
@@ -148,6 +495,75 @@ docker-compose logs -f
 ### Terraform 커스터마이징
 
 `terraform/` 디렉토리의 파일들을 수정하여 고급 설정을 추가할 수 있습니다:
+
+#### 디스크 타입별 파일 포맷 자동 설정
+
+SSD나 NVMe 디스크에 대해 자동으로 `raw` 포맷을 사용하도록 설정할 수 있습니다:
+
+```json
+{
+  "servers": {
+    "web-server-01": {
+      "name": "web-server-01",
+      "role": "web",
+      "cpu": 2,
+      "memory": 4096,
+      "disks": [
+        {
+          "size": 50,
+          "interface": "scsi0",
+          "datastore_id": "local-lvm",
+          "disk_type": "ssd",        // SSD 디스크
+          "file_format": "auto"      // 자동으로 raw 포맷 사용
+        },
+        {
+          "size": 100,
+          "interface": "scsi1", 
+          "datastore_id": "local-lvm",
+          "disk_type": "hdd",        // HDD 디스크
+          "file_format": "auto"      // 자동으로 qcow2 포맷 사용
+        }
+      ],
+      "network_devices": [
+        {
+          "bridge": "vmbr0",
+          "ip_address": "192.168.1.100",
+          "subnet": "24",
+          "gateway": "192.168.1.1"
+        }
+      ],
+      "template_vm_id": 9000
+    }
+  }
+}
+```
+
+#### 수동 파일 포맷 지정
+
+특정 디스크에 대해 수동으로 파일 포맷을 지정할 수도 있습니다:
+
+```json
+{
+  "disks": [
+    {
+      "size": 50,
+      "interface": "scsi0",
+      "datastore_id": "local-lvm",
+      "disk_type": "ssd",
+      "file_format": "raw"           // 수동으로 raw 포맷 지정
+    },
+    {
+      "size": 100,
+      "interface": "scsi1",
+      "datastore_id": "local-lvm", 
+      "disk_type": "hdd",
+      "file_format": "qcow2"         // 수동으로 qcow2 포맷 지정
+    }
+  ]
+}
+```
+
+#### 네트워크 설정 커스터마이징
 
 ```hcl
 # terraform/variables.tf에서 변수 추가

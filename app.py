@@ -786,6 +786,12 @@ def do_create_server(task_id, data):
             for disk in data['disks']:
                 if 'datastore_id' not in disk or not disk['datastore_id']:
                     disk['datastore_id'] = 'local-lvm'
+                # 디스크 타입 기본값 설정
+                if 'disk_type' not in disk:
+                    disk['disk_type'] = 'hdd'
+                # 파일 포맷 기본값 설정
+                if 'file_format' not in disk:
+                    disk['file_format'] = 'auto'
         if 'network_devices' in data:
             for net in data['network_devices']:
                 if 'bridge' not in net or not net['bridge']:

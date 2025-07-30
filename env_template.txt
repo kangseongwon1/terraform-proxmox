@@ -1,9 +1,110 @@
-# .env.example
-# 환경 변수 예시 파일 (실제 값은 별도 관리)
+# ========================================
+# Proxmox 서버 자동 생성 시스템 환경 설정
+# ========================================
+# 이 파일을 .env로 복사한 후 실제 값으로 수정하세요.
+# cp env_template.txt .env
 
-DB_HOST=your-db-host
-DB_PORT=5432
-DB_USER=your-db-user
-DB_PASSWORD=your-db-password
-SECRET_KEY=your-secret-key
-FLASK_ENV=development 
+# ========================================
+# Flask 애플리케이션 설정
+# ========================================
+
+# Flask 시크릿 키 (필수) - 랜덤한 문자열로 변경하세요
+SECRET_KEY=your-super-secret-key-here-change-this
+
+# Flask 환경 설정
+FLASK_ENV=development
+DEBUG=true
+
+# ========================================
+# Proxmox 서버 설정 (필수)
+# ========================================
+
+# Proxmox 서버 주소 (예: https://192.168.1.100:8006)
+PROXMOX_ENDPOINT=https://your-proxmox-server:8006
+
+# Proxmox 사용자명 (예: root@pam)
+PROXMOX_USERNAME=root@pam
+
+# Proxmox 비밀번호
+PROXMOX_PASSWORD=your-proxmox-password
+
+# Proxmox 노드명 (예: pve)
+PROXMOX_NODE=pve
+
+# Proxmox 데이터스토어 (예: local-lvm)
+PROXMOX_DATASTORE=local-lvm
+
+# 템플릿 VM ID (예: 9000)
+PROXMOX_TEMPLATE_ID=9000
+
+# ========================================
+# 세션 보안 설정
+# ========================================
+
+# HTTPS 사용 여부 (개발환경에서는 false)
+SESSION_COOKIE_SECURE=false
+
+# HTTP 전용 쿠키 (보안 강화)
+SESSION_COOKIE_HTTPONLY=true
+
+# SameSite 쿠키 정책
+SESSION_COOKIE_SAMESITE=Strict
+
+# 세션 유지 시간 (초)
+PERMANENT_SESSION_LIFETIME=3600
+
+# ========================================
+# 로깅 설정
+# ========================================
+
+# 로그 레벨 (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL=INFO
+
+# 로그 파일 경로
+LOG_FILE=app.log
+
+# ========================================
+# SSH 설정
+# ========================================
+
+# SSH 개인키 경로
+SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa
+
+# SSH 공개키 경로
+SSH_PUBLIC_KEY_PATH=~/.ssh/id_rsa.pub
+
+# ========================================
+# Vault 설정 (선택사항)
+# ========================================
+
+# Vault 서버 주소
+VAULT_ADDR=http://127.0.0.1:8200
+
+# Vault 토큰
+VAULT_TOKEN=your-vault-token
+
+# ========================================
+# 추가 설정 (선택사항)
+# ========================================
+
+# 데이터베이스 경로
+DATABASE_PATH=proxmox_manager.db
+
+# 최대 동시 작업 수
+MAX_CONCURRENT_TASKS=5
+
+# 작업 타임아웃 (초)
+TASK_TIMEOUT=300
+
+# ========================================
+# 개발 환경 설정
+# ========================================
+
+# 개발 모드 활성화
+DEVELOPMENT_MODE=true
+
+# 자동 리로드 활성화
+AUTO_RELOAD=true
+
+# 디버그 모드 활성화
+DEBUG_MODE=true 
