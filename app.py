@@ -823,10 +823,17 @@ def do_create_server(task_id, data):
             for net in data['network_devices']:
                 if 'bridge' not in net or not net['bridge']:
                     net['bridge'] = 'vmbr0'
+        # 새 서버 정보를 tfvars에 먼저 기록 (Terraform apply 전)
         servers[server_name] = data
         write_servers_to_tfvars(servers)
+        
+        # Terraform apply 실행
         ok, out, terr = run_terraform_apply()
         if not ok:
+            # Terraform apply 실패 시 tfvars에서 새 서버 정보 제거
+            if server_name in servers:
+                del servers[server_name]
+                write_servers_to_tfvars(servers)
             update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
             add_notification(
                 type='server_error',
@@ -934,13 +941,24 @@ def do_create_servers_bulk(task_id, servers_input):
                     if 'file_format' not in disk:
                         disk['file_format'] = 'auto'
             
-            servers[name] = server_data
             created.append(name)
             names.append(name)
         
+        # 새 서버 정보를 tfvars에 먼저 기록 (Terraform apply 전)
+        for s in servers_input:
+            name = s.get('name')
+            if name in names:  # 생성할 서버들을 tfvars에 추가
+                servers[name] = s
         write_servers_to_tfvars(servers)
+        
+        # Terraform apply 실행
         ok, out, terr = run_terraform_apply()
         if not ok:
+            # Terraform apply 실패 시 tfvars에서 새 서버 정보 제거
+            for name in names:
+                if name in servers:
+                    del servers[name]
+            write_servers_to_tfvars(servers)
             update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
             add_notification(
                 type='server_error',
