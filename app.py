@@ -327,9 +327,30 @@ def read_servers_from_tfvars():
 def write_servers_to_tfvars(servers, other_vars=None):
     with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
         obj = json.load(f)
+    
+    # 기존 서버들의 file_format 보존
+    existing_servers = obj.get('servers', {})
+    for server_name, new_server_data in servers.items():
+        if server_name in existing_servers:
+            existing_server_data = existing_servers[server_name]
+            # 기존 디스크 설정 보존
+            if 'disks' in existing_server_data and 'disks' in new_server_data:
+                for i, new_disk in enumerate(new_server_data['disks']):
+                    if i < len(existing_server_data['disks']):
+                        existing_disk = existing_server_data['disks'][i]
+                        # 기존 file_format이 명시적으로 설정되어 있다면 보존
+                        if 'file_format' in existing_disk and existing_disk['file_format'] != 'auto':
+                            new_disk['file_format'] = existing_disk['file_format']
+    
     obj['servers'] = servers
     if other_vars:
-        obj.update(other_vars)
+        # Terraform에서 정의된 변수들만 허용
+        allowed_vars = {
+            'proxmox_endpoint', 'proxmox_username', 'proxmox_node', 
+            'vm_username', 'vault_token'
+        }
+        filtered_vars = {k: v for k, v in other_vars.items() if k in allowed_vars}
+        obj.update(filtered_vars)
     with open(TFVARS_PATH, 'w', encoding='utf-8') as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
 
@@ -780,16 +801,22 @@ def do_create_server(task_id, data):
         if 'role' not in data or not data['role']:
             data['role'] = ''
         os_type = data.get('os_type', 'rocky')
-        data['vm_username'] = get_default_username(os_type)
-        data['vm_password'] = get_default_password(os_type)
+        # 서버별 vm_username, vm_password가 설정되어 있지 않으면 기본값 사용
+        if 'vm_username' not in data or not data['vm_username']:
+            data['vm_username'] = get_default_username(os_type)
+        if 'vm_password' not in data or not data['vm_password']:
+            data['vm_password'] = get_default_password(os_type)
         if 'disks' in data:
             for disk in data['disks']:
                 if 'datastore_id' not in disk or not disk['datastore_id']:
                     disk['datastore_id'] = 'local-lvm'
-                # 디스크 타입 기본값 설정
+                # datastore_id에서 disk_type 추론
                 if 'disk_type' not in disk:
-                    disk['disk_type'] = 'hdd'
-                # 파일 포맷 기본값 설정
+                    if disk['datastore_id'] == 'ssd':
+                        disk['disk_type'] = 'ssd'
+                    else:
+                        disk['disk_type'] = 'hdd'
+                # 파일 포맷 기본값 설정 (기존 설정 유지)
                 if 'file_format' not in disk:
                     disk['file_format'] = 'auto'
         if 'network_devices' in data:
@@ -881,7 +908,32 @@ def do_create_servers_bulk(task_id, servers_input):
                 'disks': s.get('disks', []),
                 'network_devices': s.get('network_devices', []),
                 'template_vm_id': s.get('template_vm_id'),
+                'vm_username': s.get('vm_username'),
+                'vm_password': s.get('vm_password'),
             }
+            
+            # vm_username, vm_password 기본값 설정
+            os_type = s.get('os_type', 'rocky')
+            if not server_data.get('vm_username'):
+                server_data['vm_username'] = get_default_username(os_type)
+            if not server_data.get('vm_password'):
+                server_data['vm_password'] = get_default_password(os_type)
+            
+            # 디스크 설정 처리 (do_create_server와 동일한 로직)
+            if 'disks' in server_data:
+                for disk in server_data['disks']:
+                    if 'datastore_id' not in disk or not disk['datastore_id']:
+                        disk['datastore_id'] = 'local-lvm'
+                    # datastore_id에서 disk_type 추론
+                    if 'disk_type' not in disk:
+                        if disk['datastore_id'] == 'ssd':
+                            disk['disk_type'] = 'ssd'
+                        else:
+                            disk['disk_type'] = 'hdd'
+                    # 파일 포맷 기본값 설정 (기존 설정 유지)
+                    if 'file_format' not in disk:
+                        disk['file_format'] = 'auto'
+            
             servers[name] = server_data
             created.append(name)
             names.append(name)

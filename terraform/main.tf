@@ -19,8 +19,8 @@ module "server" {
   proxmox_username  = var.proxmox_username
   proxmox_password  = data.vault_generic_secret.proxmox.data["proxmox_password"]
   proxmox_node      = var.proxmox_node
-  vm_username       = var.vm_username
-  vm_password       = data.vault_generic_secret.proxmox.data["vm_password"]
+  vm_username       = each.value.vm_username != null ? each.value.vm_username : var.vm_username
+  vm_password       = each.value.vm_password != null ? each.value.vm_password : data.vault_generic_secret.proxmox.data["vm_password"]
   ssh_keys          = [data.vault_generic_secret.proxmox.data["ssh_public_key"]]
 }
 

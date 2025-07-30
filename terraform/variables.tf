@@ -19,6 +19,8 @@ variable "servers" {
       gateway    = string
     }))
     template_vm_id = number
+    vm_username    = optional(string)  # 서버별 사용자명 (기본값은 전역 vm_username 사용)
+    vm_password    = optional(string)  # 서버별 비밀번호 (기본값은 전역 vm_password 사용)
   }))
 }
 
