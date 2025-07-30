@@ -46,8 +46,8 @@ $(function() {
       
       // ===== 테이블 컬럼 너비 설정 (admin_iam_content.html의 th와 일치해야 함) =====
       tr.append(`<td class="align-middle text-center" style="width:48px;"><i class="fas fa-user-circle iam-profile-icon ${isInactive ? 'text-muted' : ''}"></i></td>`); // 프로필 아이콘
-      tr.append(`<td class="fw-bold align-middle" style="min-width:80px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`); // 사용자명
-      tr.append(`<td class="align-middle" style="min-width:100px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.97em;">${user.email || ''}</td>`); // 이메일
+      tr.append(`<td class="fw-bold align-middle" style="width:80px;">${username} ${isInactive ? '<span class="badge bg-secondary ms-1">비활성</span>' : ''}</td>`); // 사용자명
+      tr.append(`<td class="align-middle" style="width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.97em;">${user.email || ''}</td>`); // 이메일
       
       // 역할 배지 색상 설정
       let roleBadge = {

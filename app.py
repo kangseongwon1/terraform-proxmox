@@ -23,6 +23,37 @@ except ImportError:
     print("python-dotenv가 설치되지 않았습니다. pip install python-dotenv")
     pass
 
+# Vault 토큰 자동 설정
+def setup_vault_token():
+    """Vault 토큰을 자동으로 설정"""
+    try:
+        # .env.tokens 파일에서 토큰 읽기
+        tokens_file = '.env.tokens'
+        if os.path.exists(tokens_file):
+            with open(tokens_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('FLASK_TOKEN='):
+                        flask_token = line.split('=', 1)[1]
+                        os.environ['VAULT_TOKEN'] = flask_token
+                        print(f"[Vault] Flask 토큰이 설정되었습니다.")
+                        return True
+        
+        # 환경 변수에서 직접 확인
+        if 'FLASK_TOKEN' in os.environ:
+            os.environ['VAULT_TOKEN'] = os.environ['FLASK_TOKEN']
+            print(f"[Vault] 환경 변수에서 Flask 토큰을 설정했습니다.")
+            return True
+            
+        print("[Vault] Flask 토큰을 찾을 수 없습니다.")
+        return False
+    except Exception as e:
+        print(f"[Vault] 토큰 설정 중 오류: {e}")
+        return False
+
+# Vault 토큰 설정 실행
+setup_vault_token()
+
 # 설정 파일 import
 from config import config
 
@@ -639,6 +670,26 @@ def run_terraform_apply():
     import subprocess
     lock_path = os.path.join(TERRAFORM_DIR, '.terraform.tfstate.lock.info')
     print(f"[terraform] run_terraform_apply 진입, lock_path: {lock_path}")
+    
+    # Vault 토큰 설정
+    terraform_env = os.environ.copy()
+    try:
+        # .env.tokens 파일에서 Terraform 토큰 읽기
+        tokens_file = '.env.tokens'
+        if os.path.exists(tokens_file):
+            with open(tokens_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('TERRAFORM_TOKEN='):
+                        terraform_token = line.split('=', 1)[1]
+                        terraform_env['TF_VAR_vault_token'] = terraform_token
+                        print(f"[terraform] Terraform 토큰이 설정되었습니다.")
+                        break
+        else:
+            print("[terraform] .env.tokens 파일을 찾을 수 없습니다.")
+    except Exception as e:
+        print(f"[terraform] 토큰 설정 중 오류: {e}")
+    
     # apply 전 락 파일이 남아있으면 자동 삭제(비정상 종료/중복 락 방지)
     if os.path.exists(lock_path):
         try:
@@ -647,14 +698,16 @@ def run_terraform_apply():
         except Exception as e:
             print(f"[terraform] 락 파일 삭제 실패: {e}")
             return False, '', f'기존 terraform 락 파일이 남아있어 삭제에 실패했습니다: {e}'
+    
     # 항상 terraform init 먼저 실행
     print("[terraform] terraform init 실행")
-    init_result = subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True)
+    init_result = subprocess.run(['terraform', 'init', '-input=false'], cwd=TERRAFORM_DIR, capture_output=True, text=True, env=terraform_env)
     print(f"[terraform] init stdout: {init_result.stdout}")
     print(f"[terraform] init stderr: {init_result.stderr}")
     if init_result.returncode != 0:
         print(f"[terraform] init 실패: {init_result.stderr}")
         return False, init_result.stdout, init_result.stderr
+    
     try:
         print("[terraform] terraform apply 실행")
         result = subprocess.run(
@@ -662,7 +715,8 @@ def run_terraform_apply():
             cwd=TERRAFORM_DIR,
             capture_output=True,
             text=True,
-            timeout=180  # 3분 제한
+            timeout=180,  # 3분 제한
+            env=terraform_env
         )
         print(f"[terraform] apply stdout: {result.stdout}")
         print(f"[terraform] apply stderr: {result.stderr}")
@@ -1232,10 +1286,11 @@ def proxmox_storage():
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        proxmox_url = "https://prox.dmcmedia.co.kr:8006"
-        username = "root@pam"
-        password = "dmc1234)(*&"
-        node = "prox"
+        # Proxmox API 설정 (환경 변수에서 가져오기)
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        username = app.config['PROXMOX_USERNAME']
+        password = app.config['PROXMOX_PASSWORD']
+        node = app.config['PROXMOX_NODE']
         
         # API 인증
         auth_url = f"{proxmox_url}/api2/json/access/ticket"
@@ -1243,6 +1298,7 @@ def proxmox_storage():
             'username': username,
             'password': password
         }
+        
         auth_response = requests.post(auth_url, data=auth_data, verify=False)
         if auth_response.status_code != 200:
             return {'error': 'Proxmox 인증 실패'}, 401

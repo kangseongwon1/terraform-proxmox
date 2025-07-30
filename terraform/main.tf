@@ -1,3 +1,8 @@
+# Vault에서 시크릿 데이터 가져오기
+data "vault_generic_secret" "proxmox" {
+  path = "secret/proxmox"
+}
+
 module "server" {
   source = "./modules/server"
   for_each = var.servers
@@ -12,10 +17,11 @@ module "server" {
 
   proxmox_endpoint  = var.proxmox_endpoint
   proxmox_username  = var.proxmox_username
-  proxmox_password  = var.proxmox_password
+  proxmox_password  = data.vault_generic_secret.proxmox.data["proxmox_password"]
   proxmox_node      = var.proxmox_node
   vm_username       = var.vm_username
-  vm_password       = var.vm_password
-  ssh_keys          = var.ssh_keys
+  vm_password       = data.vault_generic_secret.proxmox.data["vm_password"]
+  ssh_keys          = [data.vault_generic_secret.proxmox.data["ssh_public_key"]]
 }
+
 

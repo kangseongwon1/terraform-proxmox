@@ -1,6 +1,31 @@
 import os
 from datetime import timedelta
 
+class VaultConfig:
+    """Vault 설정"""
+    VAULT_ADDR = os.environ.get('VAULT_ADDR', 'http://127.0.0.1:8200')
+    VAULT_TOKEN = os.environ.get('VAULT_TOKEN')
+    
+    @classmethod
+    def get_secret(cls, secret_path, key):
+        """Vault에서 시크릿 가져오기"""
+        try:
+            import hvac
+            client = hvac.Client(url=cls.VAULT_ADDR, token=cls.VAULT_TOKEN)
+            if client.is_authenticated():
+                response = client.secrets.kv.v2.read_secret_version(path=secret_path)
+                return response['data']['data'].get(key)
+            else:
+                raise ValueError("Vault 인증 실패")
+        except ImportError:
+            # hvac 패키지가 없으면 환경 변수에서 가져오기
+            return os.environ.get(f'TF_VAR_{key.upper()}')
+        except Exception as e:
+            print(f"Vault에서 시크릿 가져오기 실패: {e}")
+            # 폴백: 환경 변수에서 가져오기
+            return os.environ.get(f'TF_VAR_{key.upper()}')
+
+
 class Config:
     """기본 설정"""
     SECRET_KEY = os.environ.get('SECRET_KEY')
