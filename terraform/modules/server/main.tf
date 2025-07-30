@@ -65,6 +65,12 @@ resource "proxmox_virtual_environment_vm" "this" {
   clone {
     vm_id = var.template_vm_id
   }
+
+  lifecycle {
+    ignore_changes = [
+      disk[*].file_format
+    ]
+  }
 }
 
 output "ip" {
