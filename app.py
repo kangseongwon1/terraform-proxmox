@@ -840,9 +840,18 @@ def do_create_server(task_id, data):
             logger.error("[create_server] 서버 이름 누락")
             update_task(task_id, 'error', '서버 이름(name)을 입력해야 합니다.')
             return
+        
+        # tfvars 중복 체크
         if server_name in servers:
-            logger.error(f"[create_server] 중복 서버 이름: {server_name}")
-            update_task(task_id, 'error', f'이미 동일한 이름({server_name})의 서버가 존재합니다.')
+            logger.error(f"[create_server] tfvars 중복 서버 이름: {server_name}")
+            update_task(task_id, 'error', f'이미 동일한 이름({server_name})의 서버가 tfvars에 존재합니다.')
+            return
+        
+        # DB 중복 체크
+        existing_server = db.get_server_by_name(server_name)
+        if existing_server:
+            logger.error(f"[create_server] DB 중복 서버 이름: {server_name}")
+            update_task(task_id, 'error', f'이미 동일한 이름({server_name})의 서버가 DB에 존재합니다.')
             return
         
         # 공통 서버 데이터 처리 함수 사용
@@ -908,7 +917,13 @@ def do_create_servers_bulk(task_id, servers_input):
                 failed.append({'name': name or '(이름없음)', 'error': '서버명, 네트워크 정보 필요'})
                 continue
             if name in servers:
-                failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
+                failed.append({'name': name, 'error': 'tfvars에 이미 존재하는 서버 이름'})
+                continue
+            
+            # DB 중복 체크
+            existing_server = db.get_server_by_name(name)
+            if existing_server:
+                failed.append({'name': name, 'error': 'DB에 이미 존재하는 서버 이름'})
                 continue
             
             # 공통 서버 데이터 처리 함수 사용
@@ -1023,17 +1038,50 @@ def do_delete_server(task_id, server_name):
         if not stop_ok:
             update_task(task_id, 'error', 'stop(강제종료) 후 30초 내에 lock이 해제되지 않음')
             return
-        # 4. stop+lock 해제 성공 시에만 tfvars/DB/terraform 삭제
+        # 4. tfvars에서 서버 삭제하고 Terraform apply 실행
         servers = read_servers_from_tfvars()
         tfvars_existed = server_name in servers
+        
         if tfvars_existed:
+            # 1단계: tfvars에서 서버 정보 임시 제거
+            server_data = servers[server_name]  # 백업용
             del servers[server_name]
             write_servers_to_tfvars(servers)
+            
+            # 2단계: Terraform apply 실행
             ok, out, terr = run_terraform_apply()
+            
             if not ok:
+                # 1-1단계: Terraform apply 실패 시 tfvars 복구
+                servers[server_name] = server_data
+                write_servers_to_tfvars(servers)
                 update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
                 return
-        db.delete_server_by_name(server_name)
+            
+            # 1-2단계: Terraform apply 성공 시 VM 존재 여부 확인
+            vm_exists = check_proxmox_vm_exists(server_name)
+            if vm_exists:
+                # VM이 여전히 존재하면 tfvars 복구
+                servers[server_name] = server_data
+                write_servers_to_tfvars(servers)
+                update_task(task_id, 'error', f'VM 삭제 확인 실패: {server_name}이 여전히 Proxmox에 존재합니다.')
+                return
+            
+            # 2단계: VM이 실제로 삭제되었음을 확인했으므로 DB에서 서버 정보 삭제
+            db_deleted = db.delete_server_by_name(server_name)
+            if db_deleted:
+                logger.info(f"[delete_server] DB에서 서버 {server_name} 삭제 완료")
+            else:
+                logger.warning(f"[delete_server] DB에서 서버 {server_name} 삭제 실패 (이미 삭제되었거나 존재하지 않음)")
+        else:
+            # tfvars에 서버가 없는 경우: DB에서만 삭제
+            logger.info(f"[delete_server] tfvars에 서버가 없음, DB에서만 삭제: {server_name}")
+            db_deleted = db.delete_server_by_name(server_name)
+            if db_deleted:
+                logger.info(f"[delete_server] DB에서 서버 {server_name} 삭제 완료")
+            else:
+                logger.warning(f"[delete_server] DB에서 서버 {server_name} 삭제 실패 (이미 삭제되었거나 존재하지 않음)")
+        
         update_task(task_id, 'success', f'{server_name} 서버 삭제 완료')
     except Exception as e:
         update_task(task_id, 'error', f'서버 삭제 중 예외: {str(e)}')
