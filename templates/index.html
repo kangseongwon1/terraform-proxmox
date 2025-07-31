@@ -11,6 +11,7 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script src="/static/firewall.js"></script>
   <style>
     :root {
       --primary-color: #4db8ff;
@@ -260,16 +261,21 @@
     .server-summary-container {
       max-height: 400px;
       overflow-y: auto;
-      transition: max-height 0.3s ease;
+      transition: max-height 0.3s ease, border-color 0.2s ease;
       border-radius: 0 0 8px 8px;
       cursor: pointer;
       position: relative;
       border: 2px solid transparent;
-      transition: max-height 0.3s ease, border-color 0.2s ease;
+      user-select: none;
     }
 
     .server-summary-container:hover {
       border-color: var(--primary-color);
+      background-color: rgba(0, 123, 255, 0.02);
+    }
+    
+    .server-summary-container:active {
+      background-color: rgba(0, 123, 255, 0.05);
     }
 
     .server-summary-container.expanded {
@@ -287,12 +293,14 @@
       right: 10px;
       font-size: 0.75rem;
       color: var(--text-muted);
-      opacity: 0.7;
+      opacity: 0.9;
       pointer-events: none;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 2px 6px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 4px 8px;
       border-radius: 4px;
       border: 1px solid var(--border-color);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      z-index: 10;
     }
 
     .server-summary-container.expanded::after,
@@ -883,11 +891,7 @@
       }
     });
 
-    {% if session['role'] == 'admin' %}
-    // 사용자 관리 기능은 이제 SPA 라우팅으로 처리됨 (#iam)
-    {% endif %}
-
-    // 사용자 관리 기능은 이제 SPA 라우팅으로 처리됨 (#iam)
+    // (관리자 전용) 사용자 관리 기능은 이제 SPA 라우팅으로 처리됨 (#iam)
 
 
 
@@ -904,7 +908,7 @@
   });
   </script>
   <script>
-  window.userRole = '{{ session['role'] }}';
+  window.userRole = "{{ session['role'] }}";
   </script>
 
   <script>
@@ -1011,8 +1015,16 @@
       case '#iam':
         loadSPA('/admin/iam/content', '/static/iam.js');
         break;
+      case '#firewall-groups':
+        loadSPA('/firewall/groups/content', '/static/firewall.js');
+        break;
       default:
-        loadSPA('/dashboard/content', '/static/dashboard.js');
+        if (hash.startsWith('#firewall-group-')) {
+          const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
+          loadFirewallGroupDetail(group);
+        } else {
+          loadSPA('/dashboard/content', '/static/dashboard.js');
+        }
         break;
     }
   }
@@ -1035,6 +1047,15 @@
       loadSPA('/admin/iam/content', '/static/iam.js');
       $('.sidebar .dropdown-item[href="#iam"]').addClass('active');
       $('.sidebar .dropdown-item[href="#iam"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#firewall-groups') {
+      loadSPA('/firewall/groups/content', '/static/firewall.js');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash.startsWith('#firewall-group-')) {
+      const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
+      loadFirewallGroupDetail(group);
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {
       loadSPA('/dashboard/content', '/static/dashboard.js');
       $('.sidebar .nav-link[href="#dashboard"]').addClass('active');
@@ -1059,6 +1080,15 @@
       loadSPA('/admin/iam/content', '/static/iam.js');
       $('.sidebar .dropdown-item[href="#iam"]').addClass('active');
       $('.sidebar .dropdown-item[href="#iam"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#firewall-groups') {
+      loadSPA('/firewall/groups/content', '/static/firewall.js');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash.startsWith('#firewall-group-')) {
+      const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
+      loadFirewallGroupDetail(group);
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
+      $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {
       loadSPA('/dashboard/content', '/static/dashboard.js');
       $('.sidebar .nav-link[href="#dashboard"]').addClass('active');

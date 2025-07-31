@@ -73,6 +73,7 @@ class Database:
                     status TEXT,
                     ip_address TEXT,
                     role TEXT,
+                    firewall_group TEXT,
                     os_type TEXT,
                     cpu INTEGER,
                     memory INTEGER,
@@ -80,6 +81,13 @@ class Database:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # 기존 테이블에 firewall_group 컬럼 추가 (없는 경우)
+            try:
+                cursor.execute('ALTER TABLE servers ADD COLUMN firewall_group TEXT')
+            except sqlite3.OperationalError:
+                # 컬럼이 이미 존재하는 경우 무시
+                pass
             
             # 프로젝트 테이블
             cursor.execute('''

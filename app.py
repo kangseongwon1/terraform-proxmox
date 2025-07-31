@@ -1261,6 +1261,10 @@ def get_all_server_status():
                 # CPU 정보 추출 (tfvars에서 가져오거나 기본값 사용)
                 vm_cpu = server_data.get('cpu', 1)
                 
+                # DB에서 방화벽 그룹 정보 가져오기
+                db_server = db.get_server_by_name(vm['name'])
+                firewall_group = db_server.get('firewall_group') if db_server else None
+                
                 status_info = {
                     'name': vm['name'],
                     'status': vm['status'],
@@ -1273,6 +1277,7 @@ def get_all_server_status():
                     'disk': vm.get('disk', 0),
                     'maxdisk': vm.get('maxdisk', 0),
                     'role': server_data.get('role', 'unknown'),
+                    'firewall_group': firewall_group,
                     'ip_addresses': ip_list,
                     'vm_cpu': vm_cpu  # tfvars에서 가져온 CPU 코어 수
                 }
@@ -1653,6 +1658,14 @@ def storage_content():
 def admin_iam_content():
     return render_template('partials/admin_iam_content.html')
 
+@app.route('/firewall/groups/content')
+def firewall_groups_content():
+    return render_template('partials/firewall_groups_content.html')
+
+@app.route('/firewall/group-detail/content')
+def firewall_group_detail_content():
+    return render_template('partials/firewall_group_detail_content.html')
+
 @app.route('/users/<username>/password', methods=['POST'])
 @permission_required('manage_users')
 def admin_change_user_password(username):
@@ -1682,17 +1695,44 @@ def admin_change_user_password(username):
     )
     return jsonify({'success': True, 'message': f'{username}의 비밀번호가 변경되었습니다.'})
 
-@app.route('/firewall/groups')
+# --- 방화벽 그룹 샘플 데이터 (전역 관리) ---
+FIREWALL_GROUPS = [
+    {'name': 'web-allow', 'description': '웹서버 허용'},
+    {'name': 'db-only', 'description': 'DB 접근만 허용'},
+]
+
+def get_group_index(name):
+    for i, g in enumerate(FIREWALL_GROUPS):
+        if g['name'] == name:
+            return i
+    return -1
+
+@app.route('/firewall/groups', methods=['GET'])
 def get_firewall_groups():
-    """Proxmox에서 방화벽 그룹 목록을 받아옴 (임시: 샘플 데이터 반환)"""
-    # TODO: Proxmox API 연동
-    sample = {
-        'groups': [
-            {'name': 'web-allow', 'description': '웹서버 허용', 'instance_count': 2},
-            {'name': 'db-only', 'description': 'DB 접근만 허용', 'instance_count': 1},
-        ]
-    }
-    return jsonify(sample)
+    try:
+        cursor = db.get_connection().cursor()
+        cursor.execute("""
+            SELECT firewall_group, COUNT(*) as instance_count 
+            FROM servers 
+            WHERE firewall_group IS NOT NULL 
+            GROUP BY firewall_group
+        """)
+        group_counts = {row['firewall_group']: row['instance_count'] for row in cursor.fetchall()}
+        groups = FIREWALL_GROUPS.copy()
+        for group in groups:
+            group['instance_count'] = group_counts.get(group['name'], 0)
+        return jsonify({'groups': groups})
+    except Exception as e:
+        logger.error(f"방화벽 그룹 목록 조회 실패: {str(e)}")
+        return jsonify({'groups': []})
+
+@app.route('/firewall/groups/<group_name>', methods=['DELETE'])
+def delete_firewall_group(group_name):
+    idx = get_group_index(group_name)
+    if idx == -1:
+        return jsonify({'success': False, 'error': '존재하지 않는 그룹입니다.'}), 404
+    del FIREWALL_GROUPS[idx]
+    return jsonify({'success': True, 'message': '그룹이 삭제되었습니다.'})
 
 @app.route('/firewall/groups/<group_name>/rules')
 def get_firewall_group_rules(group_name):
@@ -1719,6 +1759,67 @@ def delete_firewall_group_rule(group_name, rule_id):
     """방화벽 그룹에서 규칙 삭제 (임시: 성공만 반환)"""
     # TODO: Proxmox API 연동
     return jsonify({'success': True, 'message': '규칙이 삭제되었습니다.'})
+
+@app.route('/assign_firewall_group/<server_name>', methods=['POST'])
+@permission_required('assign_firewall_group')
+def assign_firewall_group(server_name):
+    """서버에 방화벽 그룹 할당"""
+    try:
+        firewall_group = request.form.get('firewall_group')
+        if not firewall_group:
+            return jsonify({'success': False, 'error': '방화벽 그룹이 지정되지 않았습니다.'}), 400
+        
+        # TODO: Proxmox API를 통해 실제 방화벽 그룹 할당
+        # 현재는 DB에만 저장 (임시)
+        
+        # 서버 정보 업데이트
+        db.execute("""
+            UPDATE servers 
+            SET firewall_group = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE name = ?
+        """, (firewall_group, server_name))
+        
+        if db.total_changes > 0:
+            add_server_notification(
+                'firewall_group_assigned',
+                '방화벽 그룹 할당',
+                f'{server_name} 서버에 {firewall_group} 방화벽 그룹이 할당되었습니다.',
+                severity='info'
+            )
+            return jsonify({'success': True, 'message': f'{firewall_group} 방화벽 그룹이 할당되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+            
+    except Exception as e:
+        logger.error(f"방화벽 그룹 할당 실패: {str(e)}")
+        return jsonify({'success': False, 'error': f'방화벽 그룹 할당 실패: {str(e)}'}), 500
+
+@app.route('/remove_firewall_group/<server_name>', methods=['POST'])
+@permission_required('remove_firewall_group')
+def remove_firewall_group(server_name):
+    """서버에서 방화벽 그룹 해제"""
+    try:
+        # 서버 정보 업데이트
+        db.execute("""
+            UPDATE servers 
+            SET firewall_group = NULL, updated_at = CURRENT_TIMESTAMP 
+            WHERE name = ?
+        """, (server_name,))
+        
+        if db.total_changes > 0:
+            add_server_notification(
+                'firewall_group_removed',
+                '방화벽 그룹 해제',
+                f'{server_name} 서버의 방화벽 그룹이 해제되었습니다.',
+                severity='info'
+            )
+            return jsonify({'success': True, 'message': '방화벽 그룹이 해제되었습니다.'})
+        else:
+            return jsonify({'success': False, 'error': '서버를 찾을 수 없습니다.'}), 404
+            
+    except Exception as e:
+        logger.error(f"방화벽 그룹 해제 실패: {str(e)}")
+        return jsonify({'success': False, 'error': f'방화벽 그룹 해제 실패: {str(e)}'}), 500
 
 # --- 공통 유틸리티 함수들 ---
 
@@ -1856,6 +1957,15 @@ def handle_terraform_failure(servers: Dict[str, Any], server_names: List[str],
         details=error_msg,
         severity='error'
     )
+
+@app.route('/firewall/groups', methods=['POST'])
+def add_firewall_group():
+    """방화벽 그룹 추가 (임시: 샘플 데이터에 추가)"""
+    name = request.form.get('name')
+    description = request.form.get('description', '')
+    # TODO: Proxmox 연동 및 DB 저장
+    # 임시: 성공만 반환
+    return jsonify({'success': True, 'message': '그룹이 추가되었습니다.'})
 
 if __name__ == '__main__':
     # 필요한 디렉토리 생성

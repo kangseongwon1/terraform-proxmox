@@ -40,61 +40,83 @@ $(function() {
     }).fail(function(xhr) {
       console.log('[instances.js] 사용자 정보 조회 실패 (권한 없음):', xhr.status);
     });
-    $.get('/all_server_status', function(res) {
-      console.log('[instances.js] /all_server_status 응답:', res);
-      let html = '';
-      for (const [name, s] of Object.entries(res.servers)) {
-        // 상태별 배지 색상 결정
-        let statusBadge = '';
-        switch(s.status) {
-          case 'running': statusBadge = '<span class="badge bg-success">실행 중</span>'; break;
-          case 'stopped': statusBadge = '<span class="badge bg-secondary">중지됨</span>'; break;
-          case 'paused': statusBadge = '<span class="badge bg-warning">일시정지</span>'; break;
-          case 'suspended': statusBadge = '<span class="badge bg-info">일시중단</span>'; break;
-          default: statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
+    // 방화벽 그룹 목록을 먼저 가져오기
+    $.get('/firewall/groups', function(fwData) {
+      const firewallGroups = fwData.groups || [];
+      
+      $.get('/all_server_status', function(res) {
+        console.log('[instances.js] /all_server_status 응답:', res);
+        let html = '';
+        for (const [name, s] of Object.entries(res.servers)) {
+          // 상태별 배지 색상 결정
+          let statusBadge = '';
+          switch(s.status) {
+            case 'running': statusBadge = '<span class="badge bg-success">실행 중</span>'; break;
+            case 'stopped': statusBadge = '<span class="badge bg-secondary">중지됨</span>'; break;
+            case 'paused': statusBadge = '<span class="badge bg-warning">일시정지</span>'; break;
+            case 'suspended': statusBadge = '<span class="badge bg-info">일시중단</span>'; break;
+            default: statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
+          }
+          // 역할 드롭다운
+          let roleOptions = '<option value="">(선택 안 함)</option>';
+          for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
+            roleOptions += `<option value="${k}"${s.role===k?' selected':''}>${v}</option>`;
+          }
+          // 방화벽 그룹 드롭다운
+          let fwGroupOptions = '<option value="">(선택 안 함)</option>';
+          firewallGroups.forEach(group => {
+            fwGroupOptions += `<option value="${group.name}"${s.firewall_group===group.name?' selected':''}>${group.name}</option>`;
+          });
+          
+          html += `<tr data-server="${name}">
+            <td><a href="#" class="server-detail-link" data-server="${name}"><strong>${s.name}</strong></a></td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
+                  ${roleOptions}
+                </select>
+                <button class="btn btn-outline-primary btn-sm server-role-apply"><i class="fas fa-check"></i> <span>역할 적용</span></button>
+                <button class="btn btn-outline-danger btn-sm server-role-remove"${s.role?'':' disabled'}><i class="fas fa-trash"></i> <span>역할 삭제</span></button>
+              </div>
+            </td>
+            <td>${parseInt(s.cpu || 0)}코어</td>
+            <td>${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</td>
+            <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm server-firewall-group-select" style="min-width:120px;">
+                  ${fwGroupOptions}
+                </select>
+                <button class="btn btn-outline-primary btn-sm server-firewall-group-apply"><i class="fas fa-check"></i> <span>적용</span></button>
+                <button class="btn btn-outline-danger btn-sm server-firewall-group-remove"${s.firewall_group?'':' disabled'}><i class="fas fa-trash"></i> <span>해제</span></button>
+              </div>
+            </td>
+            <td>${statusBadge}</td>
+            <td>
+              <div class="btn-group" role="group">
+                <button class="btn btn-success btn-sm start-btn" title="시작" ${s.status === 'running' ? 'disabled' : ''}>
+                  <i class="fas fa-play"></i> 시작
+                </button>
+                <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
+                  <i class="fas fa-pause"></i> 중지
+                </button>
+                <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" ${s.status === 'stopped' ? 'disabled' : ''}>
+                  <i class="fas fa-redo"></i> 리부팅
+                </button>
+                <button class="btn btn-danger btn-sm delete-btn" title="삭제">
+                  <i class="fas fa-trash"></i> 삭제
+                </button>
+              </div>
+            </td>
+          </tr>`;
         }
-        // 역할 드롭다운
-        let roleOptions = '<option value="">(선택 안 함)</option>';
-        for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
-          roleOptions += `<option value="${k}"${s.role===k?' selected':''}>${v}</option>`;
-        }
-        html += `<tr data-server="${name}">
-          <td><a href="#" class="server-detail-link" data-server="${name}"><strong>${s.name}</strong></a></td>
-          <td>
-            <div class="d-flex align-items-center gap-2">
-              <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
-                ${roleOptions}
-              </select>
-              <button class="btn btn-outline-primary btn-sm server-role-apply"><i class="fas fa-check"></i> <span>역할 적용</span></button>
-              <button class="btn btn-outline-danger btn-sm server-role-remove"${s.role?'':' disabled'}><i class="fas fa-trash"></i> <span>역할 삭제</span></button>
-            </div>
-          </td>
-          <td>${parseInt(s.cpu || 0)}코어</td>
-          <td>${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</td>
-          <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
-          <td>${statusBadge}</td>
-          <td>
-            <div class="btn-group" role="group">
-              <button class="btn btn-success btn-sm start-btn" title="시작" ${s.status === 'running' ? 'disabled' : ''}>
-                <i class="fas fa-play"></i> 시작
-              </button>
-              <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
-                <i class="fas fa-pause"></i> 중지
-              </button>
-              <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" ${s.status === 'stopped' ? 'disabled' : ''}>
-                <i class="fas fa-redo"></i> 리부팅
-              </button>
-              <button class="btn btn-danger btn-sm delete-btn" title="삭제">
-                <i class="fas fa-trash"></i> 삭제
-              </button>
-            </div>
-          </td>
-        </tr>`;
-      }
-      $('#active-server-table tbody').html(html);
-      console.log('[instances.js] 서버 목록 렌더링 완료');
+        $('#active-server-table tbody').html(html);
+        console.log('[instances.js] 서버 목록 렌더링 완료');
+      }).fail(function(xhr) {
+        console.error('[instances.js] /all_server_status 실패:', xhr);
+      });
     }).fail(function(xhr) {
-      console.error('[instances.js] /all_server_status 실패:', xhr);
+      console.error('[instances.js] 방화벽 그룹 목록 조회 실패:', xhr);
     });
   }
   loadActiveServers();
@@ -581,6 +603,76 @@ function initializeServerForm() {
       }
       
       addSystemNotification('error', '역할 삭제', `${server} 서버 역할 삭제 실패: ${errorMsg}`);
+    });
+  });
+
+  // 방화벽 그룹 적용
+  $(document).off('click', '.server-firewall-group-apply').on('click', '.server-firewall-group-apply', function() {
+    console.log('[instances.js] .server-firewall-group-apply 클릭');
+    const btn = $(this);
+    const tr = btn.closest('tr');
+    const server = tr.data('server');
+    const firewallGroup = tr.find('.server-firewall-group-select').val();
+    
+    if (!firewallGroup) {
+      addSystemNotification('error', '방화벽 그룹 적용', '방화벽 그룹을 선택해주세요.');
+      return;
+    }
+    
+    // 시작 알림 추가
+    addSystemNotification('info', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹을 적용하는 중...`);
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>적용 중...</span>');
+    $.post(`/assign_firewall_group/${server}`, { firewall_group: firewallGroup }, function(res) {
+      console.log('[instances.js] /assign_firewall_group 성공', res);
+      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
+      loadActiveServers();
+      addSystemNotification('success', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹이 성공적으로 적용되었습니다.`);
+    }).fail(function(xhr) {
+      console.error('[instances.js] /assign_firewall_group 실패', xhr);
+      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
+      
+      let errorMsg = '알 수 없는 오류';
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 방화벽 그룹 할당 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '방화벽 그룹 적용', `${server} 서버 방화벽 그룹 적용 실패: ${errorMsg}`);
+    });
+  });
+
+  // 방화벽 그룹 해제
+  $(document).off('click', '.server-firewall-group-remove').on('click', '.server-firewall-group-remove', async function() {
+    console.log('[instances.js] .server-firewall-group-remove 클릭');
+    const btn = $(this);
+    const tr = btn.closest('tr');
+    const server = tr.data('server');
+    const ok = await confirmModal('정말로 이 서버의 방화벽 그룹을 해제하시겠습니까?');
+    if (!ok) return;
+    
+    // 시작 알림 추가
+    addSystemNotification('info', '방화벽 그룹 해제', `${server} 서버의 방화벽 그룹을 해제하는 중...`);
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>해제 중...</span>');
+    $.post(`/remove_firewall_group/${server}`, {}, function(res) {
+      console.log('[instances.js] /remove_firewall_group 성공', res);
+      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>해제</span>');
+      loadActiveServers();
+      addSystemNotification('success', '방화벽 그룹 해제', `${server} 서버의 방화벽 그룹이 성공적으로 해제되었습니다.`);
+    }).fail(function(xhr) {
+      console.error('[instances.js] /remove_firewall_group 실패', xhr);
+      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>해제</span>');
+      
+      let errorMsg = '알 수 없는 오류';
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 방화벽 그룹 해제 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      addSystemNotification('error', '방화벽 그룹 해제', `${server} 서버 방화벽 그룹 해제 실패: ${errorMsg}`);
     });
   });
 

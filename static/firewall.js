@@ -1,23 +1,13 @@
-$(document).ready(function() {
-  if (location.hash === '#firewall-groups') {
-    loadFirewallGroups();
-  }
-
-  $(window).on('hashchange', function() {
-    if (location.hash === '#firewall-groups') {
-      loadFirewallGroups();
-    }
-  });
-
-  function loadFirewallGroups() {
+// 전역 함수로 정의
+function loadFirewallGroups() {
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get('/firewall/groups', function(data) {
-      $.get('/templates/partials/firewall_groups_content.html', function(html) {
+      $.get('/firewall/groups/content', function(html) {
         $('#main-content').html(html);
         renderGroups(data.groups || []);
       });
     });
-  }
+}
 
   function renderGroups(groups) {
     const $tbody = $('#fw-group-tbody');
@@ -41,36 +31,18 @@ $(document).ready(function() {
     });
   }
 
-  // 상세 버튼 클릭 시 상세 페이지로 이동
-  $(document).on('click', '.fw-detail-btn', function() {
-    const group = $(this).data('group');
-    location.hash = `#firewall-group-${group}`;
-  });
-
-  // 해시 변경 시 상세 페이지 진입 처리
-  $(window).on('hashchange', function() {
-    if (location.hash.startsWith('#firewall-group-')) {
-      const group = decodeURIComponent(location.hash.replace('#firewall-group-', ''));
-      loadFirewallGroupDetail(group);
-    }
-  });
-
-  if (location.hash.startsWith('#firewall-group-')) {
-    const group = decodeURIComponent(location.hash.replace('#firewall-group-', ''));
-    loadFirewallGroupDetail(group);
-  }
-
-  function loadFirewallGroupDetail(group) {
+// 전역 함수로 정의
+function loadFirewallGroupDetail(group) {
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get(`/firewall/groups/${group}/rules`, function(data) {
-      $.get('/templates/partials/firewall_group_detail_content.html', function(html) {
+      $.get('/firewall/group-detail/content', function(html) {
         $('#main-content').html(html);
         $('#fw-group-title').text(`방화벽 그룹: ${data.group.name}`);
         $('#fw-group-desc').text(data.group.description || '');
         renderRules(data.rules || []);
       });
     });
-  }
+}
 
   function renderRules(rules) {
     const $tbody = $('#fw-rule-tbody');
@@ -92,6 +64,15 @@ $(document).ready(function() {
       `);
     });
   }
+
+// 이벤트 리스너들을 document.ready로 감싸기
+$(function() {
+  loadFirewallGroups();
+  // 상세 버튼 클릭 시 상세 페이지로 이동
+  $(document).on('click', '.fw-detail-btn', function() {
+    const group = $(this).data('group');
+    location.hash = `#firewall-group-${group}`;
+  });
 
   // 규칙 추가 버튼 클릭 시 모달 표시
   $(document).on('click', '#fw-rule-add-btn', function() {
@@ -186,4 +167,113 @@ $(document).ready(function() {
   });
 
   // 신규 그룹 추가, 상세, 삭제 등 이벤트 핸들러는 추후 구현
-}); 
+  
+  // 목록으로 돌아가기 버튼
+  $(document).on('click', '#fw-group-list-btn', function() {
+    location.hash = '#firewall-groups';
+  });
+  
+  // 모달 생성 전 기존 모달 제거
+  function removeExistingModal(modalId) {
+    const $modal = $(modalId);
+    if ($modal.length) {
+      $modal.modal('hide');
+      $modal.remove();
+    }
+  }
+  // 새 그룹 추가 버튼 클릭 시 모달 표시
+  $(document).on('click', '#add-fw-group-btn', function() {
+    removeExistingModal('#fw-group-add-modal');
+    const modalHtml = `
+      <div class="modal fade" id="fw-group-add-modal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-plus me-2"></i>새 그룹 추가</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="fw-group-add-form">
+                <div class="mb-2">
+                  <label class="form-label">그룹명</label>
+                  <input type="text" class="form-control" name="name" required maxlength="32">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label">설명</label>
+                  <input type="text" class="form-control" name="description" maxlength="100">
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="submit" class="btn btn-primary" form="fw-group-add-form">추가</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    $(modalHtml).appendTo('body');
+    const $modal = $('#fw-group-add-modal');
+    $modal.modal('show');
+    $modal.on('hidden.bs.modal', function() { $modal.remove(); });
+  });
+  
+  // 새 그룹 추가 폼 제출
+  $(document).on('submit', '#fw-group-add-form', function(e) {
+    e.preventDefault();
+    const data = $(this).serialize();
+    $.post('/firewall/groups', data, function(resp) {
+      if (resp.success) {
+        $('.modal').modal('hide');
+        loadFirewallGroups();
+      } else {
+        alert(resp.error || '그룹 추가 실패');
+      }
+    });
+  });
+  
+  // 그룹 삭제 버튼 클릭 시 모달 중복 방지
+  $(document).on('click', '.fw-delete-btn', function() {
+    removeExistingModal('#fw-group-delete-modal');
+    const group = $(this).data('group');
+    const modalHtml = `
+      <div class="modal fade" id="fw-group-delete-modal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-trash me-2"></i>그룹 삭제</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2">정말 <b>${group}</b> 그룹을 삭제하시겠습니까?</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+              <button type="button" class="btn btn-danger" id="fw-group-delete-confirm-btn" data-group="${group}">삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    $(modalHtml).appendTo('body');
+    const $modal = $('#fw-group-delete-modal');
+    $modal.modal('show');
+    $modal.on('hidden.bs.modal', function() { $modal.remove(); });
+  });
+
+  // 삭제 확인 버튼 클릭
+  $(document).off('click', '#fw-group-delete-confirm-btn').on('click', '#fw-group-delete-confirm-btn', function() {
+    const group = $(this).data('group');
+    $.ajax({
+      url: `/firewall/groups/${encodeURIComponent(group)}`,
+      type: 'DELETE',
+      success: function(resp) {
+        $('.modal').modal('hide');
+        loadFirewallGroups();
+      }
+    });
+  });
+
+  // 규칙 추가/삭제 모달 닫힘 보장
+  $(document).on('hidden.bs.modal', '.modal', function() { $(this).remove(); });
+});
