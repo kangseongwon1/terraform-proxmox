@@ -1763,15 +1763,6 @@ def delete_firewall_group_rule(group_name, rule_id):
         return jsonify({'success': False, 'error': '규칙을 찾을 수 없습니다.'}), 404
     return jsonify({'success': True, 'message': '규칙이 삭제되었습니다.'})
 
-# 방화벽 그룹 삭제 시 해당 그룹의 규칙도 함께 삭제
-@app.route('/firewall/groups/<group_name>', methods=['DELETE'])
-def delete_firewall_group(group_name):
-    idx = get_group_index(group_name)
-    if idx == -1:
-        return jsonify({'success': False, 'error': '존재하지 않는 그룹입니다.'}), 404
-    del FIREWALL_GROUPS[idx]
-    db.delete_firewall_rules_by_group(group_name)
-    return jsonify({'success': True, 'message': '그룹이 삭제되었습니다.'})
 
 @app.route('/assign_firewall_group/<server_name>', methods=['POST'])
 @permission_required('assign_firewall_group')
