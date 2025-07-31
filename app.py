@@ -14,6 +14,7 @@ from functools import wraps
 from database import db
 import requests
 import uuid
+from typing import Dict, List, Optional, Tuple, Any, Union
 
 # .env 파일 로드
 try:
@@ -22,6 +23,17 @@ try:
 except ImportError:
     print("python-dotenv가 설치되지 않았습니다. pip install python-dotenv")
     pass
+
+# 로깅 설정 (파일 상단으로 이동)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler('app.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Vault 토큰 자동 설정
 def setup_vault_token():
@@ -320,13 +332,31 @@ def mark_as_read(notification_id):
 # terraform.tfvars.json의 servers map 읽기
 
 def read_servers_from_tfvars():
-    with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        obj = json.load(f)
-        return obj.get('servers', {})
+    try:
+        with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
+            obj = json.load(f)
+            return obj.get('servers', {})
+    except FileNotFoundError:
+        logger.warning(f"terraform.tfvars.json 파일이 존재하지 않습니다: {TFVARS_PATH}")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.error(f"terraform.tfvars.json 파일 파싱 오류: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"terraform.tfvars.json 파일 읽기 오류: {e}")
+        return {}
 
 def write_servers_to_tfvars(servers, other_vars=None):
-    with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
-        obj = json.load(f)
+    try:
+        # 파일이 존재하면 읽기, 없으면 새로 생성
+        if os.path.exists(TFVARS_PATH):
+            with open(TFVARS_PATH, 'r', encoding='utf-8') as f:
+                obj = json.load(f)
+        else:
+            obj = {}
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.warning(f"기존 terraform.tfvars.json 파일을 읽을 수 없어 새로 생성합니다: {e}")
+        obj = {}
     
     # 기존 서버들의 file_format 보존
     existing_servers = obj.get('servers', {})
@@ -489,33 +519,24 @@ def delete_user(username):
     
     return jsonify({'success': True, 'message': f'사용자 {username}이(가) 삭제되었습니다.'})
 
-@app.route('/users/<username>/permissions', methods=['POST'])
-@permission_required('manage_users')
-def change_user_permissions(username):
-    data = request.json
-    permissions = data.get('permissions', [])
-    
+def update_user_permissions(username, permissions):
+    """사용자 권한 업데이트 (공통 함수)"""
     user = db.get_user_by_username(username)
     if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+        return False, '사용자를 찾을 수 없습니다.'
     
     if user.get('role') == 'admin':
-        return jsonify({'error': 'admin 권한은 변경할 수 없습니다.'}), 400
+        return False, 'admin 권한은 변경할 수 없습니다.'
     
     # 권한 완전 교체
     db.set_user_permissions(user['id'], permissions)
-    
-    return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
+    return True, f'{username}의 권한이 변경되었습니다.'
 
-@app.route('/users/<username>/role', methods=['POST'])
-@permission_required('manage_users')
-def change_user_role(username):
-    data = request.json
-    new_role = data.get('role')
-    
+def update_user_role(username, new_role):
+    """사용자 역할 업데이트 (공통 함수)"""
     user = db.get_user_by_username(username)
     if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+        return False, '사용자를 찾을 수 없습니다.'
     
     # 역할 변경
     with db.get_connection() as conn:
@@ -531,7 +552,31 @@ def change_user_role(username):
     if new_role == 'admin':
         db.set_user_permissions(user['id'], PERMISSION_LIST.copy())
     
-    return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
+    return True, f'{username}의 역할이 {new_role}로 변경되었습니다.'
+
+@app.route('/users/<username>/permissions', methods=['POST'])
+@permission_required('manage_users')
+def change_user_permissions(username):
+    data = request.json
+    permissions = data.get('permissions', [])
+    
+    success, message = update_user_permissions(username, permissions)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 400
+
+@app.route('/users/<username>/role', methods=['POST'])
+@permission_required('manage_users')
+def change_user_role(username):
+    data = request.json
+    new_role = data.get('role')
+    
+    success, message = update_user_role(username, new_role)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 400
 
 @app.route('/change-password', methods=['POST'])
 @login_required
@@ -779,17 +824,18 @@ def do_create_server(task_id, data):
     try:
         update_task(task_id, 'progress', '서버 생성 중...')
         
-        # 알림: 서버 생성 시작
-        add_notification(
-            type='server_create',
-            title='서버 생성 시작',
-            message=f'서버 "{data.get("name", "Unknown")}" 생성이 시작되었습니다.',
-            severity='info',
-            user_id='system'
+        # 공통 알림 함수 사용
+        add_server_notification(
+            'server_create',
+            '서버 생성 시작',
+            f'서버 "{data.get("name", "Unknown")}" 생성이 시작되었습니다.',
+            severity='info'
         )
         
         servers = read_servers_from_tfvars()
         server_name = data['name']
+        
+        # 유효성 검사
         if not server_name:
             logger.error("[create_server] 서버 이름 누락")
             update_task(task_id, 'error', '서버 이름(name)을 입력해야 합니다.')
@@ -798,31 +844,11 @@ def do_create_server(task_id, data):
             logger.error(f"[create_server] 중복 서버 이름: {server_name}")
             update_task(task_id, 'error', f'이미 동일한 이름({server_name})의 서버가 존재합니다.')
             return
-        if 'role' not in data or not data['role']:
-            data['role'] = ''
+        
+        # 공통 서버 데이터 처리 함수 사용
         os_type = data.get('os_type', 'rocky')
-        # 서버별 vm_username, vm_password가 설정되어 있지 않으면 기본값 사용
-        if 'vm_username' not in data or not data['vm_username']:
-            data['vm_username'] = get_default_username(os_type)
-        if 'vm_password' not in data or not data['vm_password']:
-            data['vm_password'] = get_default_password(os_type)
-        if 'disks' in data:
-            for disk in data['disks']:
-                if 'datastore_id' not in disk or not disk['datastore_id']:
-                    disk['datastore_id'] = 'local-lvm'
-                # datastore_id에서 disk_type 추론
-                if 'disk_type' not in disk:
-                    if disk['datastore_id'] == 'ssd':
-                        disk['disk_type'] = 'ssd'
-                    else:
-                        disk['disk_type'] = 'hdd'
-                # 파일 포맷 기본값 설정 (기존 설정 유지)
-                if 'file_format' not in disk:
-                    disk['file_format'] = 'auto'
-        if 'network_devices' in data:
-            for net in data['network_devices']:
-                if 'bridge' not in net or not net['bridge']:
-                    net['bridge'] = 'vmbr0'
+        data = process_server_data(data, os_type)
+        
         # 새 서버 정보를 tfvars에 먼저 기록 (Terraform apply 전)
         servers[server_name] = data
         write_servers_to_tfvars(servers)
@@ -830,53 +856,31 @@ def do_create_server(task_id, data):
         # Terraform apply 실행
         ok, out, terr = run_terraform_apply()
         if not ok:
-            # Terraform apply 실패 시 tfvars에서 새 서버 정보 제거
-            if server_name in servers:
-                del servers[server_name]
-                write_servers_to_tfvars(servers)
-            update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
-            add_notification(
-                type='server_error',
-                title='서버 생성 실패',
-                message=f'서버 "{server_name}" 생성 중 오류가 발생했습니다.',
-                details=terr,
-                severity='error',
-                user_id='system'
-            )
+            # 공통 실패 처리 함수 사용
+            handle_terraform_failure(servers, [server_name], task_id, terr)
             return
-        # Proxmox에서 VM 정보 조회 및 DB 저장
-        vm_info = get_vm_info_from_proxmox(server_name)
-        if vm_info:
-            db.add_server(
-                name=server_name,
-                vmid=vm_info.get('vmid'),
-                status=vm_info.get('status', 'pending'),
-                ip_address=vm_info.get('ip_address'),
-                role=data.get('role', ''),
-                os_type=data.get('os_type', ''),
-                cpu=int(data.get('cpu', 0)) if data.get('cpu') is not None else None,
-                memory=int(data.get('memory', 0)) if data.get('memory') is not None else None
-            )
         
-        # 알림: 서버 생성 완료
-        add_notification(
-            type='server_create',
-            title='서버 생성 완료',
-            message=f'서버 "{server_name}" 생성이 완료되었습니다.',
-            severity='success',
-            user_id='system'
+        # 공통 DB 저장 함수 사용
+        vm_info = get_vm_info_from_proxmox(server_name)
+        save_server_to_db(server_name, data, vm_info)
+        
+        # 공통 알림 함수 사용
+        add_server_notification(
+            'server_create',
+            '서버 생성 완료',
+            f'서버 "{server_name}" 생성이 완료되었습니다.',
+            severity='success'
         )
         
         update_task(task_id, 'success', f'{server_name} 서버 생성 완료')
     except Exception as e:
         update_task(task_id, 'error', f'서버 생성 중 예외: {str(e)}')
-        add_notification(
-            type='server_error',
-            title='서버 생성 실패',
-            message=f'서버 생성 중 예외가 발생했습니다.',
+        add_server_notification(
+            'server_error',
+            '서버 생성 실패',
+            f'서버 생성 중 예외가 발생했습니다.',
             details=str(e),
-            severity='error',
-            user_id='system'
+            severity='error'
         )
 
 # --- 다중 서버 생성 비동기 처리 ---
@@ -884,13 +888,12 @@ def do_create_servers_bulk(task_id, servers_input):
     try:
         update_task(task_id, 'progress', f'{len(servers_input)}개 서버 생성 중...')
         
-        # 알림: 전체 서버 생성 시작
-        add_notification(
-            type='server_create',
-            title='다중 서버 생성 시작',
-            message=f'{len(servers_input)}개의 서버 생성이 시작되었습니다.',
-            severity='info',
-            user_id='system'
+        # 공통 알림 함수 사용
+        add_server_notification(
+            'server_create',
+            '다중 서버 생성 시작',
+            f'{len(servers_input)}개의 서버 생성이 시작되었습니다.',
+            severity='info'
         )
         
         servers = read_servers_from_tfvars()
@@ -898,6 +901,7 @@ def do_create_servers_bulk(task_id, servers_input):
         failed = []
         names = []
         
+        # 서버 데이터 전처리
         for s in servers_input:
             name = s.get('name')
             if not name or not s.get('network_devices'):
@@ -906,40 +910,10 @@ def do_create_servers_bulk(task_id, servers_input):
             if name in servers:
                 failed.append({'name': name, 'error': '이미 존재하는 서버 이름'})
                 continue
-            # 서버 데이터 복사
-            server_data = {
-                'name': name,
-                'role': s.get('role', ''),
-                'cpu': s.get('cpu'),
-                'memory': s.get('memory'),
-                'disks': s.get('disks', []),
-                'network_devices': s.get('network_devices', []),
-                'template_vm_id': s.get('template_vm_id'),
-                'vm_username': s.get('vm_username'),
-                'vm_password': s.get('vm_password'),
-            }
             
-            # vm_username, vm_password 기본값 설정
+            # 공통 서버 데이터 처리 함수 사용
             os_type = s.get('os_type', 'rocky')
-            if not server_data.get('vm_username'):
-                server_data['vm_username'] = get_default_username(os_type)
-            if not server_data.get('vm_password'):
-                server_data['vm_password'] = get_default_password(os_type)
-            
-            # 디스크 설정 처리 (do_create_server와 동일한 로직)
-            if 'disks' in server_data:
-                for disk in server_data['disks']:
-                    if 'datastore_id' not in disk or not disk['datastore_id']:
-                        disk['datastore_id'] = 'local-lvm'
-                    # datastore_id에서 disk_type 추론
-                    if 'disk_type' not in disk:
-                        if disk['datastore_id'] == 'ssd':
-                            disk['disk_type'] = 'ssd'
-                        else:
-                            disk['disk_type'] = 'hdd'
-                    # 파일 포맷 기본값 설정 (기존 설정 유지)
-                    if 'file_format' not in disk:
-                        disk['file_format'] = 'auto'
+            server_data = process_server_data(s, os_type)
             
             created.append(name)
             names.append(name)
@@ -954,55 +928,31 @@ def do_create_servers_bulk(task_id, servers_input):
         # Terraform apply 실행
         ok, out, terr = run_terraform_apply()
         if not ok:
-            # Terraform apply 실패 시 tfvars에서 새 서버 정보 제거
-            for name in names:
-                if name in servers:
-                    del servers[name]
-            write_servers_to_tfvars(servers)
-            update_task(task_id, 'error', f'Terraform apply 실패: {terr}')
-            add_notification(
-                type='server_error',
-                title='다중 서버 생성 실패',
-                message=f'서버 생성 중 오류 발생: {terr}',
-                details=out,
-                severity='error',
-                user_id='system'
-            )
+            # 공통 실패 처리 함수 사용
+            handle_terraform_failure(servers, names, task_id, terr)
             return
         
         # Proxmox에서 VM 정보 조회 및 DB 저장 (각 서버별)
         for name in names:
             vm_info = get_vm_info_from_proxmox(name)
-            if vm_info:
-                db.add_server(
-                    name=name,
-                    vmid=vm_info.get('vmid'),
-                    status=vm_info.get('status', 'pending'),
-                    ip_address=vm_info.get('ip_address'),
-                    role=servers[name].get('role', ''),
-                    os_type=servers[name].get('os_type', ''),
-                    cpu=int(servers[name].get('cpu')) if servers[name].get('cpu') is not None else None,
-                    memory=int(servers[name].get('memory')) if servers[name].get('memory') is not None else None
-                )
+            save_server_to_db(name, servers[name], vm_info)
         
-        # 알림: 전체 서버 생성 완료
-        add_notification(
-            type='server_create',
-            title='다중 서버 생성 완료',
-            message=f'{len(created)}개의 서버가 성공적으로 생성되었습니다.',
-            severity='success',
-            user_id='system'
+        # 공통 알림 함수 사용
+        add_server_notification(
+            'server_create',
+            '다중 서버 생성 완료',
+            f'{len(created)}개의 서버가 성공적으로 생성되었습니다.',
+            severity='success'
         )
         
         update_task(task_id, 'success', f'{len(created)}개 서버 생성 완료')
     except Exception as e:
         update_task(task_id, 'error', f'다중 서버 생성 중 예외: {str(e)}')
-        add_notification(
-            type='server_error',
-            title='다중 서버 생성 실패',
-            message=f'서버 생성 중 예외 발생: {str(e)}',
-            severity='error',
-            user_id='system'
+        add_server_notification(
+            'server_error',
+            '다중 서버 생성 실패',
+            f'서버 생성 중 예외 발생: {str(e)}',
+            severity='error'
         )
 
 @app.route('/delete_server/<server_name>', methods=['POST'])
@@ -1172,72 +1122,35 @@ def reboot_server(server_name):
 def get_server_status(server_name):
     """특정 서버의 상태를 Proxmox에서 가져오기"""
     try:
-        import requests
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Proxmox API 설정 (환경 변수에서 가져오기)
-        proxmox_url = app.config['PROXMOX_ENDPOINT']
-        username = app.config['PROXMOX_USERNAME']
-        password = app.config['PROXMOX_PASSWORD']
+        # 공통 인증 함수 사용
+        headers, error = get_proxmox_auth()
+        if error:
+            return jsonify({'error': error}), 401
         
-        # API 인증
-        auth_url = f"{proxmox_url}/api2/json/access/ticket"
-        auth_data = {
-            'username': username,
-            'password': password
-        }
+        # 공통 VM 목록 조회 함수 사용
+        vms, error = get_proxmox_vms(headers)
+        if error:
+            return jsonify({'error': error}), 500
         
-        auth_response = requests.post(auth_url, data=auth_data, verify=False)
-        if auth_response.status_code != 200:
-            return jsonify({'error': 'Proxmox 인증 실패'}), 401
-        
-        auth_result = auth_response.json()
-        if 'data' not in auth_result:
-            return jsonify({'error': '인증 토큰을 가져올 수 없습니다'}), 401
-        
-        ticket = auth_result['data']['ticket']
-        csrf_token = auth_result['data']['CSRFPreventionToken']
-        
-        # VM 목록 가져오기
-        headers = {
-            'Cookie': f'PVEAuthCookie={ticket}',
-            'CSRFPreventionToken': csrf_token
-        }
-        
-        # 모든 노드에서 VM 검색
-        nodes_url = f"{proxmox_url}/api2/json/nodes"
-        nodes_response = requests.get(nodes_url, headers=headers, verify=False)
-        
-        if nodes_response.status_code != 200:
-            return jsonify({'error': '노드 정보를 가져올 수 없습니다'}), 500
-        
-        nodes = nodes_response.json().get('data', [])
-        
-        # 모든 노드에서 VM 검색
-        for node in nodes:
-            node_name = node['node']
-            vms_url = f"{proxmox_url}/api2/json/nodes/{node_name}/qemu"
-            vms_response = requests.get(vms_url, headers=headers, verify=False)
-            
-            if vms_response.status_code == 200:
-                vms = vms_response.json().get('data', [])
-                for vm in vms:
-                    if vm['name'] == server_name:
-                        # VM 상태 정보 반환
-                        status_info = {
-                            'name': vm['name'],
-                            'status': vm['status'],  # running, stopped, paused 등
-                            'vmid': vm['vmid'],
-                            'node': node_name,
-                            'cpu': vm.get('cpu', 0),
-                            'memory': vm.get('mem', 0),
-                            'maxmem': vm.get('maxmem', 0),
-                            'uptime': vm.get('uptime', 0),
-                            'disk': vm.get('disk', 0),
-                            'maxdisk': vm.get('maxdisk', 0)
-                        }
-                        return jsonify(status_info)
+        # 특정 서버 찾기
+        for vm in vms:
+            if vm['name'] == server_name:
+                status_info = {
+                    'name': vm['name'],
+                    'status': vm['status'],
+                    'vmid': vm['vmid'],
+                    'node': vm['node'],
+                    'cpu': vm.get('cpu', 0),
+                    'memory': vm.get('mem', 0),
+                    'maxmem': vm.get('maxmem', 0),
+                    'uptime': vm.get('uptime', 0),
+                    'disk': vm.get('disk', 0),
+                    'maxdisk': vm.get('maxdisk', 0)
+                }
+                return jsonify(status_info)
         
         return jsonify({'error': f'서버 {server_name}을 찾을 수 없습니다'}), 404
         
@@ -1249,94 +1162,59 @@ def get_server_status(server_name):
 def get_all_server_status():
     """모든 서버의 상태를 Proxmox에서 가져오기"""
     try:
-        import requests
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Proxmox API 설정 (환경 변수에서 가져오기)
-        proxmox_url = app.config['PROXMOX_ENDPOINT']
-        username = app.config['PROXMOX_USERNAME']
-        password = app.config['PROXMOX_PASSWORD']
+        # 공통 인증 함수 사용
+        headers, error = get_proxmox_auth()
+        if error:
+            return jsonify({'error': error}), 401
         
-        # API 인증
-        auth_url = f"{proxmox_url}/api2/json/access/ticket"
-        auth_data = {
-            'username': username,
-            'password': password
-        }
-        
-        auth_response = requests.post(auth_url, data=auth_data, verify=False)
-        if auth_response.status_code != 200:
-            return jsonify({'error': 'Proxmox 인증 실패'}), 401
-        
-        auth_result = auth_response.json()
-        if 'data' not in auth_result:
-            return jsonify({'error': '인증 토큰을 가져올 수 없습니다'}), 401
-        
-        ticket = auth_result['data']['ticket']
-        csrf_token = auth_result['data']['CSRFPreventionToken']
-        
-        # VM 목록 가져오기
-        headers = {
-            'Cookie': f'PVEAuthCookie={ticket}',
-            'CSRFPreventionToken': csrf_token
-        }
-        
-        # 모든 노드에서 VM 검색
-        nodes_url = f"{proxmox_url}/api2/json/nodes"
-        nodes_response = requests.get(nodes_url, headers=headers, verify=False)
-        
-        if nodes_response.status_code != 200:
-            return jsonify({'error': '노드 정보를 가져올 수 없습니다'}), 500
-        
-        nodes = nodes_response.json().get('data', [])
+        # 공통 VM 목록 조회 함수 사용
+        vms, error = get_proxmox_vms(headers)
+        if error:
+            return jsonify({'error': error}), 500
         
         all_servers = {}
         total_memory = 0
         running_count = 0
         stopped_count = 0
         
-        # 모든 노드에서 VM 검색
-        for node in nodes:
-            node_name = node['node']
-            vms_url = f"{proxmox_url}/api2/json/nodes/{node_name}/qemu"
-            vms_response = requests.get(vms_url, headers=headers, verify=False)
-            
-            if vms_response.status_code == 200:
-                vms = vms_response.json().get('data', [])
-                for vm in vms:
-                    # terraform.tfvars.json에 있는 서버만 필터링
-                    servers = read_servers_from_tfvars()
-                    if vm['name'] in servers:
-                        server_data = servers[vm['name']]
-                        # IP 정보 추출 (network_devices 또는 ip_addresses)
-                        ip_list = []
-                        if 'network_devices' in server_data and server_data['network_devices']:
-                            ip_list = [nd.get('ip_address') for nd in server_data['network_devices'] if nd.get('ip_address')]
-                        elif 'ip_addresses' in server_data and server_data['ip_addresses']:
-                            ip_list = server_data['ip_addresses']
-                        status_info = {
-                            'name': vm['name'],
-                            'status': vm['status'],  # running, stopped, paused 등
-                            'vmid': vm['vmid'],
-                            'node': node_name,
-                            'cpu': vm.get('cpu', 0),
-                            'memory': vm.get('mem', 0),
-                            'maxmem': vm.get('maxmem', 0),
-                            'uptime': vm.get('uptime', 0),
-                            'disk': vm.get('disk', 0),
-                            'maxdisk': vm.get('maxdisk', 0),
-                            'role': server_data.get('role', 'unknown'),
-                            'ip_addresses': ip_list
-                        }
-                        all_servers[vm['name']] = status_info
-                        
-                        # 통계 계산
-                        if vm['status'] == 'running':
-                            running_count += 1
-                            total_memory += vm.get('maxmem', 0)
-                        else:
-                            stopped_count += 1
+        # terraform.tfvars.json에 있는 서버만 필터링
+        servers = read_servers_from_tfvars()
+        
+        for vm in vms:
+            if vm['name'] in servers:
+                server_data = servers[vm['name']]
+                # IP 정보 추출 (network_devices 또는 ip_addresses)
+                ip_list = []
+                if 'network_devices' in server_data and server_data['network_devices']:
+                    ip_list = [nd.get('ip_address') for nd in server_data['network_devices'] if nd.get('ip_address')]
+                elif 'ip_addresses' in server_data and server_data['ip_addresses']:
+                    ip_list = server_data['ip_addresses']
+                
+                status_info = {
+                    'name': vm['name'],
+                    'status': vm['status'],
+                    'vmid': vm['vmid'],
+                    'node': vm['node'],
+                    'cpu': vm.get('cpu', 0),
+                    'memory': vm.get('mem', 0),
+                    'maxmem': vm.get('maxmem', 0),
+                    'uptime': vm.get('uptime', 0),
+                    'disk': vm.get('disk', 0),
+                    'maxdisk': vm.get('maxdisk', 0),
+                    'role': server_data.get('role', 'unknown'),
+                    'ip_addresses': ip_list
+                }
+                all_servers[vm['name']] = status_info
+                
+                # 통계 계산
+                if vm['status'] == 'running':
+                    running_count += 1
+                    total_memory += vm.get('maxmem', 0)
+                else:
+                    stopped_count += 1
         
         # 통계 정보 추가
         stats = {
@@ -1358,40 +1236,25 @@ def get_all_server_status():
 def proxmox_storage():
     logger.info("[proxmox_storage] 스토리지 정보 요청")
     try:
-        import requests
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Proxmox API 설정 (환경 변수에서 가져오기)
-        proxmox_url = app.config['PROXMOX_ENDPOINT']
-        username = app.config['PROXMOX_USERNAME']
-        password = app.config['PROXMOX_PASSWORD']
-        node = app.config['PROXMOX_NODE']
+        # 공통 인증 함수 사용
+        headers, error = get_proxmox_auth()
+        if error:
+            return {'error': error}, 401
         
-        # API 인증
-        auth_url = f"{proxmox_url}/api2/json/access/ticket"
-        auth_data = {
-            'username': username,
-            'password': password
-        }
-        
-        auth_response = requests.post(auth_url, data=auth_data, verify=False)
-        if auth_response.status_code != 200:
-            return {'error': 'Proxmox 인증 실패'}, 401
-        auth_result = auth_response.json()
-        ticket = auth_result['data']['ticket']
-        csrf_token = auth_result['data']['CSRFPreventionToken']
-        headers = {
-            'Cookie': f'PVEAuthCookie={ticket}',
-            'CSRFPreventionToken': csrf_token
-        }
         # 스토리지 정보 조회
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        node = app.config['PROXMOX_NODE']
         storage_url = f"{proxmox_url}/api2/json/nodes/{node}/storage"
         storage_response = requests.get(storage_url, headers=headers, verify=False)
+        
         logger.info(f"[proxmox_storage] Proxmox 응답: {storage_response.status_code}, {storage_response.text}")
         if storage_response.status_code != 200:
             logger.error("[proxmox_storage] 스토리지 정보를 가져올 수 없습니다")
             return {'error': '스토리지 정보를 가져올 수 없습니다'}, 500
+        
         storages = storage_response.json().get('data', [])
         # 용량 정보만 추출
         result = []
@@ -1449,31 +1312,16 @@ def deploy_infrastructure(project_path, config):
 
 def get_vm_info_from_proxmox(server_name):
     """Proxmox API에서 VM 이름으로 vmid, ip 등 정보 조회"""
-    proxmox_url = app.config['PROXMOX_ENDPOINT']
-    username = app.config['PROXMOX_USERNAME']
-    password = app.config['PROXMOX_PASSWORD']
-    node = app.config['PROXMOX_NODE']
-    # 인증
-    auth_url = f"{proxmox_url}/api2/json/access/ticket"
-    auth_data = {'username': username, 'password': password}
-    auth_response = requests.post(auth_url, data=auth_data, verify=False)
-    if auth_response.status_code != 200:
+    headers, error = get_proxmox_auth()
+    if error:
         return None
-    ticket = auth_response.json()['data']['ticket']
-    csrf_token = auth_response.json()['data']['CSRFPreventionToken']
-    headers = {
-        'Cookie': f'PVEAuthCookie={ticket}',
-        'CSRFPreventionToken': csrf_token
-    }
-    # VM 목록 조회
-    vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
-    vms_response = requests.get(vms_url, headers=headers, verify=False)
-    if vms_response.status_code != 200:
+    
+    vms, error = get_proxmox_vms(headers)
+    if error:
         return None
-    vms = vms_response.json().get('data', [])
+    
     for vm in vms:
         if vm['name'] == server_name:
-            # IP 정보는 별도 API 필요할 수 있음
             return {
                 'vmid': vm['vmid'],
                 'status': vm.get('status', ''),
@@ -1482,46 +1330,37 @@ def get_vm_info_from_proxmox(server_name):
     return None
 
 def check_proxmox_vm_exists(server_name):
-    proxmox_url = app.config['PROXMOX_ENDPOINT']
-    username = app.config['PROXMOX_USERNAME']
-    password = app.config['PROXMOX_PASSWORD']
-    node = app.config['PROXMOX_NODE']
-    # 인증
-    auth_url = f"{proxmox_url}/api2/json/access/ticket"
-    auth_data = {'username': username, 'password': password}
-    auth_response = requests.post(auth_url, data=auth_data, verify=False)
-    if auth_response.status_code != 200:
+    """Proxmox에서 VM 존재 여부 확인"""
+    headers, error = get_proxmox_auth()
+    if error:
         return False  # 인증 실패 시 존재하지 않는 것으로 간주
-    ticket = auth_response.json()['data']['ticket']
-    csrf_token = auth_response.json()['data']['CSRFPreventionToken']
-    headers = {
-        'Cookie': f'PVEAuthCookie={ticket}',
-        'CSRFPreventionToken': csrf_token
-    }
-    vms_url = f"{proxmox_url}/api2/json/nodes/{node}/qemu"
-    vms_response = requests.get(vms_url, headers=headers, verify=False)
-    if vms_response.status_code != 200:
+    
+    vms, error = get_proxmox_vms(headers)
+    if error:
         return False  # 조회 실패 시 존재하지 않는 것으로 간주
-    vms = vms_response.json().get('data', [])
+    
     for vm in vms:
         if vm['name'] == server_name:
             return True  # 아직 존재함
     return False  # 존재하지 않음
 
 def proxmox_api_auth():
-    proxmox_url = app.config['PROXMOX_ENDPOINT']
-    username = app.config['PROXMOX_USERNAME']
-    password = app.config['PROXMOX_PASSWORD']
-    auth_url = f"{proxmox_url}/api2/json/access/ticket"
-    auth_data = {'username': username, 'password': password}
-    resp = requests.post(auth_url, data=auth_data, verify=False)
-    if resp.status_code != 200:
+    """기존 호환성을 위한 함수 (deprecated)"""
+    headers, error = get_proxmox_auth()
+    if error:
         return None
-    data = resp.json()['data']
-    return {
-        'ticket': data['ticket'],
-        'csrf': data['CSRFPreventionToken']
-    }
+    
+    # 기존 형식으로 변환
+    cookie = headers.get('Cookie', '')
+    csrf = headers.get('CSRFPreventionToken', '')
+    
+    if 'PVEAuthCookie=' in cookie:
+        ticket = cookie.split('PVEAuthCookie=')[1].split(';')[0]
+        return {
+            'ticket': ticket,
+            'csrf': csrf
+        }
+    return None
 
 def proxmox_vm_action(vmid, action):
     proxmox_url = app.config['PROXMOX_ENDPOINT']
@@ -1641,16 +1480,7 @@ def get_default_password(os_type):
     }
     return defaults.get(os_type, 'rocky123')
 
-# 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler('app.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+
 
 @app.route('/admin/iam', methods=['GET'])
 @admin_required
@@ -1668,17 +1498,11 @@ def admin_iam_set_permissions(username):
     data = request.json
     permissions = data.get('permissions', [])
     
-    user = db.get_user_by_username(username)
-    if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    
-    if user.get('role') == 'admin':
-        return jsonify({'error': '관리자 권한은 변경할 수 없습니다.'}), 400
-    
-    # 권한 완전 교체
-    db.set_user_permissions(user['id'], permissions)
-    
-    return jsonify({'success': True, 'message': f'{username}의 권한이 변경되었습니다.'})
+    success, message = update_user_permissions(username, permissions)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 400
 
 @app.route('/admin/iam/<username>/role', methods=['POST'])
 @admin_required
@@ -1686,25 +1510,11 @@ def admin_iam_set_role(username):
     data = request.json
     new_role = data.get('role')
     
-    user = db.get_user_by_username(username)
-    if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    
-    # 역할 변경
-    with db.get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users 
-            SET role = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE username = ?
-        ''', (new_role, username))
-        conn.commit()
-    
-    # admin으로 변경 시 모든 권한 부여
-    if new_role == 'admin':
-        db.set_user_permissions(user['id'], PERMISSION_LIST.copy())
-    
-    return jsonify({'success': True, 'message': f'{username}의 역할이 {new_role}로 변경되었습니다.'})
+    success, message = update_user_role(username, new_role)
+    if success:
+        return jsonify({'success': True, 'message': message})
+    else:
+        return jsonify({'error': message}), 400
 
 @app.route('/dashboard/content')
 def dashboard_content():
@@ -1820,6 +1630,143 @@ def delete_firewall_group_rule(group_name, rule_id):
     """방화벽 그룹에서 규칙 삭제 (임시: 성공만 반환)"""
     # TODO: Proxmox API 연동
     return jsonify({'success': True, 'message': '규칙이 삭제되었습니다.'})
+
+# --- 공통 유틸리티 함수들 ---
+
+def get_proxmox_auth() -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+    """Proxmox API 인증 정보 반환 (공통 함수)"""
+    try:
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        username = app.config['PROXMOX_USERNAME']
+        password = app.config['PROXMOX_PASSWORD']
+        
+        auth_url = f"{proxmox_url}/api2/json/access/ticket"
+        auth_data = {'username': username, 'password': password}
+        
+        auth_response = requests.post(auth_url, data=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            return None, 'Proxmox 인증 실패'
+        
+        auth_result = auth_response.json()
+        if 'data' not in auth_result:
+            return None, '인증 토큰을 가져올 수 없습니다'
+        
+        ticket = auth_result['data']['ticket']
+        csrf_token = auth_result['data']['CSRFPreventionToken']
+        
+        headers = {
+            'Cookie': f'PVEAuthCookie={ticket}',
+            'CSRFPreventionToken': csrf_token
+        }
+        
+        return headers, None
+    except Exception as e:
+        return None, f'인증 중 예외 발생: {str(e)}'
+
+def get_proxmox_vms(headers: Dict[str, str]) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+    """Proxmox에서 모든 VM 목록 조회 (공통 함수)"""
+    try:
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        
+        # 모든 노드에서 VM 검색
+        nodes_url = f"{proxmox_url}/api2/json/nodes"
+        nodes_response = requests.get(nodes_url, headers=headers, verify=False)
+        
+        if nodes_response.status_code != 200:
+            return None, '노드 정보를 가져올 수 없습니다'
+        
+        nodes = nodes_response.json().get('data', [])
+        all_vms = []
+        
+        for node in nodes:
+            node_name = node['node']
+            vms_url = f"{proxmox_url}/api2/json/nodes/{node_name}/qemu"
+            vms_response = requests.get(vms_url, headers=headers, verify=False)
+            
+            if vms_response.status_code == 200:
+                vms = vms_response.json().get('data', [])
+                for vm in vms:
+                    vm['node'] = node_name
+                all_vms.extend(vms)
+        
+        return all_vms, None
+    except Exception as e:
+        return None, f'VM 목록 조회 중 예외 발생: {str(e)}'
+
+def process_server_data(server_data: Dict[str, Any], os_type: str = 'rocky') -> Dict[str, Any]:
+    """서버 데이터 전처리 (공통 함수)"""
+    # vm_username, vm_password 기본값 설정
+    if 'vm_username' not in server_data or not server_data['vm_username']:
+        server_data['vm_username'] = get_default_username(os_type)
+    if 'vm_password' not in server_data or not server_data['vm_password']:
+        server_data['vm_password'] = get_default_password(os_type)
+    
+    # 디스크 설정 처리
+    if 'disks' in server_data:
+        for disk in server_data['disks']:
+            if 'datastore_id' not in disk or not disk['datastore_id']:
+                disk['datastore_id'] = 'local-lvm'
+            # datastore_id에서 disk_type 추론
+            if 'disk_type' not in disk:
+                if disk['datastore_id'] == 'ssd':
+                    disk['disk_type'] = 'ssd'
+                else:
+                    disk['disk_type'] = 'hdd'
+            # 파일 포맷 기본값 설정
+            if 'file_format' not in disk:
+                disk['file_format'] = 'auto'
+    
+    # 네트워크 설정 처리
+    if 'network_devices' in server_data:
+        for net in server_data['network_devices']:
+            if 'bridge' not in net or not net['bridge']:
+                net['bridge'] = 'vmbr0'
+    
+    return server_data
+
+def save_server_to_db(server_name: str, server_data: Dict[str, Any], vm_info: Optional[Dict[str, Any]]) -> None:
+    """서버 정보를 DB에 저장 (공통 함수)"""
+    if vm_info:
+        db.add_server(
+            name=server_name,
+            vmid=vm_info.get('vmid'),
+            status=vm_info.get('status', 'pending'),
+            ip_address=vm_info.get('ip_address'),
+            role=server_data.get('role', ''),
+            os_type=server_data.get('os_type', ''),
+            cpu=int(server_data.get('cpu', 0)) if server_data.get('cpu') is not None else None,
+            memory=int(server_data.get('memory', 0)) if server_data.get('memory') is not None else None
+        )
+
+def add_server_notification(notification_type: str, title: str, message: str, 
+                           details: Optional[str] = None, severity: str = 'info') -> None:
+    """서버 관련 알림 추가 (공통 함수)"""
+    add_notification(
+        type=notification_type,
+        title=title,
+        message=message,
+        details=details,
+        severity=severity,
+        user_id='system'
+    )
+
+def handle_terraform_failure(servers: Dict[str, Any], server_names: List[str], 
+                           task_id: str, error_msg: str) -> None:
+    """Terraform 실패 시 정리 작업 (공통 함수)"""
+    # tfvars에서 새 서버 정보 제거
+    for name in server_names:
+        if name in servers:
+            del servers[name]
+    write_servers_to_tfvars(servers)
+    
+    update_task(task_id, 'error', f'Terraform apply 실패: {error_msg}')
+    add_server_notification(
+        'server_error',
+        '서버 생성 실패',
+        f'서버 생성 중 오류 발생: {error_msg}',
+        details=error_msg,
+        severity='error'
+    )
 
 if __name__ == '__main__':
     # 필요한 디렉토리 생성

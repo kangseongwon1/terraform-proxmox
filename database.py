@@ -420,11 +420,15 @@ class Database:
     def secure_db_file(self):
         """데이터베이스 파일 보안 처리"""
         if os.path.exists(self.db_path):
-            # 파일 권한 변경 (예: 읽기 전용)
-            os.chmod(self.db_path, 0o600)
-            # 파일 소유자 변경 (예: 현재 사용자)
-            os.chown(self.db_path, os.getuid(), os.getgid())
-            print(f"데이터베이스 파일 '{self.db_path}' 보안 처리되었습니다.")
+            try:
+                # 파일 권한 변경 (예: 읽기 전용)
+                os.chmod(self.db_path, 0o600)
+                # 파일 소유자 변경 (Unix/Linux 시스템에서만)
+                if hasattr(os, 'chown'):
+                    os.chown(self.db_path, os.getuid(), os.getgid())
+                print(f"데이터베이스 파일 '{self.db_path}' 보안 처리되었습니다.")
+            except Exception as e:
+                print(f"데이터베이스 파일 보안 처리 중 오류 (무시됨): {e}")
 
 # 전역 데이터베이스 인스턴스
 db = Database() 
