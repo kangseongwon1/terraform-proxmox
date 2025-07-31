@@ -218,11 +218,27 @@ $(function() {
             tableRows += `
               <tr data-sidx="${sidx}" data-nidx="${nidx}">
                 ${nidx === 0 ? `
-                  <td rowspan="${s.networks.length}">${s.name}</td>
+                  <td rowspan="${s.networks.length}">
+                    <input type="text" class="form-control form-control-sm summary-name" value="${s.name}" placeholder="서버명">
+                  </td>
                   <td rowspan="${s.networks.length}">${s.os}</td>
-                  <td rowspan="${s.networks.length}">${s.cpu}</td>
-                  <td rowspan="${s.networks.length}">${s.memory}</td>
-                  <td rowspan="${s.networks.length}">${s.disks.map(d=>`${d.size}GB/${d.interface}/${d.datastore_id}`).join('<br>')}</td>
+                  <td rowspan="${s.networks.length}">
+                    <input type="number" class="form-control form-control-sm summary-cpu" value="${s.cpu}" min="1" max="32" placeholder="코어">
+                  </td>
+                  <td rowspan="${s.networks.length}">
+                    <input type="number" class="form-control form-control-sm summary-memory" value="${s.memory}" min="1" max="128" placeholder="GB">
+                  </td>
+                  <td rowspan="${s.networks.length}">
+                    <div class="disk-inputs">
+                      ${s.disks.map((d, didx) => `
+                        <div class="mb-1">
+                          <input type="number" class="form-control form-control-sm summary-disk-size" 
+                                 data-disk-idx="${didx}" value="${d.size}" min="1" max="1000" placeholder="GB">
+                          <small class="text-muted">${d.interface}/${d.datastore_id}</small>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </td>
                   <td rowspan="${s.networks.length}">
                     <select class="form-select form-select-sm summary-role">${roleOptions.replace(`value=\"${s.role}\"`, `value=\"${s.role}\" selected`)}</select>
                   </td>
@@ -257,15 +273,56 @@ $(function() {
         $('#multiServerSummarySection tbody tr').each(function() {
           const sidx = $(this).data('sidx');
           const nidx = $(this).data('nidx');
+          
           if (nidx === 0) {
-            // 역할 select 반영
+            // 서버 기본 정보 반영
+            serverList[sidx].name = $(this).find('.summary-name').val();
+            serverList[sidx].cpu = parseInt($(this).find('.summary-cpu').val()) || 1;
+            serverList[sidx].memory = parseInt($(this).find('.summary-memory').val()) || 1;
             serverList[sidx].role = $(this).find('.summary-role').val();
+            
+            // 디스크 크기 반영
+            $(this).find('.summary-disk-size').each(function() {
+              const diskIdx = $(this).data('disk-idx');
+              const newSize = parseInt($(this).val()) || 1;
+              if (serverList[sidx].disks[diskIdx]) {
+                serverList[sidx].disks[diskIdx].size = newSize;
+              }
+            });
           }
+          
+          // 네트워크 정보 반영
           serverList[sidx].networks[nidx].bridge = $(this).find('.summary-bridge').val();
           serverList[sidx].networks[nidx].ip = $(this).find('.summary-ip').val();
           serverList[sidx].networks[nidx].subnet = $(this).find('.summary-subnet').val();
           serverList[sidx].networks[nidx].gateway = $(this).find('.summary-gateway').val();
         });
+        
+        // 유효성 검사
+        const errors = [];
+        serverList.forEach((s, idx) => {
+          if (!s.name || s.name.trim() === '') {
+            errors.push(`서버 ${idx + 1}: 서버명을 입력해주세요.`);
+          }
+          if (s.cpu < 1 || s.cpu > 32) {
+            errors.push(`서버 ${s.name}: CPU는 1-32 코어 사이여야 합니다.`);
+          }
+          if (s.memory < 1 || s.memory > 128) {
+            errors.push(`서버 ${s.name}: 메모리는 1-128 GB 사이여야 합니다.`);
+          }
+          s.disks.forEach((disk, diskIdx) => {
+            if (disk.size < 1 || disk.size > 1000) {
+              errors.push(`서버 ${s.name} 디스크 ${diskIdx + 1}: 디스크 크기는 1-1000 GB 사이여야 합니다.`);
+            }
+          });
+        });
+        
+        if (errors.length > 0) {
+          alertModal('입력 오류:\n' + errors.join('\n'));
+          $btn.prop('disabled', false).html('<i class="fas fa-plus me-2"></i>서버 생성');
+          $btn.data('processing', false);
+          return;
+        }
         
         // 서버 정보 배열 생성
         const servers = serverList.map(s => ({
