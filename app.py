@@ -1741,29 +1741,37 @@ def delete_firewall_group(group_name):
 
 @app.route('/firewall/groups/<group_name>/rules')
 def get_firewall_group_rules(group_name):
-    """Proxmox에서 방화벽 그룹 규칙 목록을 받아옴 (임시: 샘플 데이터 반환)"""
-    # TODO: Proxmox API 연동
-    sample = {
-        'group': {'name': group_name, 'description': f'{group_name} 그룹 설명'},
-        'rules': [
-            {'id': 1, 'direction': 'in', 'protocol': 'tcp', 'port': '80', 'source': '0.0.0.0/0', 'description': 'HTTP 허용'},
-            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '0.0.0.0/0', 'description': 'HTTPS 허용'},
-            {'id': 3, 'direction': 'in', 'protocol': 'tcp', 'port': '22', 'source': '0.0.0.0/0', 'description': 'SSH 허용'},
-        ]
-    }
-    return jsonify(sample)
+    rules = db.get_firewall_rules(group_name)
+    return jsonify({'group': {'name': group_name, 'description': f'{group_name} 그룹 설명'}, 'rules': rules})
 
 @app.route('/firewall/groups/<group_name>/rules', methods=['POST'])
 def add_firewall_group_rule(group_name):
-    """방화벽 그룹에 규칙 추가 (임시: 성공만 반환)"""
-    # TODO: Proxmox API 연동
+    direction = request.form.get('direction')
+    protocol = request.form.get('protocol')
+    port = request.form.get('port')
+    source = request.form.get('source')
+    description = request.form.get('description')
+    if not direction or not protocol or not port:
+        return jsonify({'success': False, 'error': '필수 항목 누락'}), 400
+    db.add_firewall_rule(group_name, direction, protocol, port, source, description)
     return jsonify({'success': True, 'message': '규칙이 추가되었습니다.'})
 
 @app.route('/firewall/groups/<group_name>/rules/<int:rule_id>', methods=['DELETE'])
 def delete_firewall_group_rule(group_name, rule_id):
-    """방화벽 그룹에서 규칙 삭제 (임시: 성공만 반환)"""
-    # TODO: Proxmox API 연동
+    ok = db.delete_firewall_rule(group_name, rule_id)
+    if not ok:
+        return jsonify({'success': False, 'error': '규칙을 찾을 수 없습니다.'}), 404
     return jsonify({'success': True, 'message': '규칙이 삭제되었습니다.'})
+
+# 방화벽 그룹 삭제 시 해당 그룹의 규칙도 함께 삭제
+@app.route('/firewall/groups/<group_name>', methods=['DELETE'])
+def delete_firewall_group(group_name):
+    idx = get_group_index(group_name)
+    if idx == -1:
+        return jsonify({'success': False, 'error': '존재하지 않는 그룹입니다.'}), 404
+    del FIREWALL_GROUPS[idx]
+    db.delete_firewall_rules_by_group(group_name)
+    return jsonify({'success': True, 'message': '그룹이 삭제되었습니다.'})
 
 @app.route('/assign_firewall_group/<server_name>', methods=['POST'])
 @permission_required('assign_firewall_group')
