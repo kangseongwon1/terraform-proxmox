@@ -155,6 +155,287 @@
       font-weight: 500;
     }
 
+    .stats-card .stats-subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 400;
+      margin-top: 0.5rem;
+    }
+
+    /* Resource Cards */
+    .resource-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+      height: 100%;
+    }
+
+    .resource-card:hover {
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      transform: translateY(-2px);
+    }
+
+    .resource-header {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      color: white;
+      border-radius: 8px 8px 0 0;
+      padding: 1rem 1.5rem;
+    }
+
+    .resource-header h5 {
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .resource-content {
+      padding: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .resource-ring-container {
+      flex-shrink: 0;
+    }
+
+    .resource-ring {
+      position: relative;
+      display: inline-block;
+    }
+
+    .resource-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .ring-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .ring-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      line-height: 1;
+    }
+
+    .ring-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .resource-details {
+      flex-grow: 1;
+    }
+
+    .resource-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .resource-item:last-child {
+      border-bottom: none;
+    }
+
+    .resource-label {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .resource-value {
+      color: var(--text-dark);
+      font-weight: 600;
+    }
+
+    /* Server Summary List */
+    .server-summary-container {
+      max-height: 400px;
+      overflow-y: auto;
+      transition: max-height 0.3s ease;
+      border-radius: 0 0 8px 8px;
+      cursor: pointer;
+      position: relative;
+      border: 2px solid transparent;
+      transition: max-height 0.3s ease, border-color 0.2s ease;
+    }
+
+    .server-summary-container:hover {
+      border-color: var(--primary-color);
+    }
+
+    .server-summary-container.expanded {
+      max-height: 600px;
+    }
+
+    .server-summary-container.maximized {
+      max-height: 80vh;
+    }
+
+    .server-summary-container::after {
+      content: "더블클릭으로 최대화";
+      position: absolute;
+      bottom: 5px;
+      right: 10px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      opacity: 0.7;
+      pointer-events: none;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    .server-summary-container.expanded::after,
+    .server-summary-container.maximized::after {
+      content: "더블클릭으로 복원";
+    }
+
+    .server-list-item {
+      display: flex;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    .server-list-item:hover {
+      background-color: var(--light-bg);
+    }
+
+    .server-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .server-list-item .server-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      margin-right: 1rem;
+      flex-shrink: 0;
+    }
+
+    .server-list-item .server-info {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .server-list-item .server-name {
+      font-weight: 600;
+      color: var(--text-dark);
+      min-width: 120px;
+    }
+
+    .server-list-item .server-role {
+      min-width: 80px;
+    }
+
+    .server-list-item .server-resources {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      min-width: 150px;
+    }
+
+    .server-list-item .server-ip {
+      min-width: 120px;
+      color: var(--text-muted);
+    }
+
+    .server-list-item .server-status {
+      min-width: 100px;
+      text-align: center;
+    }
+
+    /* Responsive Design for Server List */
+    @media (max-width: 768px) {
+      .server-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+
+      .server-list-item .server-icon {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+      }
+
+      .server-list-item .server-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        width: 100%;
+      }
+
+      .server-list-item .server-name,
+      .server-list-item .server-role,
+      .server-list-item .server-resources,
+      .server-list-item .server-ip,
+      .server-list-item .server-status {
+        min-width: auto;
+        width: 100%;
+      }
+
+      .server-list-item .server-resources {
+        justify-content: flex-start;
+      }
+
+      .server-list-item .server-status {
+        text-align: left;
+      }
+    }
+
+    .server-list-item .resource-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      background: var(--light-bg);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .server-list-item .resource-badge i {
+      color: var(--primary-color);
+    }
+
+    /* Scrollbar Styling */
+    .server-summary-container::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .server-summary-container::-webkit-scrollbar-track {
+      background: var(--light-bg);
+      border-radius: 4px;
+    }
+
+    .server-summary-container::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    .server-summary-container::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
     /* Buttons */
     .btn-primary {
       background: var(--primary-color);

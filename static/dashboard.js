@@ -20,16 +20,49 @@ $(function() {
   
   function updateDashboardStats(stats) {
     console.log('[dashboard.js] updateDashboardStats', stats);
+    
+    // 기본 서버 통계
     $('#total-servers').text(stats.total_servers);
     $('#running-servers').text(stats.running_servers);
     $('#stopped-servers').text(stats.stopped_servers);
-    $('#total-memory').text(Number(stats.total_memory_gb).toFixed(2));
+    
+    // CPU 리소스 정보
+    $('#node-total-cpu').text(stats.node_total_cpu + ' 코어');
+    $('#vm-total-cpu').text(stats.vm_total_cpu + ' 코어');
+    $('#vm-used-cpu').text(stats.vm_used_cpu + ' 코어');
+    
+    // 메모리 리소스 정보
+    $('#node-total-memory').text(stats.node_total_memory_gb + ' GB');
+    $('#vm-total-memory').text(stats.vm_total_memory_gb + ' GB');
+    $('#vm-used-memory').text(stats.vm_used_memory_gb + ' GB');
+    
+    // 원형 그래프 업데이트
+    updateResourceRing('cpu', stats.cpu_usage_percent);
+    updateResourceRing('memory', stats.memory_usage_percent);
+  }
+  
+  function updateResourceRing(type, percentage) {
+    const circumference = 2 * Math.PI * 50; // r=50
+    const offset = circumference - (percentage / 100) * circumference;
+    
+    $(`#${type}-progress`).css('stroke-dashoffset', offset);
+    $(`#${type}-usage-percent`).text(percentage + '%');
+    
+    // 색상 변경 (사용률에 따라)
+    let color = '#28a745'; // 기본 녹색
+    if (percentage > 80) {
+      color = '#dc3545'; // 빨간색 (80% 이상)
+    } else if (percentage > 60) {
+      color = '#ffc107'; // 노란색 (60% 이상)
+    }
+    
+    $(`#${type}-progress`).css('stroke', color);
   }
   
   // 대시보드 서버 요약 패널 렌더링
   function loadDashboardServers() {
     console.log('[dashboard.js] loadDashboardServers 호출');
-    $('#dashboard-server-panels').html('<div class="text-center text-muted">서버 정보를 불러오는 중...</div>');
+    $('#server-summary-container').html('<div class="text-center text-muted py-4">서버 정보를 불러오는 중...</div>');
     
     $.get('/all_server_status', function(res) {
       console.log('[dashboard.js] /all_server_status 응답:', res);
@@ -51,27 +84,41 @@ $(function() {
       const serverArr = Object.entries(servers);
       
       if (serverArr.length === 0) {
-        html = '<div class="text-center text-muted">등록된 서버가 없습니다.</div>';
+        html = '<div class="text-center text-muted py-4">등록된 서버가 없습니다.</div>';
       } else {
-        html = '<div class="row g-3">';
         serverArr.forEach(([name, s]) => {
-          html += `<div class="col-md-4 col-lg-3">
-            <div class="dashboard-card h-100 p-3" style="min-height:170px;">
-              <div class="d-flex align-items-center mb-2">
-                <i class="fas fa-server fa-lg me-2 text-primary"></i>
-                <span class="fw-bold">${s.name}</span>
+          html += `<div class="server-list-item">
+            <div class="server-icon">
+              <i class="fas fa-server"></i>
+            </div>
+            <div class="server-info">
+              <div class="server-name">${s.name}</div>
+              <div class="server-role">
+                <span class="badge bg-primary">${roleName(s)}</span>
               </div>
-              <div class="mb-1"><i class="fas fa-tag me-1"></i> <span class="badge bg-primary">${roleName(s)}</span></div>
-              <div class="mb-1"><i class="fas fa-microchip me-1"></i> ${parseInt(s.cpu || 0)}코어 <i class="fas fa-memory ms-2 me-1"></i> ${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</div>
-              <div class="mb-1"><i class="fas fa-network-wired me-1"></i> ${ipList(s)}</div>
-              <div class="mb-1">${statusBadge(s)}</div>
+              <div class="server-resources">
+                <span class="resource-badge">
+                  <i class="fas fa-microchip"></i>
+                  ${parseInt(s.cpu || 0)}코어
+                </span>
+                <span class="resource-badge">
+                  <i class="fas fa-memory"></i>
+                  ${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB
+                </span>
+              </div>
+              <div class="server-ip">
+                <i class="fas fa-network-wired me-1"></i>
+                ${ipList(s)}
+              </div>
+              <div class="server-status">
+                ${statusBadge(s)}
+              </div>
             </div>
           </div>`;
         });
-        html += '</div>';
       }
       
-      $('#dashboard-server-panels').html(html);
+      $('#server-summary-container').html(html);
       
       // 통계 업데이트
       if (res.stats) {
@@ -79,7 +126,7 @@ $(function() {
       }
     }).fail(function(xhr) {
       console.error('[dashboard.js] /all_server_status 실패:', xhr);
-      $('#dashboard-server-panels').html('<div class="text-center text-danger">서버 정보를 불러오지 못했습니다.</div>');
+      $('#server-summary-container').html('<div class="text-center text-danger py-4">서버 정보를 불러오지 못했습니다.</div>');
     });
   }
   
@@ -125,6 +172,53 @@ $(function() {
   // 최초 진입/새로고침/탭 전환 시 항상 최신 상태로 갱신
   loadDashboardServers();
   loadDashboardStorage();
+  
+  // 서버 요약 확장/축소 토글 기능
+  let serverSummaryExpanded = false;
+  
+  $('#toggle-server-summary-btn').on('click', function() {
+    console.log('[dashboard.js] 토글 버튼 클릭됨');
+    const container = $('#server-summary-container');
+    const icon = $('#toggle-server-summary-icon');
+    
+    if (serverSummaryExpanded) {
+      // 축소
+      container.removeClass('expanded maximized');
+      icon.removeClass('fa-compress-alt').addClass('fa-expand-alt');
+      serverSummaryExpanded = false;
+      console.log('[dashboard.js] 서버 요약 축소됨');
+    } else {
+      // 확장
+      container.addClass('expanded');
+      icon.removeClass('fa-expand-alt').addClass('fa-compress-alt');
+      serverSummaryExpanded = true;
+      console.log('[dashboard.js] 서버 요약 확장됨');
+    }
+  });
+  
+  // 서버 요약 컨테이너 더블클릭으로 최대화/복원 (이벤트 위임 사용)
+  $(document).on('dblclick', '#server-summary-container', function(e) {
+    console.log('[dashboard.js] 서버 요약 컨테이너 더블클릭됨');
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const container = $(this);
+    const icon = $('#toggle-server-summary-icon');
+    
+    if (container.hasClass('maximized')) {
+      // 복원
+      container.removeClass('maximized');
+      icon.removeClass('fa-compress-alt').addClass('fa-expand-alt');
+      serverSummaryExpanded = false;
+      console.log('[dashboard.js] 서버 요약 최대화에서 복원됨');
+    } else {
+      // 최대화
+      container.addClass('maximized');
+      icon.removeClass('fa-expand-alt').addClass('fa-compress-alt');
+      serverSummaryExpanded = true;
+      console.log('[dashboard.js] 서버 요약 최대화됨');
+    }
+  });
   
   // 새로고침 버튼 이벤트
   $('#dashboard-refresh-btn').on('click', function() {

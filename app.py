@@ -1218,13 +1218,30 @@ def get_all_server_status():
         if error:
             return jsonify({'error': error}), 401
         
+        # Proxmox 노드 정보 조회 (전체 리소스 확인)
+        proxmox_url = app.config['PROXMOX_ENDPOINT']
+        node = app.config['PROXMOX_NODE']
+        node_url = f"{proxmox_url}/api2/json/nodes/{node}/status"
+        node_response = requests.get(node_url, headers=headers, verify=False)
+        
+        if node_response.status_code != 200:
+            return jsonify({'error': '노드 정보를 가져올 수 없습니다'}), 500
+        
+        node_data = node_response.json()['data']
+        node_cpu_count = node_data.get('cpuinfo', {}).get('cpus', 0)
+        node_memory_total = node_data.get('memory', {}).get('total', 0)
+        node_memory_used = node_data.get('memory', {}).get('used', 0)
+        
         # 공통 VM 목록 조회 함수 사용
         vms, error = get_proxmox_vms(headers)
         if error:
             return jsonify({'error': error}), 500
         
         all_servers = {}
-        total_memory = 0
+        vm_total_cpu = 0
+        vm_total_memory = 0
+        vm_used_cpu = 0
+        vm_used_memory = 0
         running_count = 0
         stopped_count = 0
         
@@ -1241,6 +1258,9 @@ def get_all_server_status():
                 elif 'ip_addresses' in server_data and server_data['ip_addresses']:
                     ip_list = server_data['ip_addresses']
                 
+                # CPU 정보 추출 (tfvars에서 가져오거나 기본값 사용)
+                vm_cpu = server_data.get('cpu', 1)
+                
                 status_info = {
                     'name': vm['name'],
                     'status': vm['status'],
@@ -1253,23 +1273,43 @@ def get_all_server_status():
                     'disk': vm.get('disk', 0),
                     'maxdisk': vm.get('maxdisk', 0),
                     'role': server_data.get('role', 'unknown'),
-                    'ip_addresses': ip_list
+                    'ip_addresses': ip_list,
+                    'vm_cpu': vm_cpu  # tfvars에서 가져온 CPU 코어 수
                 }
                 all_servers[vm['name']] = status_info
                 
-                # 통계 계산
+                # VM 통계 계산
                 if vm['status'] == 'running':
                     running_count += 1
-                    total_memory += vm.get('maxmem', 0)
+                    vm_total_memory += vm.get('maxmem', 0)
+                    vm_used_memory += vm.get('mem', 0)  # 현재 사용 중인 메모리
+                    vm_total_cpu += vm_cpu
+                    vm_used_cpu += vm_cpu  # 실행 중인 서버는 CPU를 모두 사용 중
                 else:
                     stopped_count += 1
+                    vm_total_memory += vm.get('maxmem', 0)
+                    vm_total_cpu += vm_cpu
+                    # 중지된 서버는 CPU/메모리 사용량 0
         
-        # 통계 정보 추가
+        # 노드 기준 통계 정보 추가
         stats = {
             'total_servers': len(all_servers),
             'running_servers': running_count,
             'stopped_servers': stopped_count,
-            'total_memory_gb': round(total_memory / (1024 * 1024 * 1024), 1)
+            # 노드 전체 리소스
+            'node_total_cpu': node_cpu_count,
+            'node_total_memory_gb': round(node_memory_total / (1024 * 1024 * 1024), 1),
+            'node_used_memory_gb': round(node_memory_used / (1024 * 1024 * 1024), 1),
+            # VM 할당된 리소스
+            'vm_total_cpu': vm_total_cpu,
+            'vm_total_memory_gb': round(vm_total_memory / (1024 * 1024 * 1024), 1),
+            'vm_used_cpu': vm_used_cpu,
+            'vm_used_memory_gb': round(vm_used_memory / (1024 * 1024 * 1024), 1),
+            # 사용률 계산
+            'cpu_usage_percent': round((vm_used_cpu / node_cpu_count * 100) if node_cpu_count > 0 else 0, 1),
+            'memory_usage_percent': round((vm_used_memory / node_memory_total * 100) if node_memory_total > 0 else 0, 1),
+            'cpu_allocation_percent': round((vm_total_cpu / node_cpu_count * 100) if node_cpu_count > 0 else 0, 1),
+            'memory_allocation_percent': round((vm_total_memory / node_memory_total * 100) if node_memory_total > 0 else 0, 1)
         }
         
         return jsonify({
@@ -1584,7 +1624,8 @@ def dashboard_content():
         total_servers=total_servers,
         running_servers=running_servers,
         stopped_servers=stopped_servers,
-        total_memory_gb=total_memory_gb
+        total_memory_gb=total_memory_gb,
+        node_name=app.config.get('PROXMOX_NODE', 'prox')
     )
 
 @app.route('/instances/content')
