@@ -1263,7 +1263,12 @@ def get_all_server_status():
                 
                 # DB에서 방화벽 그룹 정보 가져오기
                 db_server = db.get_server_by_name(vm['name'])
-                firewall_group = db_server.get('firewall_group') if db_server else None
+                firewall_group = None
+                if db_server:
+                    try:
+                        firewall_group = db_server['firewall_group']
+                    except (KeyError, TypeError, IndexError):
+                        firewall_group = None
                 
                 status_info = {
                     'name': vm['name'],
