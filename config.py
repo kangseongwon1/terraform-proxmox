@@ -34,6 +34,10 @@ class Config:
     
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
     
+    # SQLAlchemy 설정
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///proxmox_manager.db')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
     # Proxmox 설정 (환경 변수 필수)
     PROXMOX_ENDPOINT = os.environ.get('PROXMOX_ENDPOINT')
     PROXMOX_USERNAME = os.environ.get('PROXMOX_USERNAME')
