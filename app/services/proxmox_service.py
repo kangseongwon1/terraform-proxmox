@@ -421,6 +421,7 @@ class ProxmoxService:
     def reboot_vm(self, server_name: str) -> Dict[str, Any]:
         """VM 재부팅 (API 호환)"""
         try:
+            print(f"🔧 VM 재부팅 시작: {server_name}")
             # 서버명으로 VM ID 찾기
             vm_list = self.get_vm_list()
             target_vm = None
@@ -431,25 +432,29 @@ class ProxmoxService:
                     break
             
             if not target_vm:
+                print(f"❌ VM을 찾을 수 없음: {server_name}")
                 return {
                     'success': False,
                     'message': f'서버 {server_name}을(를) 찾을 수 없습니다.'
                 }
             
             vmid = target_vm['vmid']
+            print(f"🔧 VM 액션 호출: {vmid} - reset")
             if self.vm_action(vmid, 'reset'):
+                print(f"✅ VM 재부팅 성공: {server_name}")
                 return {
                     'success': True,
                     'message': f'서버 {server_name}이(가) 재부팅되었습니다.'
                 }
             else:
+                print(f"❌ VM 재부팅 실패: {server_name}")
                 return {
                     'success': False,
                     'message': f'서버 {server_name} 재부팅에 실패했습니다.'
                 }
                 
         except Exception as e:
-            logger.error(f"VM 재부팅 실패: {e}")
+            print(f"❌ VM 재부팅 실패: {e}")
             return {
                 'success': False,
                 'message': str(e)
