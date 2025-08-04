@@ -159,14 +159,22 @@ def create_server():
                 # Terraform 서비스 호출
                 from app.services.terraform_service import TerraformService
                 terraform_service = TerraformService()
-                result = terraform_service.create_server(data)
                 
-                if result['success']:
+                # 서버 설정 생성
+                if not terraform_service.create_server_config(data):
+                    update_task(task_id, 'failed', '서버 설정 생성 실패')
+                    print(f"❌ 서버 설정 생성 실패: {task_id}")
+                    return
+                
+                # 인프라 배포
+                success, message = terraform_service.deploy_infrastructure()
+                
+                if success:
                     update_task(task_id, 'completed', '서버 생성 완료')
                     print(f"✅ 서버 생성 성공: {task_id}")
                 else:
-                    update_task(task_id, 'failed', f'서버 생성 실패: {result["message"]}')
-                    print(f"❌ 서버 생성 실패: {task_id} - {result['message']}")
+                    update_task(task_id, 'failed', f'서버 생성 실패: {message}')
+                    print(f"❌ 서버 생성 실패: {task_id} - {message}")
             except Exception as e:
                 error_msg = f'서버 생성 중 오류: {str(e)}'
                 update_task(task_id, 'failed', error_msg)

@@ -164,19 +164,25 @@ $(function() {
     let progressNotified = false;
     activeTasks[task_id] = setInterval(function() {
       $.get('/tasks/status', { task_id }, function(res) {
-        if ((res.status === 'progress' || res.status === 'pending') && !progressNotified) {
+        console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
+        
+        if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
           addSystemNotification('info', type, `${name} ${type} 중...`);
           progressNotified = true;
-        } else if (res.status === 'success') {
+        } else if (res.status === 'completed') {
           addSystemNotification('success', type, `${name} ${type} 완료`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
           loadActiveServers();
-        } else if (res.status === 'error') {
+        } else if (res.status === 'failed') {
           addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
         }
+      }).fail(function(xhr, status, error) {
+        console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
+        clearInterval(activeTasks[task_id]);
+        delete activeTasks[task_id];
       });
     }, 5000);
   }
