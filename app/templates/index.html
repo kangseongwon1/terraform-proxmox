@@ -849,6 +849,7 @@
     
     // 서버 상태 자동 새로고침 시작
     function startAutoRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(function() {
         if ($('#list-tab').hasClass('active')) {
           loadActiveServers();
@@ -916,7 +917,73 @@
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get(url, function(html) {
       $('#main-content').html(html);
-      if (scriptUrl) $.getScript(scriptUrl);
+      if (scriptUrl) {
+        // 스크립트 중복 로드 방지
+        const scriptName = scriptUrl.split('/').pop();
+        if (!window.loadedScripts) window.loadedScripts = {};
+        
+        if (!window.loadedScripts[scriptName]) {
+          console.log(`[loadSPA] 스크립트 로드: ${scriptName}`);
+          $.getScript(scriptUrl).done(function() {
+            window.loadedScripts[scriptName] = true;
+          });
+        } else {
+          console.log(`[loadSPA] 스크립트 이미 로드됨: ${scriptName}`);
+          // 스크립트가 이미 로드되어 있으면 초기화 함수 실행
+          if (scriptName === 'dashboard.js' && typeof window.dashboardInitialized !== 'undefined') {
+            console.log(`[loadSPA] dashboard.js 재초기화 실행`);
+            // dashboard.js의 초기화 함수들을 다시 실행
+            if (typeof loadDashboardServers === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadDashboardServers 재실행');
+                loadDashboardServers();
+              }, 100);
+            }
+            if (typeof loadDashboardStorage === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadDashboardStorage 재실행');
+                loadDashboardStorage();
+              }, 200);
+            }
+          } else if (scriptName === 'iam.js' && typeof window.iamInitialized !== 'undefined') {
+            console.log(`[loadSPA] iam.js 재초기화 실행`);
+            // iam.js의 초기화 함수들을 다시 실행
+            if (typeof loadIAM === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadIAM 재실행');
+                loadIAM();
+              }, 100);
+            }
+          } else if (scriptName === 'storage.js' && typeof window.storageInitialized !== 'undefined') {
+            console.log(`[loadSPA] storage.js 재초기화 실행`);
+            // storage.js의 초기화 함수들을 다시 실행
+            if (typeof loadStorageInfo === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadStorageInfo 재실행');
+                loadStorageInfo();
+              }, 100);
+            }
+          } else if (scriptName === 'instances.js' && typeof window.instancesInitialized !== 'undefined') {
+            console.log(`[loadSPA] instances.js 재초기화 실행`);
+            // instances.js의 초기화 함수들을 다시 실행
+            if (typeof loadActiveServers === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadActiveServers 재실행');
+                loadActiveServers();
+              }, 100);
+            }
+          } else if (scriptName === 'firewall.js' && typeof window.firewallInitialized !== 'undefined') {
+            console.log(`[loadSPA] firewall.js 재초기화 실행`);
+            // firewall.js의 초기화 함수들을 다시 실행
+            if (typeof loadFirewallGroups === 'function') {
+              setTimeout(function() {
+                console.log('[loadSPA] loadFirewallGroups 재실행');
+                loadFirewallGroups();
+              }, 100);
+            }
+          }
+        }
+      }
     });
   }
   // 메뉴 클릭 이벤트 (사이드바 네비게이션)

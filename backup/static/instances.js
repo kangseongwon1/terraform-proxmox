@@ -1,4 +1,5 @@
 // instances.js
+console.log('🚀 instances.js 로드됨');
 $(function() {
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
@@ -32,6 +33,7 @@ $(function() {
   
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
   window.loadActiveServers = function() {
+    console.log('🔥 loadActiveServers 함수 호출됨');
     console.log('[instances.js] loadActiveServers 호출');
     
     // 중복 실행 방지
@@ -53,9 +55,17 @@ $(function() {
       
       $.get('/all_server_status', function(res) {
         console.log('[instances.js] /all_server_status 응답:', res);
+        console.log('[instances.js] res.servers:', JSON.stringify(res.servers, null, 2));
+        console.log('[instances.js] res.servers 타입:', typeof res.servers);
+        console.log('[instances.js] res.servers 키들:', Object.keys(res.servers || {}));
+        
         let html = '';
-        for (const [name, s] of Object.entries(res.servers)) {
-          // 상태별 배지 색상 결정
+        if (!res.servers || Object.keys(res.servers).length === 0) {
+          html = '<tr><td colspan="8" class="text-center text-muted">서버가 없습니다.</td></tr>';
+        } else {
+                    for (const [name, s] of Object.entries(res.servers)) {
+            console.log(`[instances.js] 서버 처리: ${name}`, s);
+            // 상태별 배지 색상 결정
           let statusBadge = '';
           switch(s.status) {
             case 'running': statusBadge = '<span class="badge bg-success">실행 중</span>'; break;
@@ -116,9 +126,12 @@ $(function() {
               </div>
             </td>
           </tr>`;
+          }
         }
+        console.log('[instances.js] 생성된 HTML:', html);
         $('#active-server-table tbody').html(html);
         console.log('[instances.js] 서버 목록 렌더링 완료');
+        console.log('[instances.js] 테이블 내용 확인:', $('#active-server-table tbody').html());
         window.loadActiveServers.isLoading = false;  // 로딩 완료
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
@@ -129,9 +142,14 @@ $(function() {
       window.loadActiveServers.isLoading = false;  // 에러 시에도 로딩 해제
     });
   }
-  loadActiveServers();
-  $('#list-tab').on('shown.bs.tab', function() {
-    console.log('[instances.js] list-tab shown');
+
+  // 최초 진입 시 서버 목록 탭이 active면 한 번만 호출
+  if ($('#list-tab').hasClass('active')) {
+    loadActiveServers();
+  }
+
+  // 기존 바인딩 제거 후 바인딩
+  $('#list-tab').off('shown.bs.tab').on('shown.bs.tab', function() {
     loadActiveServers();
   });
 

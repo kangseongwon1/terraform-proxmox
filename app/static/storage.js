@@ -1,5 +1,12 @@
 // storage.js
 $(function() {
+  // 중복 실행 방지 플래그
+  if (window.storageInitialized) {
+    console.log('[storage.js] 이미 초기화됨, 중복 실행 방지');
+    return;
+  }
+  window.storageInitialized = true;
+  
   console.log('[storage.js] storage.js loaded');
   
   // 숫자 포맷팅 함수 (index.html에서 가져옴)
@@ -7,7 +14,11 @@ $(function() {
     if (isNaN(val) || !isFinite(val)) return "0.00";
     return Number(val).toFixed(2);
   }
-  function loadStorageInfo() {
+  
+  // 초기화 플래그 설정
+  window.storageInitialized = true;
+  
+  window.loadStorageInfo = function() {
     console.log('[storage.js] loadStorageInfo 호출');
     
     // 로딩 상태 표시
@@ -78,12 +89,13 @@ $(function() {
       console.error('[storage.js] 스토리지 정보 로드 실패:', xhr);
       $('#storage-table').html('<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><br>스토리지 정보를 불러오지 못했습니다.</div>');
     });
-  }
+  };
+  
+  // 초기 로드 실행
   loadStorageInfo();
+  
   $('#storage-refresh-btn').on('click', function() {
     console.log('[storage.js] #storage-refresh-btn 클릭');
     loadStorageInfo();
   });
-
-  
 }); 

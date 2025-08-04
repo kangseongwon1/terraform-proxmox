@@ -3,6 +3,15 @@ $(function() {
   // 중복 호출 방지를 위한 플래그
   let isInitialized = false;
   
+  // 전역 중복 실행 방지 플래그
+  if (window.instancesInitialized) {
+    console.log('[instances.js] 이미 초기화됨, 중복 실행 방지');
+    return;
+  }
+  window.instancesInitialized = true;
+  
+  console.log('[instances.js] 초기화 시작');
+  
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
     return parseFloat(num).toFixed(2);
@@ -45,7 +54,7 @@ $(function() {
     window.loadActiveServers.isLoading = true;
     
     // 현재 사용자 권한 디버깅 (개발용)
-    $.get('/users', function(res) {
+    $.get('/current-user', function(res) {
       console.log('[instances.js] 현재 사용자 정보:', res);
     }).fail(function(xhr) {
       console.log('[instances.js] 사용자 정보 조회 실패 (권한 없음):', xhr.status);
@@ -133,8 +142,17 @@ $(function() {
       window.loadActiveServers.isLoading = false;
     });
   };
+  
+  // 중복 바인딩 방지: 기존 이벤트 제거
+  $('#list-tab').off('shown.bs.tab');
+  
+  // 최초 진입 시 서버 목록 탭이 active면 한 번만 호출
+  if ($('#list-tab').hasClass('active')) {
   loadActiveServers();
-  $('#list-tab').on('shown.bs.tab', function() {
+  }
+  
+  // 기존 바인딩 제거 후 바인딩
+  $('#list-tab').off('shown.bs.tab').on('shown.bs.tab', function() {
     console.log('[instances.js] list-tab shown');
     loadActiveServers();
   });

@@ -1,7 +1,7 @@
 """
 인증 관련 라우트
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models.user import User
@@ -135,4 +135,25 @@ def clear_login_error():
 @login_required
 def profile():
     """프로필 페이지"""
-    return render_template('auth/profile.html', user=current_user) 
+    return render_template('auth/profile.html', user=current_user)
+
+@bp.route('/profile/api')
+@login_required
+def get_profile_api():
+    """프로필 정보 API"""
+    try:
+        user_data = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'name': current_user.name or '',
+            'email': current_user.email or '',
+            'role': current_user.role,
+            'is_active': current_user.is_active,
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+            'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+            'permissions': [perm.permission for perm in current_user.permissions]
+        }
+        return jsonify(user_data)
+    except Exception as e:
+        print(f"💥 프로필 API 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500 

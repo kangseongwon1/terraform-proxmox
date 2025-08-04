@@ -29,6 +29,11 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
     
+    @property
+    def is_admin(self):
+        """관리자 여부 확인"""
+        return self.role == 'admin'
+    
     def set_password(self, password):
         """비밀번호 설정"""
         self.password_hash = generate_password_hash(password)

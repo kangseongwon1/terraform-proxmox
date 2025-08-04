@@ -60,7 +60,7 @@ $(function() {
   }
   
   // 대시보드 서버 요약 패널 렌더링
-  function loadDashboardServers() {
+  window.loadDashboardServers = function() {
     console.log('[dashboard.js] loadDashboardServers 호출');
     $('#server-summary-container').html('<div class="text-center text-muted py-4">서버 정보를 불러오는 중...</div>');
     
@@ -128,10 +128,10 @@ $(function() {
       console.error('[dashboard.js] /all_server_status 실패:', xhr);
       $('#server-summary-container').html('<div class="text-center text-danger py-4">서버 정보를 불러오지 못했습니다.</div>');
     });
-  }
+  };
   
   // 대시보드 스토리지 요약 패널 렌더링
-  function loadDashboardStorage() {
+  window.loadDashboardStorage = function() {
     console.log('[dashboard.js] loadDashboardStorage 호출');
     $('#dashboard-storage-panel').html('<div class="text-center text-muted py-4">스토리지 정보를 불러오는 중...</div>');
     
@@ -167,9 +167,14 @@ $(function() {
       console.error('[dashboard.js] 스토리지 정보 로드 실패:', xhr);
       $('#dashboard-storage-panel').html('<div class="text-center text-danger py-4">스토리지 정보를 불러오지 못했습니다.</div>');
     });
-  }
+  };
   
   // 최초 진입/새로고침/탭 전환 시 항상 최신 상태로 갱신
+  console.log('[dashboard.js] 대시보드 데이터 로드 시작');
+  
+  // 초기화 플래그 설정
+  window.dashboardInitialized = true;
+  
   loadDashboardServers();
   loadDashboardStorage();
   

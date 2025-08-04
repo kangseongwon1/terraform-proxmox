@@ -196,7 +196,7 @@
     <script>
         // 프로필 정보 로드
         function loadProfile() {
-            $.get('/profile', function(data) {
+            $.get('/profile/api', function(data) {
                 $('#profile-username').text(data.username);
                 $('#profile-name').text(data.name);
                 $('#profile-email').text(data.email || '-');

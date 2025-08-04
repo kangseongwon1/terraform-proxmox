@@ -1,5 +1,13 @@
 // iam.js
 $(function() {
+  // 중복 실행 방지 플래그
+  if (window.iamInitialized) {
+    console.log('[iam.js] 이미 초기화됨, 중복 실행 방지');
+    return;
+  }
+  // 초기화 플래그 설정
+  window.iamInitialized = true;
+  
   console.log('[iam.js] iam.js loaded');
   let PERMISSIONS = [];
   let USERS = {};
@@ -186,34 +194,6 @@ $(function() {
       </div>
     `;
     return html;
-  }
-
-  function loadIAM() {
-    console.log('[iam.js] loadIAM 호출');
-    $('#iam-loading').removeClass('d-none');
-    $.get('/admin/iam', function(res) {
-      console.log('[iam.js] /admin/iam 응답:', res);
-      USERS = res.users;
-      PERMISSIONS = res.permissions;
-      renderSummary();
-      renderTable();
-      $('#iam-loading').addClass('d-none');
-      overlayUser = null;
-      selectedPerms = [];
-      $('#iam-overlay').hide();
-      $('#iam-overlay-content').empty();
-    }).fail(function(xhr) {
-      console.error('[iam.js] /admin/iam 실패:', xhr);
-      let errorMsg = '사용자 목록을 불러올 수 없습니다.';
-      
-      if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 관리자 권한이 필요합니다.';
-      } else if (xhr.responseJSON?.error) {
-        errorMsg = xhr.responseJSON.error;
-      }
-      
-      showIAMAlert('danger', errorMsg);
-    });
   }
 
   // 권한 관리 버튼 클릭 시 오버레이 띄우기
@@ -540,5 +520,34 @@ $(function() {
   });
 
   // 초기 로드
+  window.loadIAM = function() {
+    console.log('[iam.js] loadIAM 호출');
+    $('#iam-loading').removeClass('d-none');
+    $.get('/admin/iam', function(res) {
+      console.log('[iam.js] /admin/iam 응답:', res);
+      USERS = res.users;
+      PERMISSIONS = res.permissions;
+      renderSummary();
+      renderTable();
+      $('#iam-loading').addClass('d-none');
+      overlayUser = null;
+      selectedPerms = [];
+      $('#iam-overlay').hide();
+      $('#iam-overlay-content').empty();
+    }).fail(function(xhr) {
+      console.error('[iam.js] /admin/iam 실패:', xhr);
+      let errorMsg = '사용자 목록을 불러올 수 없습니다.';
+      
+      if (xhr.status === 403) {
+        errorMsg = '권한이 없습니다. 관리자 권한이 필요합니다.';
+      } else if (xhr.responseJSON?.error) {
+        errorMsg = xhr.responseJSON.error;
+      }
+      
+      showIAMAlert('danger', errorMsg);
+    });
+  };
+  
+  // 초기 로드 실행
   loadIAM();
 }); 

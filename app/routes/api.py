@@ -1,5 +1,5 @@
 """
-API 라우트 블루프린트
+API 전용 라우트 블루프린트
 """
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
@@ -28,7 +28,7 @@ def permission_required(permission):
                 return f(*args, **kwargs)
             
             # 사용자 권한 확인
-            user_permissions = [p.name for p in current_user.permissions]
+            user_permissions = [perm.permission for perm in current_user.permissions]
             if permission not in user_permissions:
                 return jsonify({'error': '권한이 없습니다.'}), 403
             
@@ -58,211 +58,275 @@ def get_task_status():
     return jsonify(tasks[task_id])
 
 # 서버 관련 API
-@bp.route('/servers', methods=['GET'])
+@bp.route('/api/servers', methods=['GET'])
 @permission_required('view_all')
 def list_servers():
     """서버 목록 조회"""
     try:
         servers = Server.query.all()
-        server_list = []
+        server_data = []
         for server in servers:
-            server_list.append({
+            server_dict = {
                 'id': server.id,
                 'name': server.name,
                 'status': server.status,
                 'role': server.role,
-                'cpu': server.cpu,
-                'memory_gb': server.memory_gb,
-                'ip_address': server.ip_address,
                 'created_at': server.created_at.isoformat() if server.created_at else None
-            })
-        return jsonify({'servers': server_list})
+            }
+            server_data.append(server_dict)
+        
+        return jsonify({'servers': server_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/servers', methods=['POST'])
+@bp.route('/api/servers', methods=['POST'])
 @permission_required('create_server')
 def create_server():
     """서버 생성"""
     try:
         data = request.get_json()
         
-        # 작업 생성
-        task_id = create_task('pending', '서버 생성', '서버 생성 대기 중...')
+        # 새 서버 생성
+        new_server = Server(
+            name=data['name'],
+            status='creating',
+            role=data.get('role', '')
+        )
         
-        # 백그라운드에서 서버 생성 실행
+        from app import db
+        db.session.add(new_server)
+        db.session.commit()
+        
+        # 백그라운드에서 서버 생성 작업 실행
+        task_id = create_task('running', 'create_server', '서버 생성 중...')
+        
         def create_server_task():
             try:
-                # Terraform 서비스 사용
+                # Terraform 서비스 호출
+                from app.services.terraform_service import TerraformService
                 terraform_service = TerraformService()
                 result = terraform_service.create_server(data)
                 
                 if result['success']:
-                    update_task(task_id, 'success', '서버가 성공적으로 생성되었습니다.')
+                    update_task(task_id, 'completed', '서버 생성 완료')
                 else:
-                    update_task(task_id, 'error', result['message'])
+                    update_task(task_id, 'failed', f'서버 생성 실패: {result["message"]}')
             except Exception as e:
-                update_task(task_id, 'error', f'서버 생성 중 오류: {str(e)}')
+                update_task(task_id, 'failed', f'서버 생성 중 오류: {str(e)}')
         
+        import threading
         thread = threading.Thread(target=create_server_task)
+        thread.daemon = True
         thread.start()
         
-        return jsonify({'task_id': task_id, 'message': '서버 생성이 시작되었습니다.'})
+        return jsonify({'success': True, 'message': '서버 생성이 시작되었습니다.', 'task_id': task_id})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/servers/<server_name>/start', methods=['POST'])
+@bp.route('/api/servers/<server_name>/start', methods=['POST'])
 @permission_required('start_server')
 def start_server(server_name):
     """서버 시작"""
     try:
+        # Proxmox 서비스 사용
+        from app.services.proxmox_service import ProxmoxService
         proxmox_service = ProxmoxService()
-        result = proxmox_service.start_vm(server_name)
+        result = proxmox_service.start_server(server_name)
         
         if result['success']:
-            return jsonify({'success': True, 'message': f'서버 {server_name}이(가) 시작되었습니다.'})
-        else:
-            return jsonify({'success': False, 'message': result['message']}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/servers/<server_name>/stop', methods=['POST'])
-@permission_required('stop_server')
-def stop_server(server_name):
-    """서버 중지"""
-    try:
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.stop_vm(server_name)
-        
-        if result['success']:
-            return jsonify({'success': True, 'message': f'서버 {server_name}이(가) 중지되었습니다.'})
-        else:
-            return jsonify({'success': False, 'message': result['message']}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/servers/<server_name>/reboot', methods=['POST'])
-@permission_required('reboot_server')
-def reboot_server(server_name):
-    """서버 재부팅"""
-    try:
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.reboot_vm(server_name)
-        
-        if result['success']:
-            return jsonify({'success': True, 'message': f'서버 {server_name}이(가) 재부팅되었습니다.'})
-        else:
-            return jsonify({'success': False, 'message': result['message']}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/servers/<server_name>/delete', methods=['POST'])
-@permission_required('delete_server')
-def delete_server(server_name):
-    """서버 삭제"""
-    try:
-        # 작업 생성
-        task_id = create_task('pending', '서버 삭제', f'서버 {server_name} 삭제 대기 중...')
-        
-        def delete_server_task():
-            try:
-                terraform_service = TerraformService()
-                result = terraform_service.destroy_server(server_name)
-                
-                if result['success']:
-                    update_task(task_id, 'success', f'서버 {server_name}이(가) 삭제되었습니다.')
-                else:
-                    update_task(task_id, 'error', result['message'])
-            except Exception as e:
-                update_task(task_id, 'error', f'서버 삭제 중 오류: {str(e)}')
-        
-        thread = threading.Thread(target=delete_server_task)
-        thread.start()
-        
-        return jsonify({'task_id': task_id, 'message': f'서버 {server_name} 삭제가 시작되었습니다.'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# 대시보드 API
-@bp.route('/all_server_status', methods=['GET'])
-@login_required
-def get_all_server_status():
-    """모든 서버 상태 조회"""
-    try:
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.get_all_vms()
-        
-        if result['success']:
-            return jsonify(result['data'])
+            return jsonify({'success': True, 'message': f'서버 {server_name}이 시작되었습니다.'})
         else:
             return jsonify({'error': result['message']}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/proxmox_storage', methods=['GET'])
+@bp.route('/api/servers/<server_name>/stop', methods=['POST'])
+@permission_required('stop_server')
+def stop_server(server_name):
+    """서버 중지"""
+    try:
+        # Proxmox 서비스 사용
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        result = proxmox_service.stop_server(server_name)
+        
+        if result['success']:
+            return jsonify({'success': True, 'message': f'서버 {server_name}이 중지되었습니다.'})
+        else:
+            return jsonify({'error': result['message']}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/servers/<server_name>/reboot', methods=['POST'])
+@permission_required('reboot_server')
+def reboot_server(server_name):
+    """서버 재부팅"""
+    try:
+        # Proxmox 서비스 사용
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        result = proxmox_service.reboot_server(server_name)
+        
+        if result['success']:
+            return jsonify({'success': True, 'message': f'서버 {server_name}이 재부팅되었습니다.'})
+        else:
+            return jsonify({'error': result['message']}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/servers/<server_name>/delete', methods=['POST'])
+@permission_required('delete_server')
+def delete_server(server_name):
+    """서버 삭제"""
+    try:
+        # 백그라운드에서 서버 삭제 작업 실행
+        task_id = create_task('running', 'delete_server', '서버 삭제 중...')
+        
+        def delete_server_task():
+            try:
+                # Terraform 서비스 사용
+                from app.services.terraform_service import TerraformService
+                terraform_service = TerraformService()
+                result = terraform_service.destroy_server(server_name)
+                
+                if result['success']:
+                    update_task(task_id, 'completed', '서버 삭제 완료')
+                else:
+                    update_task(task_id, 'failed', f'서버 삭제 실패: {result["message"]}')
+            except Exception as e:
+                update_task(task_id, 'failed', f'서버 삭제 중 오류: {str(e)}')
+        
+        import threading
+        thread = threading.Thread(target=delete_server_task)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({'success': True, 'message': '서버 삭제가 시작되었습니다.', 'task_id': task_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 대시보드 API
+@bp.route('/api/all_server_status', methods=['GET'])
+@login_required
+def get_all_server_status():
+    """모든 서버 상태 조회"""
+    try:
+        print("🔍 /api/all_server_status 호출됨 (API)")
+        proxmox_service = ProxmoxService()
+        result = proxmox_service.get_all_vms()
+        
+        if result['success']:
+            # 새로운 API 응답 형식에 맞게 변환
+            data = result['data']
+            servers = data.get('servers', {})
+            stats = data.get('stats', {})
+            
+            # 기존 UI와 호환되는 형식으로 변환
+            vms = []
+            for server_name, server_info in servers.items():
+                vm_info = {
+                    'vmid': server_info.get('vmid'),
+                    'name': server_name,
+                    'status': server_info.get('status', 'unknown'),
+                    'cpu': server_info.get('cpu', 0),
+                    'mem': server_info.get('memory', 0),
+                    'maxmem': server_info.get('maxmem', 0),
+                    'disk': server_info.get('disk', 0),
+                    'maxdisk': server_info.get('maxdisk', 0),
+                    'uptime': server_info.get('uptime', 0),
+                    'role': server_info.get('role', 'unknown'),
+                    'network_devices': server_info.get('ip_addresses', [])
+                }
+                vms.append(vm_info)
+            
+            response_data = {
+                'servers': servers,  # JavaScript에서 기대하는 형식
+                'vms': vms,  # 호환성을 위해 추가
+                'total': stats.get('total_servers', 0),
+                'running': stats.get('running_servers', 0),
+                'stopped': stats.get('stopped_servers', 0),
+                'stats': stats  # 통계 정보 포함
+            }
+            
+            return jsonify(response_data)
+        else:
+            print(f"❌ get_all_vms 실패: {result['message']}")
+            return jsonify({'error': result['message']}), 500
+    except Exception as e:
+        print(f"💥 /api/all_server_status 예외 발생: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/proxmox_storage', methods=['GET'])
 def proxmox_storage():
     """Proxmox 스토리지 정보 조회"""
     try:
+        from app.services.proxmox_service import ProxmoxService
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_storage_info()
         
         if result['success']:
-            return jsonify(result['data'])
+            return jsonify({'storages': result['data']})
         else:
             return jsonify({'error': result['message']}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # 알림 API
-@bp.route('/notifications', methods=['GET'])
+@bp.route('/api/notifications', methods=['GET'])
 @login_required
 def get_notifications():
     """알림 목록 조회"""
     try:
+        from app.models import Notification
         notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
-        notification_list = []
+        
+        notification_data = []
         for notification in notifications:
-            notification_list.append({
+            notification_data.append({
                 'id': notification.id,
                 'title': notification.title,
                 'message': notification.message,
-                'type': notification.type,
                 'severity': notification.severity,
                 'is_read': notification.is_read,
                 'created_at': notification.created_at.isoformat() if notification.created_at else None
             })
-        return jsonify({'notifications': notification_list})
+        
+        return jsonify({'notifications': notification_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
+@bp.route('/api/notifications/<int:notification_id>/read', methods=['POST'])
 @login_required
 def mark_notification_read(notification_id):
-    """알림 읽음 처리"""
+    """알림 읽음 표시"""
     try:
-        notification = Notification.query.get(notification_id)
-        if notification and notification.user_id == current_user.id:
-            notification.is_read = True
-            from app import db
-            db.session.commit()
-            return jsonify({'success': True})
-        else:
+        from app.models import Notification
+        notification = Notification.query.filter_by(id=notification_id, user_id=current_user.id).first()
+        
+        if not notification:
             return jsonify({'error': '알림을 찾을 수 없습니다.'}), 404
+        
+        notification.is_read = True
+        from app import db
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': '알림이 읽음으로 표시되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/notifications/unread-count', methods=['GET'])
+@bp.route('/api/notifications/unread-count', methods=['GET'])
 @login_required
 def get_unread_notification_count():
-    """읽지 않은 알림 개수 조회"""
+    """읽지 않은 알림 개수"""
     try:
+        from app.models import Notification
         count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
         return jsonify({'count': count})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # 사용자 관리 API
-@bp.route('/users', methods=['GET'])
+@bp.route('/api/users', methods=['GET'])
 @permission_required('manage_users')
 def get_users():
     """사용자 목록 조회 (기존 템플릿 호환)"""
@@ -284,7 +348,47 @@ def get_users():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/users', methods=['POST'])
+@bp.route('/api/current-user', methods=['GET'])
+@login_required
+def get_current_user():
+    """현재 사용자 정보 조회"""
+    try:
+        user_data = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'name': current_user.name or '',
+            'email': current_user.email or '',
+            'role': current_user.role,
+            'is_active': current_user.is_active,
+            'is_admin': current_user.is_admin,  # 추가
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+            'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+            'permissions': [perm.permission for perm in current_user.permissions]
+        }
+        return jsonify(user_data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/debug/user-info', methods=['GET'])
+@login_required
+def debug_user_info():
+    """디버깅용 사용자 정보"""
+    try:
+        debug_info = {
+            'user_id': current_user.id,
+            'username': current_user.username,
+            'role': current_user.role,
+            'is_admin': current_user.is_admin,
+            'is_authenticated': current_user.is_authenticated,
+            'permissions_count': current_user.permissions.count(),
+            'permissions_list': [perm.permission for perm in current_user.permissions],
+            'has_manage_users': current_user.has_permission('manage_users') if hasattr(current_user, 'has_permission') else 'N/A'
+        }
+        return jsonify(debug_info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/users', methods=['POST'])
 @permission_required('manage_users')
 def create_user():
     """사용자 생성"""
@@ -312,7 +416,7 @@ def create_user():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/users/<username>/delete', methods=['POST'])
+@bp.route('/api/users/<username>/delete', methods=['POST'])
 @permission_required('manage_users')
 def delete_user(username):
     """사용자 삭제"""
@@ -332,7 +436,7 @@ def delete_user(username):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/assign_role/<server_name>', methods=['POST'])
+@bp.route('/api/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
     """서버에 역할 할당"""
@@ -352,7 +456,7 @@ def assign_role(server_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/remove_role/<server_name>', methods=['POST'])
+@bp.route('/api/remove_role/<server_name>', methods=['POST'])
 @permission_required('remove_role')
 def remove_role(server_name):
     """서버에서 역할 제거"""
@@ -369,7 +473,7 @@ def remove_role(server_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/assign_firewall_group/<server_name>', methods=['POST'])
+@bp.route('/api/assign_firewall_group/<server_name>', methods=['POST'])
 @permission_required('assign_firewall_group')
 def assign_firewall_group(server_name):
     """서버에 방화벽 그룹 할당"""
@@ -381,12 +485,15 @@ def assign_firewall_group(server_name):
         if not server:
             return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
         
-        # 실제 구현에서는 방화벽 그룹 정보를 저장
+        server.firewall_group = firewall_group
+        from app import db
+        db.session.commit()
+        
         return jsonify({'success': True, 'message': f'서버 {server_name}에 방화벽 그룹 {firewall_group}이 할당되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/remove_firewall_group/<server_name>', methods=['POST'])
+@bp.route('/api/remove_firewall_group/<server_name>', methods=['POST'])
 @permission_required('remove_firewall_group')
 def remove_firewall_group(server_name):
     """서버에서 방화벽 그룹 제거"""
@@ -395,12 +502,15 @@ def remove_firewall_group(server_name):
         if not server:
             return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
         
-        # 실제 구현에서는 방화벽 그룹 정보를 제거
+        server.firewall_group = None
+        from app import db
+        db.session.commit()
+        
         return jsonify({'success': True, 'message': f'서버 {server_name}에서 방화벽 그룹이 제거되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/start_server/<server_name>', methods=['POST'])
+@bp.route('/api/start_server/<server_name>', methods=['POST'])
 @permission_required('start_server')
 def start_server_legacy(server_name):
     """서버 시작 (기존 템플릿 호환)"""
@@ -415,7 +525,7 @@ def start_server_legacy(server_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/stop_server/<server_name>', methods=['POST'])
+@bp.route('/api/stop_server/<server_name>', methods=['POST'])
 @permission_required('stop_server')
 def stop_server_legacy(server_name):
     """서버 중지 (기존 템플릿 호환)"""
@@ -430,7 +540,7 @@ def stop_server_legacy(server_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/reboot_server/<server_name>', methods=['POST'])
+@bp.route('/api/reboot_server/<server_name>', methods=['POST'])
 @permission_required('reboot_server')
 def reboot_server_legacy(server_name):
     """서버 재부팅 (기존 템플릿 호환)"""
@@ -445,7 +555,7 @@ def reboot_server_legacy(server_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/delete_server/<server_name>', methods=['POST'])
+@bp.route('/api/delete_server/<server_name>', methods=['POST'])
 @permission_required('delete_server')
 def delete_server_legacy(server_name):
     """서버 삭제 (기존 템플릿 호환)"""
@@ -473,11 +583,21 @@ def delete_server_legacy(server_name):
         return jsonify({'error': str(e)}), 500
 
 # 관리자 IAM API
-@bp.route('/admin/iam', methods=['GET'])
+@bp.route('/api/admin/iam', methods=['GET'])
 def admin_iam_api():
-    """관리자 IAM API (기존 템플릿 호환)"""
+    """관리자 IAM API"""
     try:
+        from app.models import User, UserPermission
         users = User.query.all()
+        
+        # 모든 권한 목록 생성 (실제로는 별도 테이블이 없으므로 하드코딩)
+        all_permissions = [
+            'view_all', 'create_server', 'delete_server', 'start_server', 
+            'stop_server', 'manage_users', 'manage_roles', 'view_logs', 
+            'manage_storage', 'manage_network', 'assign_roles', 'remove_role',
+            'assign_firewall_group', 'remove_firewall_group'
+        ]
+        
         user_data = []
         for user in users:
             user_dict = {
@@ -485,16 +605,19 @@ def admin_iam_api():
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'is_admin': user.is_admin,
-                'created_at': user.created_at.isoformat() if user.created_at else None
+                'is_active': user.is_active,
+                'permissions': [perm.permission for perm in user.permissions]
             }
             user_data.append(user_dict)
         
-        return jsonify({'users': user_data})
+        return jsonify({
+            'users': user_data,
+            'permissions': all_permissions
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/admin/iam/<username>/permissions', methods=['POST'])
+@bp.route('/api/admin/iam/<username>/permissions', methods=['POST'])
 def admin_iam_set_permissions(username):
     """사용자 권한 설정"""
     try:
@@ -505,12 +628,22 @@ def admin_iam_set_permissions(username):
         if not user:
             return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
         
-        # 실제 구현에서는 권한을 설정
-        return jsonify({'success': True, 'message': f'사용자 {username}의 권한이 설정되었습니다.'})
+        # 기존 권한 제거
+        user.permissions.clear()
+        
+        # 새 권한 추가
+        for perm_name in permissions:
+            user_perm = UserPermission(user_id=user.id, permission=perm_name)
+            db.session.add(user_perm)
+        
+        from app import db
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': '권한이 업데이트되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/admin/iam/<username>/role', methods=['POST'])
+@bp.route('/api/admin/iam/<username>/role', methods=['POST'])
 def admin_iam_set_role(username):
     """사용자 역할 설정"""
     try:
@@ -525,85 +658,85 @@ def admin_iam_set_role(username):
         from app import db
         db.session.commit()
         
-        return jsonify({'success': True, 'message': f'사용자 {username}의 역할이 {role}로 설정되었습니다.'})
+        return jsonify({'success': True, 'message': '역할이 업데이트되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # 방화벽 그룹 API
-@bp.route('/firewall/groups', methods=['GET'])
+@bp.route('/api/firewall/groups', methods=['GET'])
 def get_firewall_groups():
     """방화벽 그룹 목록 조회"""
     try:
         # 임시 데이터 (실제로는 데이터베이스에서 조회)
         groups = [
-            {'name': 'web-allow', 'description': '웹서버 허용', 'instances': 0},
-            {'name': 'db-only', 'description': 'DB 접근만 허용', 'instances': 0}
+            {'name': 'web', 'description': '웹 서버 방화벽', 'instance_count': 2},
+            {'name': 'db', 'description': '데이터베이스 방화벽', 'instance_count': 1}
         ]
         return jsonify({'groups': groups})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/firewall/groups', methods=['POST'])
+@bp.route('/api/firewall/groups', methods=['POST'])
 def add_firewall_group():
     """방화벽 그룹 추가"""
     try:
         data = request.get_json()
-        # 실제 구현에서는 데이터베이스에 저장
+        # 실제로는 데이터베이스에 저장
         return jsonify({'success': True, 'message': '방화벽 그룹이 추가되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/firewall/groups/<group_name>', methods=['DELETE'])
+@bp.route('/api/firewall/groups/<group_name>', methods=['DELETE'])
 def delete_firewall_group(group_name):
     """방화벽 그룹 삭제"""
     try:
-        # 실제 구현에서는 데이터베이스에서 삭제
-        return jsonify({'success': True, 'message': f'방화벽 그룹 {group_name}이(가) 삭제되었습니다.'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500 
-
-@bp.route('/firewall/groups/<group_name>/rules', methods=['GET'])
-def get_firewall_group_rules(group_name):
-    """방화벽 그룹 규칙 조회"""
-    try:
-        # 임시 데이터 (실제로는 데이터베이스에서 조회)
-        rules = [
-            {'id': 1, 'protocol': 'tcp', 'port': '80', 'action': 'allow'},
-            {'id': 2, 'protocol': 'tcp', 'port': '443', 'action': 'allow'}
-        ]
-        return jsonify({'rules': rules})
+        # 실제로는 데이터베이스에서 삭제
+        return jsonify({'success': True, 'message': f'방화벽 그룹 {group_name}이 삭제되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/firewall/groups/<group_name>/rules', methods=['POST'])
+@bp.route('/api/firewall/groups/<group_name>/rules', methods=['GET'])
+def get_firewall_group_rules(group_name):
+    """방화벽 그룹 규칙 조회"""
+    try:
+        # 임시 데이터
+        group = {'name': group_name, 'description': f'{group_name} 방화벽 그룹'}
+        rules = [
+            {'id': 1, 'direction': 'in', 'protocol': 'tcp', 'port': '80', 'source': '', 'description': 'HTTP'},
+            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '', 'description': 'HTTPS'}
+        ]
+        return jsonify({'group': group, 'rules': rules})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/firewall/groups/<group_name>/rules', methods=['POST'])
 def add_firewall_group_rule(group_name):
     """방화벽 그룹 규칙 추가"""
     try:
         data = request.get_json()
-        # 실제 구현에서는 데이터베이스에 저장
+        # 실제로는 데이터베이스에 저장
         return jsonify({'success': True, 'message': '방화벽 규칙이 추가되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/firewall/groups/<group_name>/rules/<int:rule_id>', methods=['DELETE'])
+@bp.route('/api/firewall/groups/<group_name>/rules/<int:rule_id>', methods=['DELETE'])
 def delete_firewall_group_rule(group_name, rule_id):
     """방화벽 그룹 규칙 삭제"""
     try:
-        # 실제 구현에서는 데이터베이스에서 삭제
-        return jsonify({'success': True, 'message': f'방화벽 규칙 {rule_id}이(가) 삭제되었습니다.'})
+        # 실제로는 데이터베이스에서 삭제
+        return jsonify({'success': True, 'message': '방화벽 규칙이 삭제되었습니다.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 # 알림 API
-@bp.route('/notifications/clear-all', methods=['POST'])
+@bp.route('/api/notifications/clear-all', methods=['POST'])
 @login_required
 def clear_all_notifications():
     """모든 알림 삭제"""
     try:
-        notifications = Notification.query.filter_by(user_id=current_user.id).all()
-        for notification in notifications:
-            from app import db
-            db.session.delete(notification)
+        from app.models import Notification
+        Notification.query.filter_by(user_id=current_user.id).delete()
+        from app import db
         db.session.commit()
         
         return jsonify({'success': True, 'message': '모든 알림이 삭제되었습니다.'})

@@ -9,12 +9,12 @@
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-4" id="serverTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">
+            <button class="nav-link" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab">
               <i class="fas fa-plus me-1"></i>서버 생성
             </button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+            <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
               <i class="fas fa-list me-1"></i>서버 목록
             </button>
           </li>
@@ -22,7 +22,7 @@
         <!-- Tab Content -->
         <div class="tab-content" id="serverTabsContent">
           <!-- Create Server Tab -->
-          <div class="tab-pane fade show active" id="create" role="tabpanel">
+          <div class="tab-pane fade" id="create" role="tabpanel">
             {% if 'create_server' in session['permissions'] %}
             <form id="create-server-form">
               <!-- 서버 생성 모드 카드형 선택 UI -->
@@ -219,7 +219,7 @@
             {% endif %}
           </div>
           <!-- Server List Tab -->
-          <div class="tab-pane fade" id="list" role="tabpanel">
+          <div class="tab-pane fade show active" id="list" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
               <button class="btn btn-outline-primary btn-sm refresh-btn">
@@ -241,7 +241,68 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <!-- 서버 리스트 동적 렌더링 -->
+                  {% if server_data %}
+                    {% for server_name, server_info in server_data.items() %}
+                      <tr data-server="{{ server_name }}">
+                        <td><a href="#" class="server-detail-link" data-server="{{ server_name }}"><strong>{{ server_info.name }}</strong></a></td>
+                        <td>
+                          <div class="d-flex align-items-center gap-2">
+                            <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
+                              <option value="">(선택 안 함)</option>
+                              {% for key, role in roles.items() %}
+                                <option value="{{ key }}"{% if server_info.role == key %} selected{% endif %}>{{ role.name }}</option>
+                              {% endfor %}
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm server-role-apply"><i class="fas fa-check"></i> <span>역할 적용</span></button>
+                            <button class="btn btn-outline-danger btn-sm server-role-remove"{% if not server_info.role %} disabled{% endif %}><i class="fas fa-trash"></i> <span>역할 삭제</span></button>
+                          </div>
+                        </td>
+                        <td>{{ server_info.vm_cpu or 0 }}코어</td>
+                        <td>{{ "%.2f"|format((server_info.memory or 0) / 1024 / 1024 / 1024) }}GB</td>
+                        <td>{{ server_info.ip_addresses|join(', ') if server_info.ip_addresses else '-' }}</td>
+                        <td>
+                          <div class="d-flex align-items-center gap-2">
+                            <select class="form-select form-select-sm server-firewall-group-select" style="min-width:120px;">
+                              <option value="">(선택 안 함)</option>
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm server-firewall-group-apply"><i class="fas fa-check"></i> <span>적용</span></button>
+                            <button class="btn btn-outline-danger btn-sm server-firewall-group-remove"{% if not server_info.firewall_group %} disabled{% endif %}><i class="fas fa-trash"></i> <span>해제</span></button>
+                          </div>
+                        </td>
+                        <td>
+                          {% if server_info.status == 'running' %}
+                            <span class="badge bg-success">실행 중</span>
+                          {% elif server_info.status == 'stopped' %}
+                            <span class="badge bg-secondary">중지됨</span>
+                          {% elif server_info.status == 'paused' %}
+                            <span class="badge bg-warning">일시정지</span>
+                          {% elif server_info.status == 'suspended' %}
+                            <span class="badge bg-info">일시중단</span>
+                          {% else %}
+                            <span class="badge bg-dark">{{ server_info.status }}</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <div class="btn-group" role="group">
+                            <button class="btn btn-success btn-sm start-btn" title="시작" {% if server_info.status == 'running' %}disabled{% endif %}>
+                              <i class="fas fa-play"></i> 시작
+                            </button>
+                            <button class="btn btn-info btn-sm stop-btn" title="중지" {% if server_info.status == 'stopped' %}disabled{% endif %}>
+                              <i class="fas fa-pause"></i> 중지
+                            </button>
+                            <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" {% if server_info.status == 'stopped' %}disabled{% endif %}>
+                              <i class="fas fa-redo"></i> 리부팅
+                            </button>
+                            <button class="btn btn-danger btn-sm delete-btn" title="삭제">
+                              <i class="fas fa-trash"></i> 삭제
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="8" class="text-center text-muted">서버가 없습니다.</td></tr>
+                  {% endif %}
                 </tbody>
               </table>
             </div>

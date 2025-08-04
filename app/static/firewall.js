@@ -1,5 +1,6 @@
 // 전역 함수로 정의
-function loadFirewallGroups() {
+window.loadFirewallGroups = function() {
+    console.log('[firewall.js] loadFirewallGroups 호출');
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get('/firewall/groups', function(data) {
       $.get('/firewall/groups/content', function(html) {
@@ -32,7 +33,8 @@ function loadFirewallGroups() {
   }
 
 // 전역 함수로 정의
-function loadFirewallGroupDetail(group) {
+window.loadFirewallGroupDetail = function(group) {
+    console.log('[firewall.js] loadFirewallGroupDetail 호출:', group);
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get(`/firewall/groups/${group}/rules`, function(data) {
       $.get('/firewall/group-detail/content', function(html) {
@@ -67,6 +69,19 @@ function loadFirewallGroupDetail(group) {
 
 // 이벤트 리스너들을 document.ready로 감싸기
 $(function() {
+  // 중복 실행 방지 플래그
+  if (window.firewallInitialized) {
+    console.log('[firewall.js] 이미 초기화됨, 중복 실행 방지');
+    return;
+  }
+  window.firewallInitialized = true;
+  
+  console.log('[firewall.js] firewall.js loaded');
+  
+  // 초기화 플래그 설정
+  window.firewallInitialized = true;
+  
+  // 초기 로드 실행
   loadFirewallGroups();
   // 상세 버튼 클릭 시 상세 페이지로 이동
   $(document).on('click', '.fw-detail-btn', function() {
