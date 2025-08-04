@@ -12,6 +12,27 @@ $(function() {
   
   console.log('[instances.js] 초기화 시작');
   
+  // 실시간 서버 상태 폴링
+  let serverStatusPolling = null;
+  
+  function startServerStatusPolling() {
+    if (serverStatusPolling) {
+      clearInterval(serverStatusPolling);
+    }
+    
+    serverStatusPolling = setInterval(function() {
+      console.log('[instances.js] 서버 상태 폴링 실행');
+      loadActiveServers();
+    }, 10000); // 10초마다 상태 업데이트
+  }
+  
+  function stopServerStatusPolling() {
+    if (serverStatusPolling) {
+      clearInterval(serverStatusPolling);
+      serverStatusPolling = null;
+    }
+  }
+  
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
     return parseFloat(num).toFixed(2);
@@ -131,6 +152,12 @@ $(function() {
         }
         
         $('#server-list tbody').html(html);
+        console.log('[instances.js] 서버 목록 로드 완료');
+        
+        // 실시간 상태 폴링 시작
+        startServerStatusPolling();
+        
+        // 중복 호출 방지 해제
         window.loadActiveServers.isLoading = false;
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
@@ -188,7 +215,7 @@ $(function() {
           delete activeTasks[task_id];
           
           // 서버 목록 즉시 새로고침
-          console.log(`🔄 서버 생성 완료, 목록 새로고침: ${task_id}`);
+          console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
           setTimeout(function() {
             loadActiveServers();
           }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
@@ -198,7 +225,7 @@ $(function() {
           delete activeTasks[task_id];
           
           // 실패 시에도 목록 새로고침 (DB 정리 확인)
-          console.log(`🔄 서버 생성 실패, 목록 새로고침: ${task_id}`);
+          console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
           setTimeout(function() {
             loadActiveServers();
           }, 1000);
@@ -765,7 +792,10 @@ function initializeServerForm() {
     $.post('/start_server/' + name, function(res) {
       console.log('[instances.js] /start_server 성공', res);
       btn.prop('disabled', false).html(originalText);
-      loadActiveServers();
+      // 즉시 상태 업데이트
+      setTimeout(function() {
+        loadActiveServers();
+      }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /start_server 실패', xhr);
@@ -794,7 +824,10 @@ function initializeServerForm() {
     $.post('/stop_server/' + name, function(res) {
       console.log('[instances.js] /stop_server 성공', res);
       btn.prop('disabled', false).html(originalText);
-      loadActiveServers();
+      // 즉시 상태 업데이트
+      setTimeout(function() {
+        loadActiveServers();
+      }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /stop_server 실패', xhr);
@@ -823,7 +856,10 @@ function initializeServerForm() {
     $.post('/reboot_server/' + name, function(res) {
       console.log('[instances.js] /reboot_server 성공', res);
       btn.prop('disabled', false).html(originalText);
-      loadActiveServers();
+      // 즉시 상태 업데이트
+      setTimeout(function() {
+        loadActiveServers();
+      }, 2000); // 2초 후 상태 업데이트 (재부팅은 시간이 더 필요)
       addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /reboot_server 실패', xhr);
