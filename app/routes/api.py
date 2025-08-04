@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 import uuid
+from datetime import datetime
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -41,7 +42,13 @@ tasks = {}
 
 def create_task(status, type, message):
     task_id = str(uuid.uuid4())
-    tasks[task_id] = {'status': status, 'type': type, 'message': message}
+    tasks[task_id] = {
+        'status': status, 
+        'type': type, 
+        'message': message,
+        'created_at': time.time(),
+        'timeout': 60  # 60초 타임아웃
+    }
     print(f"🔧 Task 생성: {task_id} - {status} - {message}")
     return task_id
 
@@ -54,11 +61,24 @@ def update_task(task_id, status, message=None):
     else:
         print(f"❌ Task를 찾을 수 없음: {task_id}")
 
+def check_task_timeout():
+    """Task 타임아웃 체크"""
+    current_time = time.time()
+    for task_id, task_info in list(tasks.items()):
+        if task_info['status'] == 'running':
+            elapsed_time = current_time - task_info['created_at']
+            if elapsed_time > task_info['timeout']:
+                print(f"⏰ Task 타임아웃: {task_id} (경과시간: {elapsed_time:.1f}초)")
+                update_task(task_id, 'failed', f'작업 타임아웃 (60초 초과)')
+
 @bp.route('/tasks/status')
 def get_task_status():
     task_id = request.args.get('task_id')
     print(f"🔍 Task 상태 조회: {task_id}")
     print(f"📋 현재 Tasks: {list(tasks.keys())}")
+    
+    # 타임아웃 체크
+    check_task_timeout()
     
     if not task_id:
         return jsonify({'error': 'task_id가 필요합니다.'}), 400
@@ -69,7 +89,9 @@ def get_task_status():
         tasks[task_id] = {
             'status': 'failed', 
             'type': 'unknown', 
-            'message': 'Task를 찾을 수 없어 자동 종료됨'
+            'message': 'Task를 찾을 수 없어 자동 종료됨',
+            'created_at': time.time(),
+            'timeout': 60
         }
         print(f"🔧 Task 자동 종료 처리: {task_id}")
         return jsonify(tasks[task_id])
@@ -156,18 +178,25 @@ def create_server():
         def create_server_task():
             try:
                 print(f"🔧 Terraform 서비스 호출 시작: {task_id}")
+                print(f"🔧 백그라운드 스레드 시작: {task_id}")
+                
                 # Terraform 서비스 호출
                 from app.services.terraform_service import TerraformService
                 terraform_service = TerraformService()
+                print(f"🔧 TerraformService 인스턴스 생성 완료: {task_id}")
                 
                 # 서버 설정 생성
+                print(f"🔧 서버 설정 생성 시작: {task_id}")
                 if not terraform_service.create_server_config(data):
                     update_task(task_id, 'failed', '서버 설정 생성 실패')
                     print(f"❌ 서버 설정 생성 실패: {task_id}")
                     return
+                print(f"✅ 서버 설정 생성 완료: {task_id}")
                 
                 # 인프라 배포
+                print(f"🔧 인프라 배포 시작: {task_id}")
                 success, message = terraform_service.deploy_infrastructure()
+                print(f"🔧 인프라 배포 결과: {task_id} - success: {success}, message: {message}")
                 
                 if success:
                     update_task(task_id, 'completed', '서버 생성 완료')
@@ -179,11 +208,16 @@ def create_server():
                 error_msg = f'서버 생성 중 오류: {str(e)}'
                 update_task(task_id, 'failed', error_msg)
                 print(f"💥 서버 생성 예외: {task_id} - {error_msg}")
+                import traceback
+                print(f"💥 상세 에러: {task_id}")
+                traceback.print_exc()
         
         import threading
         thread = threading.Thread(target=create_server_task)
         thread.daemon = True
+        print(f"🔧 스레드 생성 완료: {task_id}")
         thread.start()
+        print(f"🔧 스레드 시작 완료: {task_id}")
         
         response = {'success': True, 'message': '서버 생성이 시작되었습니다.', 'task_id': task_id}
         print(f"✅ 서버 생성 응답: {response}")

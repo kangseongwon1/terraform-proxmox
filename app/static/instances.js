@@ -162,7 +162,20 @@ $(function() {
   function pollTaskStatus(task_id, type, name) {
     if (!task_id) return;
     let progressNotified = false;
+    let startTime = Date.now();
+    const TIMEOUT = 60000; // 60초 타임아웃
+    
     activeTasks[task_id] = setInterval(function() {
+      // 클라이언트 측 타임아웃 체크
+      const elapsed = Date.now() - startTime;
+      if (elapsed > TIMEOUT) {
+        console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
+        addSystemNotification('error', type, `${name} ${type} 타임아웃 (60초 초과)`);
+        clearInterval(activeTasks[task_id]);
+        delete activeTasks[task_id];
+        return;
+      }
+      
       $.get('/tasks/status', { task_id }, function(res) {
         console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
         

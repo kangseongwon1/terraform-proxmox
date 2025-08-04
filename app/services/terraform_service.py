@@ -137,8 +137,10 @@ class TerraformService:
     def create_server_config(self, server_data: Dict[str, Any]) -> bool:
         """서버 설정 생성"""
         try:
+            print(f"🔧 create_server_config 시작: {server_data.get('name', 'unknown')}")
             # 기존 설정 로드
             tfvars = self.load_tfvars()
+            print(f"🔧 기존 tfvars 로드 완료: {len(tfvars)} 항목")
             
             # 서버 설정 추가
             if 'servers' not in tfvars:
@@ -146,11 +148,15 @@ class TerraformService:
             
             server_name = server_data['name']
             tfvars['servers'][server_name] = server_data
+            print(f"🔧 서버 설정 추가 완료: {server_name}")
             
             # 설정 저장
-            return self.save_tfvars(tfvars)
+            result = self.save_tfvars(tfvars)
+            print(f"🔧 tfvars 저장 결과: {result}")
+            return result
             
         except Exception as e:
+            print(f"💥 create_server_config 실패: {e}")
             logger.error(f"서버 설정 생성 실패: {e}")
             return False
     
@@ -176,23 +182,35 @@ class TerraformService:
     def deploy_infrastructure(self) -> Tuple[bool, str]:
         """인프라 배포"""
         try:
+            print("🔧 deploy_infrastructure 시작")
             # 초기화
+            print("🔧 Terraform 초기화 시작")
             if not self.init():
+                print("❌ Terraform 초기화 실패")
                 return False, "Terraform 초기화 실패"
+            print("✅ Terraform 초기화 완료")
             
             # 계획
+            print("🔧 Terraform 계획 시작")
             plan_success, plan_output = self.plan()
             if not plan_success:
+                print(f"❌ Terraform 계획 실패: {plan_output}")
                 return False, f"Terraform 계획 실패: {plan_output}"
+            print("✅ Terraform 계획 완료")
             
             # 적용
+            print("🔧 Terraform 적용 시작")
             apply_success, apply_output = self.apply()
             if not apply_success:
+                print(f"❌ Terraform 적용 실패: {apply_output}")
                 return False, f"Terraform 적용 실패: {apply_output}"
+            print("✅ Terraform 적용 완료")
             
+            print("✅ 인프라 배포 성공")
             return True, "인프라 배포 성공"
             
         except Exception as e:
+            print(f"💥 deploy_infrastructure 실패: {e}")
             logger.error(f"인프라 배포 실패: {e}")
             return False, str(e)
     
