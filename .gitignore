@@ -37,6 +37,8 @@ terraform.tfvars.json
 *.pem
 secrets/
 env-dev-template.txt
+.ssh
+.ssh/*
 
 # Vault (Development)
 vault_data/
