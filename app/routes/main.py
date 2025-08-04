@@ -527,4 +527,15 @@ def get_task_status_compat():
         return get_task_status()
     except Exception as e:
         print(f"💥 /tasks/status 호환성 엔드포인트 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/debug/servers', methods=['GET'])
+@login_required
+def debug_servers_compat():
+    """서버 디버깅 정보 (호환성)"""
+    try:
+        from app.routes.api import debug_servers
+        return debug_servers()
+    except Exception as e:
+        print(f"💥 /debug/servers 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 

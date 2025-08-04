@@ -64,7 +64,15 @@ def get_task_status():
         return jsonify({'error': 'task_id가 필요합니다.'}), 400
     
     if task_id not in tasks:
-        return jsonify({'error': 'Invalid task_id'}), 404
+        print(f"❌ Task를 찾을 수 없음 (404): {task_id}")
+        # 404 에러 시 task를 자동으로 종료 상태로 변경
+        tasks[task_id] = {
+            'status': 'failed', 
+            'type': 'unknown', 
+            'message': 'Task를 찾을 수 없어 자동 종료됨'
+        }
+        print(f"🔧 Task 자동 종료 처리: {task_id}")
+        return jsonify(tasks[task_id])
     
     return jsonify(tasks[task_id])
 
@@ -90,6 +98,30 @@ def list_servers():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/debug/servers', methods=['GET'])
+@login_required
+def debug_servers():
+    """서버 디버깅 정보"""
+    try:
+        servers = Server.query.all()
+        server_info = []
+        for server in servers:
+            server_info.append({
+                'id': server.id,
+                'name': server.name,
+                'status': server.status,
+                'role': server.role,
+                'created_at': server.created_at.isoformat() if server.created_at else None,
+                'updated_at': server.updated_at.isoformat() if server.updated_at else None
+            })
+        
+        return jsonify({
+            'total_servers': len(servers),
+            'servers': server_info
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/servers', methods=['POST'])
 @permission_required('create_server')
 def create_server():
@@ -97,6 +129,13 @@ def create_server():
     try:
         data = request.get_json()
         print(f"🔧 서버 생성 요청: {data}")
+        
+        # 서버 이름 중복 체크
+        existing_server = Server.query.filter_by(name=data['name']).first()
+        if existing_server:
+            error_msg = f'서버 이름 "{data["name"]}"이 이미 존재합니다.'
+            print(f"❌ 서버 이름 중복: {error_msg}")
+            return jsonify({'error': error_msg}), 400
         
         # 새 서버 생성
         new_server = Server(
