@@ -517,4 +517,14 @@ def debug_user_info_compat():
         return debug_user_info()
     except Exception as e:
         print(f"💥 /debug/user-info 호환성 엔드포인트 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/tasks/status', methods=['GET'])
+def get_task_status_compat():
+    """작업 상태 조회 (호환성)"""
+    try:
+        from app.routes.api import get_task_status
+        return get_task_status()
+    except Exception as e:
+        print(f"💥 /tasks/status 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 

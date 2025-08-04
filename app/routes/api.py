@@ -42,6 +42,7 @@ tasks = {}
 def create_task(status, type, message):
     task_id = str(uuid.uuid4())
     tasks[task_id] = {'status': status, 'type': type, 'message': message}
+    print(f"🔧 Task 생성: {task_id} - {status} - {message}")
     return task_id
 
 def update_task(task_id, status, message=None):
@@ -49,12 +50,22 @@ def update_task(task_id, status, message=None):
         tasks[task_id]['status'] = status
         if message:
             tasks[task_id]['message'] = message
+        print(f"🔧 Task 업데이트: {task_id} - {status} - {message}")
+    else:
+        print(f"❌ Task를 찾을 수 없음: {task_id}")
 
 @bp.route('/tasks/status')
 def get_task_status():
     task_id = request.args.get('task_id')
-    if not task_id or task_id not in tasks:
+    print(f"🔍 Task 상태 조회: {task_id}")
+    print(f"📋 현재 Tasks: {list(tasks.keys())}")
+    
+    if not task_id:
+        return jsonify({'error': 'task_id가 필요합니다.'}), 400
+    
+    if task_id not in tasks:
         return jsonify({'error': 'Invalid task_id'}), 404
+    
     return jsonify(tasks[task_id])
 
 # 서버 관련 API
@@ -85,6 +96,7 @@ def create_server():
     """서버 생성"""
     try:
         data = request.get_json()
+        print(f"🔧 서버 생성 요청: {data}")
         
         # 새 서버 생성
         new_server = Server(
@@ -96,12 +108,15 @@ def create_server():
         from app import db
         db.session.add(new_server)
         db.session.commit()
+        print(f"✅ 서버 DB 생성 완료: {new_server.name}")
         
         # 백그라운드에서 서버 생성 작업 실행
         task_id = create_task('running', 'create_server', '서버 생성 중...')
+        print(f"🔧 백그라운드 작업 시작: {task_id}")
         
         def create_server_task():
             try:
+                print(f"🔧 Terraform 서비스 호출 시작: {task_id}")
                 # Terraform 서비스 호출
                 from app.services.terraform_service import TerraformService
                 terraform_service = TerraformService()
@@ -109,19 +124,27 @@ def create_server():
                 
                 if result['success']:
                     update_task(task_id, 'completed', '서버 생성 완료')
+                    print(f"✅ 서버 생성 성공: {task_id}")
                 else:
                     update_task(task_id, 'failed', f'서버 생성 실패: {result["message"]}')
+                    print(f"❌ 서버 생성 실패: {task_id} - {result['message']}")
             except Exception as e:
-                update_task(task_id, 'failed', f'서버 생성 중 오류: {str(e)}')
+                error_msg = f'서버 생성 중 오류: {str(e)}'
+                update_task(task_id, 'failed', error_msg)
+                print(f"💥 서버 생성 예외: {task_id} - {error_msg}")
         
         import threading
         thread = threading.Thread(target=create_server_task)
         thread.daemon = True
         thread.start()
         
-        return jsonify({'success': True, 'message': '서버 생성이 시작되었습니다.', 'task_id': task_id})
+        response = {'success': True, 'message': '서버 생성이 시작되었습니다.', 'task_id': task_id}
+        print(f"✅ 서버 생성 응답: {response}")
+        return jsonify(response)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_msg = f'서버 생성 요청 처리 중 오류: {str(e)}'
+        print(f"💥 서버 생성 요청 예외: {error_msg}")
+        return jsonify({'error': error_msg}), 500
 
 @bp.route('/api/servers/<server_name>/start', methods=['POST'])
 @permission_required('start_server')
