@@ -458,11 +458,44 @@ class ProxmoxService:
     def check_vm_exists(self, name: str) -> bool:
         """VM 존재 여부 확인"""
         try:
-            vm_list = self.get_vm_list()
-            return any(vm['name'] == name for vm in vm_list)
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return False
+            
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return False
+            
+            return any(vm['name'] == name for vm in vms)
         except Exception as e:
-            logger.error(f"VM 존재 여부 확인 실패: {e}")
+            print(f"❌ VM 존재 확인 실패: {e}")
             return False
+
+    def get_vm_info(self, name: str) -> Optional[Dict[str, Any]]:
+        """특정 VM의 상세 정보 조회"""
+        try:
+            print(f"🔍 VM 정보 조회: {name}")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return None
+            
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                print(f"❌ VM 목록 조회 실패: {error}")
+                return None
+            
+            # 특정 VM 찾기
+            for vm in vms:
+                if vm['name'] == name:
+                    print(f"✅ VM 정보 찾음: {name} - {vm.get('status', 'unknown')}")
+                    return vm
+            
+            print(f"❌ VM을 찾을 수 없음: {name}")
+            return None
+        except Exception as e:
+            print(f"❌ VM 정보 조회 실패: {e}")
+            return None
     
     def wait_for_vm_status(self, vmid: int, target_status: str, timeout: int = 300) -> bool:
         """VM 상태 대기"""

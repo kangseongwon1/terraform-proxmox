@@ -199,9 +199,60 @@ def create_server():
                 print(f"🔧 인프라 배포 결과: {task_id} - success: {success}, message: {message}")
                 
                 if success:
-                    update_task(task_id, 'completed', '서버 생성 완료')
-                    print(f"✅ 서버 생성 성공: {task_id}")
+                    # 실제 서버 확인 및 DB 업데이트
+                    print(f"🔧 실제 서버 확인 시작: {task_id}")
+                    from app.services.proxmox_service import ProxmoxService
+                    proxmox_service = ProxmoxService()
+                    
+                    # 잠시 대기 후 서버 확인
+                    import time
+                    time.sleep(10)  # 10초 대기
+                    
+                    # Proxmox에서 실제 서버 확인
+                    vm_info = proxmox_service.get_vm_info(data['name'])
+                    if vm_info and vm_info.get('status') == 'running':
+                        # DB 상태 업데이트
+                        from app import db
+                        server = Server.query.filter_by(name=data['name']).first()
+                        if server:
+                            server.status = 'running'
+                            server.vmid = vm_info.get('vmid')
+                            server.ip_address = vm_info.get('ip_addresses', [None])[0] if vm_info.get('ip_addresses') else None
+                            db.session.commit()
+                            print(f"✅ 서버 DB 업데이트 완료: {data['name']} - {server.status}")
+                        else:
+                            print(f"❌ DB에서 서버를 찾을 수 없음: {data['name']}")
+                        
+                        update_task(task_id, 'completed', '서버 생성 완료')
+                        print(f"✅ 서버 생성 성공: {task_id}")
+                    else:
+                        # 실제 서버가 없으면 설정 제거
+                        print(f"❌ 실제 서버가 생성되지 않음: {data['name']}")
+                        terraform_service.remove_server_config(data['name'])
+                        
+                        # DB에서 서버 삭제
+                        from app import db
+                        server = Server.query.filter_by(name=data['name']).first()
+                        if server:
+                            db.session.delete(server)
+                            db.session.commit()
+                            print(f"🔧 실패한 서버 DB에서 삭제: {data['name']}")
+                        
+                        update_task(task_id, 'failed', '실제 서버 생성 실패')
+                        print(f"❌ 서버 생성 실패: {task_id}")
                 else:
+                    # Terraform 실패 시 설정 제거
+                    print(f"❌ Terraform 배포 실패: {task_id} - {message}")
+                    terraform_service.remove_server_config(data['name'])
+                    
+                    # DB에서 서버 삭제
+                    from app import db
+                    server = Server.query.filter_by(name=data['name']).first()
+                    if server:
+                        db.session.delete(server)
+                        db.session.commit()
+                        print(f"🔧 실패한 서버 DB에서 삭제: {data['name']}")
+                    
                     update_task(task_id, 'failed', f'서버 생성 실패: {message}')
                     print(f"❌ 서버 생성 실패: {task_id} - {message}")
             except Exception as e:
@@ -211,6 +262,21 @@ def create_server():
                 import traceback
                 print(f"💥 상세 에러: {task_id}")
                 traceback.print_exc()
+                
+                # 예외 발생 시에도 정리 작업
+                try:
+                    from app.services.terraform_service import TerraformService
+                    terraform_service = TerraformService()
+                    terraform_service.remove_server_config(data['name'])
+                    
+                    from app import db
+                    server = Server.query.filter_by(name=data['name']).first()
+                    if server:
+                        db.session.delete(server)
+                        db.session.commit()
+                        print(f"🔧 예외 발생으로 인한 서버 DB에서 삭제: {data['name']}")
+                except Exception as cleanup_error:
+                    print(f"💥 정리 작업 중 오류: {cleanup_error}")
         
         import threading
         thread = threading.Thread(target=create_server_task)

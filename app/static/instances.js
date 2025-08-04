@@ -186,11 +186,22 @@ $(function() {
           addSystemNotification('success', type, `${name} ${type} 완료`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
-          loadActiveServers();
+          
+          // 서버 목록 즉시 새로고침
+          console.log(`🔄 서버 생성 완료, 목록 새로고침: ${task_id}`);
+          setTimeout(function() {
+            loadActiveServers();
+          }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
         } else if (res.status === 'failed') {
           addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
+          
+          // 실패 시에도 목록 새로고침 (DB 정리 확인)
+          console.log(`🔄 서버 생성 실패, 목록 새로고침: ${task_id}`);
+          setTimeout(function() {
+            loadActiveServers();
+          }, 1000);
         }
       }).fail(function(xhr, status, error) {
         console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
