@@ -349,31 +349,57 @@ def reboot_server(server_name):
 def delete_server(server_name):
     """서버 삭제"""
     try:
+        print(f"🔧 서버 삭제 요청: {server_name}")
+        
         # 백그라운드에서 서버 삭제 작업 실행
         task_id = create_task('running', 'delete_server', '서버 삭제 중...')
+        print(f"🔧 백그라운드 작업 시작: {task_id}")
         
         def delete_server_task():
             try:
-                # Terraform 서비스 사용
+                print(f"🔧 Terraform 서버 삭제 시작: {task_id}")
+                
+                # Terraform을 통한 서버 삭제
                 from app.services.terraform_service import TerraformService
                 terraform_service = TerraformService()
-                result = terraform_service.destroy_server(server_name)
+                result = terraform_service.delete_server(server_name)
                 
                 if result['success']:
+                    # DB에서 서버 삭제
+                    from app import db
+                    server = Server.query.filter_by(name=server_name).first()
+                    if server:
+                        db.session.delete(server)
+                        db.session.commit()
+                        print(f"✅ 서버 DB에서 삭제: {server_name}")
+                    
                     update_task(task_id, 'completed', '서버 삭제 완료')
+                    print(f"✅ 서버 삭제 성공: {task_id}")
                 else:
                     update_task(task_id, 'failed', f'서버 삭제 실패: {result["message"]}')
+                    print(f"❌ 서버 삭제 실패: {task_id} - {result['message']}")
             except Exception as e:
-                update_task(task_id, 'failed', f'서버 삭제 중 오류: {str(e)}')
+                error_msg = f'서버 삭제 중 오류: {str(e)}'
+                update_task(task_id, 'failed', error_msg)
+                print(f"💥 서버 삭제 예외: {task_id} - {error_msg}")
+                import traceback
+                print(f"💥 상세 에러: {task_id}")
+                traceback.print_exc()
         
         import threading
         thread = threading.Thread(target=delete_server_task)
         thread.daemon = True
+        print(f"🔧 스레드 생성 완료: {task_id}")
         thread.start()
+        print(f"🔧 스레드 시작 완료: {task_id}")
         
-        return jsonify({'success': True, 'message': '서버 삭제가 시작되었습니다.', 'task_id': task_id})
+        response = {'success': True, 'message': '서버 삭제가 시작되었습니다.', 'task_id': task_id}
+        print(f"✅ 서버 삭제 응답: {response}")
+        return jsonify(response)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_msg = f'서버 삭제 요청 처리 중 오류: {str(e)}'
+        print(f"💥 서버 삭제 요청 예외: {error_msg}")
+        return jsonify({'error': error_msg}), 500
 
 # 대시보드 API
 @bp.route('/api/all_server_status', methods=['GET'])

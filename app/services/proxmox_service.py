@@ -496,7 +496,43 @@ class ProxmoxService:
         except Exception as e:
             print(f"❌ VM 정보 조회 실패: {e}")
             return None
-    
+
+    def start_server(self, server_name: str) -> Dict[str, Any]:
+        """서버 시작 (API 호환)"""
+        try:
+            print(f"🔧 서버 시작: {server_name}")
+            return self.start_vm(server_name)
+        except Exception as e:
+            print(f"❌ 서버 시작 실패: {e}")
+            return {
+                'success': False,
+                'message': str(e)
+            }
+
+    def stop_server(self, server_name: str) -> Dict[str, Any]:
+        """서버 중지 (API 호환)"""
+        try:
+            print(f"🔧 서버 중지: {server_name}")
+            return self.stop_vm(server_name)
+        except Exception as e:
+            print(f"❌ 서버 중지 실패: {e}")
+            return {
+                'success': False,
+                'message': str(e)
+            }
+
+    def reboot_server(self, server_name: str) -> Dict[str, Any]:
+        """서버 재부팅 (API 호환)"""
+        try:
+            print(f"🔧 서버 재부팅: {server_name}")
+            return self.reboot_vm(server_name)
+        except Exception as e:
+            print(f"❌ 서버 재부팅 실패: {e}")
+            return {
+                'success': False,
+                'message': str(e)
+            }
+
     def wait_for_vm_status(self, vmid: int, target_status: str, timeout: int = 300) -> bool:
         """VM 상태 대기"""
         import time

@@ -226,4 +226,62 @@ class TerraformService:
             
         except Exception as e:
             logger.error(f"인프라 삭제 실패: {e}")
-            return False, str(e) 
+            return False, str(e)
+
+    def delete_server(self, server_name: str) -> Dict[str, Any]:
+        """서버 삭제 (중지 후 Terraform apply)"""
+        try:
+            print(f"🔧 서버 삭제 시작: {server_name}")
+            
+            # 1. 먼저 서버 중지
+            print(f"🔧 서버 중지 시작: {server_name}")
+            from app.services.proxmox_service import ProxmoxService
+            proxmox_service = ProxmoxService()
+            stop_result = proxmox_service.stop_server(server_name)
+            
+            if not stop_result['success']:
+                print(f"❌ 서버 중지 실패: {server_name} - {stop_result['message']}")
+                return {
+                    'success': False,
+                    'message': f'서버 중지 실패: {stop_result["message"]}'
+                }
+            
+            print(f"✅ 서버 중지 완료: {server_name}")
+            
+            # 2. 잠시 대기 (서버 중지 완료 대기)
+            import time
+            print(f"⏳ 서버 중지 완료 대기: {server_name}")
+            time.sleep(10)
+            
+            # 3. tfvars.json에서 서버 설정 제거
+            print(f"🔧 tfvars.json에서 서버 설정 제거: {server_name}")
+            if not self.remove_server_config(server_name):
+                return {
+                    'success': False,
+                    'message': f'서버 설정 제거 실패: {server_name}'
+                }
+            
+            # 4. Terraform 적용 (변경사항 적용으로 서버 삭제)
+            print(f"🔧 Terraform apply로 서버 삭제 시작: {server_name}")
+            success, message = self.deploy_infrastructure()
+            
+            if success:
+                print(f"✅ Terraform으로 서버 삭제 성공: {server_name}")
+                return {
+                    'success': True,
+                    'message': f'서버 {server_name}이 중지 후 Terraform으로 삭제되었습니다.'
+                }
+            else:
+                print(f"❌ Terraform으로 서버 삭제 실패: {server_name} - {message}")
+                return {
+                    'success': False,
+                    'message': f'Terraform 서버 삭제 실패: {message}'
+                }
+                
+        except Exception as e:
+            error_msg = f'서버 삭제 중 오류: {str(e)}'
+            print(f"💥 서버 삭제 예외: {error_msg}")
+            return {
+                'success': False,
+                'message': error_msg
+            } 
