@@ -497,6 +497,26 @@ class ProxmoxService:
             print(f"❌ VM 정보 조회 실패: {e}")
             return None
 
+    def get_vm_list(self) -> List[Dict[str, Any]]:
+        """VM 목록 조회 (API 호환)"""
+        try:
+            print("🔍 VM 목록 조회 (API 호환)")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return []
+            
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                print(f"❌ VM 목록 조회 실패: {error}")
+                return []
+            
+            print(f"✅ VM 목록 조회 완료: {len(vms)}개")
+            return vms
+        except Exception as e:
+            print(f"❌ VM 목록 조회 실패: {e}")
+            return []
+
     def start_server(self, server_name: str) -> Dict[str, Any]:
         """서버 시작 (API 호환)"""
         try:
