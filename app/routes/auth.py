@@ -44,10 +44,26 @@ def login():
                 severity='info'
             )
             
-            flash('로그인되었습니다.', 'success')
             return redirect(url_for('main.index'))
         else:
-            flash('잘못된 사용자명 또는 비밀번호입니다.', 'error')
+            # 로그인 실패 시 세션 정리
+            session.pop('permissions', None)
+            session.pop('user_role', None)
+            session.pop('user_id', None)
+            session.pop('username', None)
+            
+            # 실패 원인에 따른 구체적인 메시지
+            if not user:
+                error_msg = '존재하지 않는 사용자명입니다.'
+            elif not user.check_password(password):
+                error_msg = '비밀번호가 올바르지 않습니다.'
+            elif not user.is_active:
+                error_msg = '비활성화된 계정입니다.'
+            else:
+                error_msg = '잘못된 사용자명 또는 비밀번호입니다.'
+            
+            # JavaScript alert를 위한 세션에 오류 메시지 저장
+            session['login_error'] = error_msg
     
     return render_template('auth/login.html')
 
@@ -63,7 +79,6 @@ def logout():
     session.pop('user_id', None)
     session.pop('username', None)
     
-    flash('로그아웃되었습니다.', 'info')
     return redirect(url_for('auth.login'))
 
 @bp.route('/change-password', methods=['POST'])
@@ -109,6 +124,12 @@ def change_password():
         flash('비밀번호 변경 중 오류가 발생했습니다.', 'error')
     
     return redirect(url_for('main.profile'))
+
+@bp.route('/clear-login-error', methods=['POST'])
+def clear_login_error():
+    """로그인 오류 메시지 제거"""
+    session.pop('login_error', None)
+    return '', 204
 
 @bp.route('/profile')
 @login_required

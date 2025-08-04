@@ -8,10 +8,8 @@ import os
 
 app = create_app()
 
-# 로그인 매니저 설정
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'auth.login'
+# 로그인 매니저 설정 (app/__init__.py에서 이미 설정됨)
+from app import login_manager
 
 @login_manager.user_loader
 def load_user(user_id):

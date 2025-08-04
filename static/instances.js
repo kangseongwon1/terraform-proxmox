@@ -34,6 +34,13 @@ $(function() {
   window.loadActiveServers = function() {
     console.log('[instances.js] loadActiveServers 호출');
     
+    // 중복 실행 방지
+    if (window.loadActiveServers.isLoading) {
+      console.log('[instances.js] loadActiveServers 이미 실행 중, 중복 호출 무시');
+      return;
+    }
+    window.loadActiveServers.isLoading = true;
+    
     // 현재 사용자 권한 디버깅 (개발용)
     $.get('/users', function(res) {
       console.log('[instances.js] 현재 사용자 정보:', res);
@@ -112,11 +119,14 @@ $(function() {
         }
         $('#active-server-table tbody').html(html);
         console.log('[instances.js] 서버 목록 렌더링 완료');
+        window.loadActiveServers.isLoading = false;  // 로딩 완료
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
+        window.loadActiveServers.isLoading = false;  // 에러 시에도 로딩 해제
       });
     }).fail(function(xhr) {
       console.error('[instances.js] 방화벽 그룹 목록 조회 실패:', xhr);
+      window.loadActiveServers.isLoading = false;  // 에러 시에도 로딩 해제
     });
   }
   loadActiveServers();
