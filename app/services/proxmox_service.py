@@ -517,6 +517,50 @@ class ProxmoxService:
             print(f"❌ VM 목록 조회 실패: {e}")
             return []
 
+    def vm_action(self, vmid: int, action: str) -> bool:
+        """VM 액션 수행 (시작/중지/재부팅)"""
+        try:
+            print(f"🔧 VM 액션 수행: {vmid} - {action}")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # VM 정보 조회로 노드 확인
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                print(f"❌ VM 목록 조회 실패: {error}")
+                return False
+            
+            target_vm = None
+            for vm in vms:
+                if vm.get('vmid') == vmid:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                print(f"❌ VM을 찾을 수 없음: {vmid}")
+                return False
+            
+            node = target_vm.get('node', self.node)
+            
+            # 액션 URL 구성
+            action_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/status/{action}"
+            
+            # 액션 수행
+            response = self.session.post(action_url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                print(f"✅ VM 액션 성공: {vmid} - {action}")
+                return True
+            else:
+                print(f"❌ VM 액션 실패: {vmid} - {action} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ VM 액션 실패: {e}")
+            return False
+
     def start_server(self, server_name: str) -> Dict[str, Any]:
         """서버 시작 (API 호환)"""
         try:

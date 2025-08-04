@@ -181,8 +181,8 @@ def create_server():
                 print(f"🔧 백그라운드 스레드 시작: {task_id}")
                 
                 # Flask 애플리케이션 컨텍스트 추가
-                from app import app
-                with app.app_context():
+                from flask import current_app
+                with current_app.app_context():
                     # Terraform 서비스 호출
                     from app.services.terraform_service import TerraformService
                     terraform_service = TerraformService()
@@ -268,8 +268,8 @@ def create_server():
                 
                 # 예외 발생 시에도 정리 작업
                 try:
-                    from app import app
-                    with app.app_context():
+                    from flask import current_app
+                    with current_app.app_context():
                         from app.services.terraform_service import TerraformService
                         terraform_service = TerraformService()
                         terraform_service.remove_server_config(data['name'])
@@ -365,8 +365,8 @@ def delete_server(server_name):
                 print(f"🔧 Terraform 서버 삭제 시작: {task_id}")
                 
                 # Flask 애플리케이션 컨텍스트 추가
-                from app import app
-                with app.app_context():
+                from flask import current_app
+                with current_app.app_context():
                     # Terraform을 통한 서버 삭제
                     from app.services.terraform_service import TerraformService
                     terraform_service = TerraformService()
