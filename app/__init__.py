@@ -1,7 +1,7 @@
 """
 Proxmox Manager Flask Application Factory
 """
-from flask import Flask
+from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 import logging
@@ -40,6 +40,9 @@ def create_app(config_name='development'):
     # 보안 헤더 설정
     setup_security_headers(app)
     
+    # 정적 파일 MIME 타입 설정
+    setup_static_files(app)
+    
     return app
 
 def setup_logging(app):
@@ -66,12 +69,13 @@ def setup_logging(app):
 
 def register_blueprints(app):
     """블루프린트 등록"""
-    from app.routes import auth, admin, servers, api
+    from app.routes import main, auth, admin, servers, api
     
-    app.register_blueprint(auth.bp)
-    app.register_blueprint(admin.bp)
-    app.register_blueprint(servers.bp)
-    app.register_blueprint(api.bp)
+    app.register_blueprint(main)
+    app.register_blueprint(auth)
+    app.register_blueprint(admin)
+    app.register_blueprint(servers)
+    app.register_blueprint(api)
 
 def register_error_handlers(app):
     """에러 핸들러 등록"""
@@ -92,4 +96,102 @@ def setup_security_headers(app):
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
+
+def setup_static_files(app):
+    """정적 파일 MIME 타입 설정"""
+    # Flask의 정적 파일 서빙 설정
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+    
+    # 명시적 정적 파일 라우트 추가 (ChatGPT 추천 방법)
+    @app.route('/static/<path:filename>')
+    def custom_static(filename):
+        """정적 파일을 명시적으로 MIME 타입과 함께 서빙"""
+        try:
+            import os
+            from flask import send_from_directory, current_app
+            
+            # 파일 확장자 확인
+            file_ext = os.path.splitext(filename)[1].lower()
+            
+            # MIME 타입 매핑
+            mime_types = {
+                '.js': 'application/javascript; charset=utf-8',
+                '.css': 'text/css; charset=utf-8',
+                '.json': 'application/json; charset=utf-8',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.svg': 'image/svg+xml',
+                '.woff': 'font/woff',
+                '.woff2': 'font/woff2',
+                '.ttf': 'font/ttf',
+                '.eot': 'application/vnd.ms-fontobject'
+            }
+            
+            # 파일 경로
+            static_folder = os.path.join(current_app.root_path, 'static')
+            file_path = os.path.join(static_folder, filename)
+            
+            print(f"🔍 정적 파일 요청: {filename}")
+            print(f"📁 파일 경로: {file_path}")
+            print(f"📄 파일 확장자: {file_ext}")
+            
+            if os.path.exists(file_path):
+                # MIME 타입 설정
+                content_type = mime_types.get(file_ext, 'application/octet-stream')
+                print(f"🎯 MIME 타입: {content_type}")
+                
+                # 파일 전송
+                response = send_from_directory(static_folder, filename)
+                response.headers['Content-Type'] = content_type
+                response.headers['Cache-Control'] = 'no-cache'
+                print(f"✅ 정적 파일 서빙 성공: {filename}")
+                return response
+            else:
+                print(f"❌ 파일을 찾을 수 없음: {file_path}")
+                return 'File not found', 404
+                
+        except Exception as e:
+            print(f"❌ 정적 파일 서빙 오류: {e}")
+            return 'Internal Server Error', 500
+    
+    @app.after_request
+    def add_static_mime_types(response):
+        """응답 후 MIME 타입 강제 설정"""
+        # 요청 URL에서 파일 확장자 확인
+        request_path = request.path.lower()
+        
+        # JavaScript 파일
+        if request_path.endswith('.js'):
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            response.headers['Cache-Control'] = 'no-cache'
+            print(f"🔧 JavaScript MIME 타입 강제 설정: {request_path}")
+        # CSS 파일
+        elif request_path.endswith('.css'):
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+            response.headers['Cache-Control'] = 'no-cache'
+        # JSON 파일
+        elif request_path.endswith('.json'):
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        # 이미지 파일들
+        elif request_path.endswith('.png'):
+            response.headers['Content-Type'] = 'image/png'
+        elif request_path.endswith('.jpg') or request_path.endswith('.jpeg'):
+            response.headers['Content-Type'] = 'image/jpeg'
+        elif request_path.endswith('.gif'):
+            response.headers['Content-Type'] = 'image/gif'
+        elif request_path.endswith('.svg'):
+            response.headers['Content-Type'] = 'image/svg+xml'
+        # 폰트 파일들
+        elif request_path.endswith('.woff'):
+            response.headers['Content-Type'] = 'font/woff'
+        elif request_path.endswith('.woff2'):
+            response.headers['Content-Type'] = 'font/woff2'
+        elif request_path.endswith('.ttf'):
+            response.headers['Content-Type'] = 'font/ttf'
+        elif request_path.endswith('.eot'):
+            response.headers['Content-Type'] = 'application/vnd.ms-fontobject'
+        
         return response 

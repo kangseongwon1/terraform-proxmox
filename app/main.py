@@ -18,33 +18,27 @@ def load_user(user_id):
     """사용자 로더"""
     return User.query.get(int(user_id))
 
-@app.route('/')
-def index():
-    """메인 페이지"""
-    return render_template('index.html')
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    """대시보드"""
-    return render_template('dashboard.html')
-
-@app.route('/servers')
-@login_required
-def servers():
-    """서버 목록"""
-    return render_template('servers/index.html')
-
-@app.route('/admin')
-@login_required
-def admin():
-    """관리자 페이지"""
-    return render_template('admin/index.html')
-
 if __name__ == '__main__':
     # 데이터베이스 테이블 생성
     with app.app_context():
         db.create_all()
+        
+        # 기본 관리자 사용자 생성
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            admin_user = User(
+                username='admin',
+                email='admin@example.com',
+                is_admin=True
+            )
+            admin_user.set_password('admin123!')
+            db.session.add(admin_user)
+            db.session.commit()
+            print("✅ 기본 관리자 계정이 생성되었습니다: admin / admin123!")
+    
+    print("🚀 Proxmox Manager 시작 중...")
+    print("🌐 웹 인터페이스: http://localhost:5000")
+    print("🔑 기본 로그인: admin / admin123!")
     
     # 개발 서버 실행
     app.run(debug=True, host='0.0.0.0', port=5000) 

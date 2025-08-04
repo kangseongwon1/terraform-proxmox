@@ -37,6 +37,11 @@ class User(UserMixin, db.Model):
         """비밀번호 확인"""
         return check_password_hash(self.password_hash, password)
     
+    def update_user_login(self):
+        """사용자 마지막 로그인 시간 업데이트"""
+        self.last_login = datetime.utcnow()
+        db.session.commit()
+    
     def get_permissions(self):
         """사용자 권한 목록 반환"""
         return [perm.permission for perm in self.permissions]
@@ -60,7 +65,7 @@ class User(UserMixin, db.Model):
             db.session.commit()
     
     def set_permissions(self, permissions):
-        """권한 완전 교체"""
+        """사용자 권한을 완전히 교체"""
         # 기존 권한 모두 삭제
         self.permissions.delete()
         # 새 권한 추가

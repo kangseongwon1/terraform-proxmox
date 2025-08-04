@@ -20,22 +20,22 @@ DEBUG=true
 # ========================================
 
 # Proxmox 서버 주소 (예: https://192.168.1.100:8006)
-PROXMOX_ENDPOINT=https://your-proxmox-server:8006
+PROXMOX_ENDPOINT=https://prox.dmcmedia.co.kr:8006
 
 # Proxmox 사용자명 (예: root@pam)
 PROXMOX_USERNAME=root@pam
 
 # Proxmox 비밀번호
-PROXMOX_PASSWORD=your-proxmox-password
+PROXMOX_PASSWORD="YzaxdJOA2j9Itv8S"
 
 # Proxmox 노드명 (예: pve)
-PROXMOX_NODE=pve
+PROXMOX_NODE=prox
 
 # Proxmox 데이터스토어 (예: local-lvm)
 PROXMOX_DATASTORE=local-lvm
 
 # 템플릿 VM ID (예: 9000)
-PROXMOX_TEMPLATE_ID=9000
+PROXMOX_TEMPLATE_ID=8000
 
 # ========================================
 # 세션 보안 설정

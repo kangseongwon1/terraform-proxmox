@@ -29,6 +29,13 @@ def login():
             login_user(user)
             user.update_user_login()
             
+            # 세션에 권한 정보 추가
+            permissions = [perm.permission for perm in user.permissions]
+            session['permissions'] = permissions
+            session['user_role'] = user.role
+            session['user_id'] = user.id
+            session['username'] = user.username
+            
             # 로그인 알림 생성
             NotificationService.create_user_notification(
                 user_id=user.id,
@@ -49,6 +56,13 @@ def login():
 def logout():
     """로그아웃"""
     logout_user()
+    
+    # 세션 정보 정리
+    session.pop('permissions', None)
+    session.pop('user_role', None)
+    session.pop('user_id', None)
+    session.pop('username', None)
+    
     flash('로그아웃되었습니다.', 'info')
     return redirect(url_for('auth.login'))
 

@@ -11,7 +11,6 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-  <script src="/static/firewall.js"></script>
   <style>
     :root {
       --primary-color: #4db8ff;
@@ -756,8 +755,8 @@
         {% if session['role'] == 'admin' %}
         <a class="nav-link" href="#iam" id="user-management-btn"><i class="fas fa-users-cog me-1"></i>사용자 관리</a>
         {% endif %}
-        <a class="nav-link" href="/profile-page"><i class="fas fa-user me-1"></i>프로필</a>
-        <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a>
+        <a class="nav-link" href="{{ url_for('auth.profile') }}"><i class="fas fa-user me-1"></i>프로필</a>
+        <a class="nav-link" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt me-1"></i>로그아웃</a>
       </div>
     </div>
   </nav>

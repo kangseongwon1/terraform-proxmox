@@ -398,7 +398,11 @@ $(function() {
     // 기본 권한 설정
     formData.permissions = ['view_all'];
 
-    console.log('[iam.js] 새 사용자 추가 요청:', formData);
+    // 보안을 위해 비밀번호는 로그에 출력하지 않음
+    const logData = { ...formData };
+    delete logData.password;
+    delete logData.confirm_password;
+    console.log('[iam.js] 새 사용자 추가 요청:', logData);
 
     $.ajax({
       url: '/users',

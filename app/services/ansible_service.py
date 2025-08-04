@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from flask import current_app
 from app.models.server import Server
 from app.models.notification import Notification
+from app import db
 
 logger = logging.getLogger(__name__)
 

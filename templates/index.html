@@ -11,7 +11,6 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-  <script src="/static/firewall.js"></script>
   <style>
     :root {
       --primary-color: #4db8ff;
@@ -913,11 +912,17 @@
 
   <script>
   // SPA: 서비스별 partial 동적 로드
-  function loadSPA(url, scriptUrl) {
+  function loadSPA(url, scriptUrl, callback) {
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     $.get(url, function(html) {
       $('#main-content').html(html);
-      if (scriptUrl) $.getScript(scriptUrl);
+      if (scriptUrl) {
+        $.getScript(scriptUrl, function() {
+          if (callback) callback();
+        });
+      } else if (callback) {
+        callback();
+      }
     });
   }
   // 메뉴 클릭 이벤트 (사이드바 네비게이션)
@@ -1021,7 +1026,11 @@
       default:
         if (hash.startsWith('#firewall-group-')) {
           const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
-          loadFirewallGroupDetail(group);
+          loadSPA('/firewall/group-detail/content', '/static/firewall.js', function() {
+            if (typeof loadFirewallGroupDetail === 'function') {
+              loadFirewallGroupDetail(group);
+            }
+          });
         } else {
           loadSPA('/dashboard/content', '/static/dashboard.js');
         }
@@ -1053,7 +1062,11 @@
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else if (hash.startsWith('#firewall-group-')) {
       const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
-      loadFirewallGroupDetail(group);
+      loadSPA('/firewall/group-detail/content', '/static/firewall.js', function() {
+        if (typeof loadFirewallGroupDetail === 'function') {
+          loadFirewallGroupDetail(group);
+        }
+      });
       $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {
@@ -1086,7 +1099,11 @@
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else if (hash.startsWith('#firewall-group-')) {
       const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
-      loadFirewallGroupDetail(group);
+      loadSPA('/firewall/group-detail/content', '/static/firewall.js', function() {
+        if (typeof loadFirewallGroupDetail === 'function') {
+          loadFirewallGroupDetail(group);
+        }
+      });
       $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {

@@ -28,35 +28,22 @@ class VaultConfig:
 
 class Config:
     """기본 설정"""
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY 환경 변수가 설정되지 않았습니다.")
-    
-    DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
     
     # SQLAlchemy 설정
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///proxmox_manager.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Proxmox 설정 (환경 변수 필수)
-    PROXMOX_ENDPOINT = os.environ.get('PROXMOX_ENDPOINT')
-    PROXMOX_USERNAME = os.environ.get('PROXMOX_USERNAME')
-    PROXMOX_PASSWORD = os.environ.get('PROXMOX_PASSWORD')
-    PROXMOX_NODE = os.environ.get('PROXMOX_NODE')
-    PROXMOX_DATASTORE = os.environ.get('PROXMOX_DATASTORE')
-    
-    # 필수 환경 변수 검증
-    required_vars = [
-        'PROXMOX_ENDPOINT', 'PROXMOX_USERNAME', 'PROXMOX_PASSWORD',
-        'PROXMOX_NODE', 'PROXMOX_DATASTORE'
-    ]
-    
-    missing_vars = [var for var in required_vars if not os.environ.get(var)]
-    if missing_vars:
-        raise ValueError(f"필수 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
+    PROXMOX_ENDPOINT = os.environ.get('PROXMOX_ENDPOINT', 'https://localhost:8006')
+    PROXMOX_USERNAME = os.environ.get('PROXMOX_USERNAME', 'root@pam')
+    PROXMOX_PASSWORD = os.environ.get('PROXMOX_PASSWORD', 'password')
+    PROXMOX_NODE = os.environ.get('PROXMOX_NODE', 'pve')
+    PROXMOX_DATASTORE = os.environ.get('PROXMOX_DATASTORE', 'local-lvm')
     
     # 세션 보안 설정
-    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
     PERMANENT_SESSION_LIFETIME = timedelta(

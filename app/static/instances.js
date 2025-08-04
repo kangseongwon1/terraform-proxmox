@@ -1,5 +1,8 @@
 // instances.js
 $(function() {
+  // 중복 호출 방지를 위한 플래그
+  let isInitialized = false;
+  
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
     return parseFloat(num).toFixed(2);
@@ -33,6 +36,13 @@ $(function() {
   // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
   window.loadActiveServers = function() {
     console.log('[instances.js] loadActiveServers 호출');
+    
+    // 중복 호출 방지
+    if (window.loadActiveServers.isLoading) {
+      console.log('[instances.js] 이미 로딩 중입니다.');
+      return;
+    }
+    window.loadActiveServers.isLoading = true;
     
     // 현재 사용자 권한 디버깅 (개발용)
     $.get('/users', function(res) {
@@ -98,10 +108,10 @@ $(function() {
                   <i class="fas fa-play"></i> 시작
                 </button>
                 <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
-                  <i class="fas fa-pause"></i> 중지
+                  <i class="fas fa-stop"></i> 중지
                 </button>
-                <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" ${s.status === 'stopped' ? 'disabled' : ''}>
-                  <i class="fas fa-redo"></i> 리부팅
+                <button class="btn btn-warning btn-sm reboot-btn" title="재부팅">
+                  <i class="fas fa-redo"></i> 재부팅
                 </button>
                 <button class="btn btn-danger btn-sm delete-btn" title="삭제">
                   <i class="fas fa-trash"></i> 삭제
@@ -110,15 +120,19 @@ $(function() {
             </td>
           </tr>`;
         }
-        $('#active-server-table tbody').html(html);
-        console.log('[instances.js] 서버 목록 렌더링 완료');
+        
+        $('#server-list tbody').html(html);
+        window.loadActiveServers.isLoading = false;
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
+        $('#server-list tbody').html('<tr><td colspan="8" class="text-center text-danger">서버 정보를 불러오지 못했습니다.</td></tr>');
+        window.loadActiveServers.isLoading = false;
       });
     }).fail(function(xhr) {
       console.error('[instances.js] 방화벽 그룹 목록 조회 실패:', xhr);
+      window.loadActiveServers.isLoading = false;
     });
-  }
+  };
   loadActiveServers();
   $('#list-tab').on('shown.bs.tab', function() {
     console.log('[instances.js] list-tab shown');
@@ -182,9 +196,18 @@ $(function() {
           gateway: $(this).find('.network-gateway').val()
         };
       }).get();
-      if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
-      if (!baseName || baseName.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
-      if (!count || count < 2) { alertModal('서버 개수는 2 이상이어야 합니다.'); return; }
+      if (!selectedOS) { 
+        alertModal('OS를 선택해주세요.'); 
+        return false; 
+      }
+      if (!baseName || baseName.trim() === '') { 
+        alertModal('서버 이름을 입력해주세요.'); 
+        return false; 
+      }
+      if (!count || count < 2) { 
+        alertModal('서버 개수는 2 이상이어야 합니다.'); 
+        return false; 
+      }
       // 네트워크 입력값 검증 (IP, 서브넷, 게이트웨이 모두 필수)
       let hasError = false;
       networks.forEach(function(n, idx) {
@@ -193,7 +216,7 @@ $(function() {
           hasError = true;
         }
       });
-      if (hasError) return;
+      if (hasError) return false;
       // 서버별 정보 생성 (IP 자동 증가, 네트워크 여러 개 지원)
       function ipAdd(ip, add) {
         const parts = ip.split('.').map(Number);
@@ -409,9 +432,15 @@ $(function() {
     // 단일 서버 로직 (기존 단일 서버 코드)
     const selectedRole = $('#role-select').val() || '';
     const selectedOS = $('#os-select').val();
-    if (!selectedOS) { await alertModal('OS를 선택해주세요.'); return; }
+    if (!selectedOS) { 
+      alertModal('OS를 선택해주세요.'); 
+      return false; 
+    }
     const name = $('input[name="name_basic"]').val();
-    if (!name || name.trim() === '') { await alertModal('서버 이름을 입력해주세요.'); return; }
+    if (!name || name.trim() === '') { 
+      alertModal('서버 이름을 입력해주세요.'); 
+      return false; 
+    }
     // IP 주소 검증
     let hasError = false;
     $('#network-container-basic').find('.network-ip').each(function() {
@@ -422,7 +451,7 @@ $(function() {
         return false;
       }
     });
-    if (hasError) return;
+    if (hasError) return false;
     // 서버 생성
     createBasicServer(name, selectedOS, selectedRole);
   });
