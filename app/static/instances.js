@@ -86,8 +86,10 @@ $(function() {
       
       $.get('/all_server_status', function(res) {
         console.log('[instances.js] /all_server_status 응답:', res);
+        console.log('[instances.js] 서버 개수:', Object.keys(res.servers || {}).length);
         let html = '';
         for (const [name, s] of Object.entries(res.servers)) {
+          console.log(`[instances.js] 서버 처리: ${name} - 상태: ${s.status}`);
           // 상태별 배지 색상 결정
           let statusBadge = '';
           switch(s.status) {
@@ -151,8 +153,9 @@ $(function() {
           </tr>`;
         }
         
-        $('#server-list tbody').html(html);
+        $('#active-server-table tbody').html(html);
         console.log('[instances.js] 서버 목록 로드 완료');
+        console.log('[instances.js] 테이블 행 개수:', $('#active-server-table tbody tr').length);
         
         // 실시간 상태 폴링 시작
         startServerStatusPolling();
@@ -161,7 +164,7 @@ $(function() {
         window.loadActiveServers.isLoading = false;
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
-        $('#server-list tbody').html('<tr><td colspan="8" class="text-center text-danger">서버 정보를 불러오지 못했습니다.</td></tr>');
+        $('#active-server-table tbody').html('<tr><td colspan="8" class="text-center text-danger">서버 정보를 불러오지 못했습니다.</td></tr>');
         window.loadActiveServers.isLoading = false;
       });
     }).fail(function(xhr) {
