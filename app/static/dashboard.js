@@ -80,7 +80,14 @@ $(function() {
       };
       
       const roleName = s => window.dashboardRoleMap && window.dashboardRoleMap[s.role] ? window.dashboardRoleMap[s.role] : (s.role || '-');
-      const ipList = s => (s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-';
+      const ipList = s => {
+        if (s.ip_addresses && s.ip_addresses.length > 0) {
+          return s.ip_addresses.join(', ');
+        } else if (s.network_devices && s.network_devices.length > 0) {
+          return s.network_devices.map(nd=>nd.ip_address).join(', ');
+        }
+        return '-';
+      };
       const serverArr = Object.entries(servers);
       
       if (serverArr.length === 0) {
@@ -136,7 +143,12 @@ $(function() {
     $('#dashboard-storage-panel').html('<div class="text-center text-muted py-4">스토리지 정보를 불러오는 중...</div>');
     
     $.get('/proxmox_storage', function(res) {
-      const storages = res.storages || [];
+      console.log('[dashboard.js] /proxmox_storage 응답:', res);
+      
+      // API 응답 구조에 맞게 수정 - storage 키가 아닌 data 키로 접근
+      const storages = (res.success && res.data) ? res.data : [];
+      console.log('[dashboard.js] 처리된 스토리지 데이터:', storages);
+      
       let html = '';
       
       if (storages.length === 0) {

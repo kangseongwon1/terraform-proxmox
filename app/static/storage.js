@@ -26,7 +26,12 @@ $(function() {
     
     // 실제 API 연동
     $.get('/proxmox_storage', function(res) {
-      const storages = res.storages || [];
+      console.log('[storage.js] API 응답:', res);
+      
+      // API 응답 구조에 맞게 수정
+      const storages = (res.success && res.data) ? res.data : [];
+      console.log('[storage.js] 처리된 스토리지 데이터:', storages);
+      
       let html = '';
       
       if (storages.length === 0) {

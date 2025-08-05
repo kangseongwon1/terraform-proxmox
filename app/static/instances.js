@@ -1,4 +1,4 @@
-// instances.js
+// instances.js - v1.2 (캐시 무효화)
 $(function() {
   // 중복 호출 방지를 위한 플래그
   let isInitialized = false;
@@ -231,7 +231,7 @@ $(function() {
           // 서버 목록 즉시 새로고침
           console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
           setTimeout(function() {
-            loadActiveServers();
+          loadActiveServers();
           }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
         } else if (res.status === 'failed') {
           addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
@@ -671,12 +671,26 @@ function initializeServerForm() {
     addSystemNotification('info', '역할 변경', `${server} 서버에 ${role} 역할을 적용하는 중...`);
     
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 적용 중...</span>');
-    $.post(`/assign_role/${server}`, { role }, function(res) {
+    console.log(`[instances.js] 역할 할당 요청: ${server} - ${role}`);
+    console.log(`[instances.js] 요청 데이터:`, { role: role });
+    
+    $.ajax({
+      url: `/assign_role/${server}`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ role: role }),
+      beforeSend: function(xhr) {
+        console.log(`[instances.js] Content-Type 헤더 설정: application/json`);
+        console.log(`[instances.js] 요청 URL: /assign_role/${server}`);
+        console.log(`[instances.js] 요청 메서드: POST`);
+      },
+      success: function(res) {
       console.log('[instances.js] /assign_role 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       loadActiveServers();
       addSystemNotification('success', '역할 변경', `${server} 서버에 ${role} 역할이 성공적으로 적용되었습니다.`);
-    }).fail(function(xhr) {
+      },
+      error: function(xhr) {
       console.error('[instances.js] /assign_role 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
       
@@ -688,6 +702,7 @@ function initializeServerForm() {
       }
       
       addSystemNotification('error', '역할 변경', `${server} 서버 역할 적용 실패: ${errorMsg}`);
+      }
     });
   });
 
@@ -741,12 +756,18 @@ function initializeServerForm() {
     addSystemNotification('info', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹을 적용하는 중...`);
     
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>적용 중...</span>');
-    $.post(`/assign_firewall_group/${server}`, { firewall_group: firewallGroup }, function(res) {
+    $.ajax({
+      url: `/assign_firewall_group/${server}`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ firewall_group: firewallGroup }),
+      success: function(res) {
       console.log('[instances.js] /assign_firewall_group 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       loadActiveServers();
       addSystemNotification('success', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹이 성공적으로 적용되었습니다.`);
-    }).fail(function(xhr) {
+      },
+      error: function(xhr) {
       console.error('[instances.js] /assign_firewall_group 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       
@@ -758,6 +779,7 @@ function initializeServerForm() {
       }
       
       addSystemNotification('error', '방화벽 그룹 적용', `${server} 서버 방화벽 그룹 적용 실패: ${errorMsg}`);
+      }
     });
   });
 
@@ -808,7 +830,7 @@ function initializeServerForm() {
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
-        loadActiveServers();
+      loadActiveServers();
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
     }).fail(function(xhr){
@@ -840,7 +862,7 @@ function initializeServerForm() {
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
-        loadActiveServers();
+      loadActiveServers();
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
     }).fail(function(xhr){
@@ -872,7 +894,7 @@ function initializeServerForm() {
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
-        loadActiveServers();
+      loadActiveServers();
       }, 2000); // 2초 후 상태 업데이트 (재부팅은 시간이 더 필요)
       addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
     }).fail(function(xhr){

@@ -637,6 +637,15 @@ POST /api/servers/{server_id}/stop
 POST /api/servers/{server_id}/reboot
 DELETE /api/servers/{server_id}
 ```
+# API 관련 
+- app/routes/__init__.py : 초기화 
+- app/routes/admin.py : 사용자 관리 기능 
+- app/routes/api.py : 엔드포인트 라우팅 기능
+- app/routes/auth.py : 인증 기능
+- app/routes/firewall.py : 방화벽 기능
+- app/routes/main.py : 랜더링 기능
+- app/routes/notification.py : 알람 기능
+- app/routes/servers.py : 서버 생성/삭제/재부팅/정지, 서버 목록 등 확인 기능
 
 ## 🔐 보안 고려사항
 

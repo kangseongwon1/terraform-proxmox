@@ -4,13 +4,39 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.models.user import User
+from functools import wraps
+from app.models.user import User, UserPermission
 from app.services.notification_service import NotificationService
 import logging
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+def permission_required(permission):
+    """권한 확인 데코레이터"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({'error': '로그인이 필요합니다.'}), 401
+            
+            # 관리자는 모든 권한을 가짐
+            if current_user.role == 'admin':
+                return f(*args, **kwargs)
+            
+            # 사용자 권한 확인
+            user_permission = UserPermission.query.filter_by(
+                user_id=current_user.id,
+                permission=permission
+            ).first()
+            
+            if not user_permission:
+                return jsonify({'error': '권한이 없습니다.'}), 403
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():

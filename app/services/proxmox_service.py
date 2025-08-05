@@ -516,11 +516,59 @@ class ProxmoxService:
                 print(f"❌ VM 목록 조회 실패: {error}")
                 return []
             
-            print(f"✅ VM 목록 조회 완료: {len(vms)}개")
-            return vms
+            # 각 VM의 상세 정보 가져오기
+            detailed_vms = []
+            for vm in vms:
+                try:
+                    node = vm.get('node', self.node)
+                    vmid = vm.get('vmid')
+                    
+                    # VM 상세 정보 조회
+                    vm_detail_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/status/current"
+                    detail_response = self.session.get(vm_detail_url, headers=headers, timeout=3)
+                    
+                    if detail_response.status_code == 200:
+                        detail_data = detail_response.json().get('data', {})
+                        
+                        # 상세 정보와 기본 정보 병합
+                        vm.update({
+                            'cpu': detail_data.get('cpu', 0),
+                            'memory': detail_data.get('memory', 0),
+                            'maxmem': detail_data.get('maxmem', 0),
+                            'cpus': detail_data.get('cpus', 0),
+                            'network_devices': detail_data.get('netin', []),  # 네트워크 정보
+                            'ip_addresses': self._extract_ip_addresses(detail_data)
+                        })
+                    
+                    detailed_vms.append(vm)
+                except Exception as e:
+                    print(f"⚠️ VM 상세 정보 조회 실패 ({vm.get('name', 'unknown')}): {e}")
+                    detailed_vms.append(vm)  # 기본 정보라도 포함
+            
+            print(f"✅ VM 목록 조회 완료: {len(detailed_vms)}개")
+            return detailed_vms
         except Exception as e:
             print(f"❌ VM 목록 조회 실패: {e}")
             return []
+
+    def _extract_ip_addresses(self, vm_data: Dict[str, Any]) -> List[str]:
+        """VM 데이터에서 IP 주소 추출"""
+        ip_addresses = []
+        try:
+            # 네트워크 인터페이스에서 IP 주소 추출
+            for key, value in vm_data.items():
+                if key.startswith('net') and isinstance(value, str):
+                    # net0, net1 등의 네트워크 인터페이스에서 IP 추출
+                    if 'ip=' in value:
+                        ip_parts = value.split('ip=')
+                        if len(ip_parts) > 1:
+                            ip_part = ip_parts[1].split(',')[0]
+                            if ip_part and ip_part != 'dhcp':
+                                ip_addresses.append(ip_part)
+        except Exception as e:
+            print(f"⚠️ IP 주소 추출 실패: {e}")
+        
+        return ip_addresses
 
     def vm_action(self, vmid: int, action: str) -> bool:
         """VM 액션 수행 (시작/중지/재부팅)"""
@@ -615,6 +663,40 @@ class ProxmoxService:
         
         return False
     
+    def get_firewall_groups(self) -> List[Dict[str, Any]]:
+        """방화벽 그룹 목록 조회"""
+        try:
+            print("🔍 방화벽 그룹 목록 조회")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return []
+            
+            # Proxmox에서 방화벽 그룹 정보 가져오기
+            firewall_url = f"{self.endpoint}/api2/json/nodes/{self.node}/firewall/groups"
+            response = self.session.get(firewall_url, headers=headers, timeout=3)
+            
+            if response.status_code == 200:
+                firewall_data = response.json().get('data', {})
+                groups = []
+                
+                for group_name, group_info in firewall_data.items():
+                    groups.append({
+                        'name': group_name,
+                        'description': group_info.get('comment', ''),
+                        'rules': group_info.get('rules', [])
+                    })
+                
+                print(f"✅ 방화벽 그룹 조회 완료: {len(groups)}개")
+                return groups
+            else:
+                print(f"❌ 방화벽 그룹 조회 실패: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"❌ 방화벽 그룹 조회 실패: {e}")
+            return []
+
     def sync_vm_data(self):
         """VM 데이터 동기화"""
         try:

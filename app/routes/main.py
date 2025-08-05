@@ -122,13 +122,19 @@ def dashboard_content():
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_all_vms()
         
+        print(f"🔍 get_all_vms 결과: {result}")
+        
         if result['success']:
             servers = result['data']['servers']
             stats = result['data']['stats']
             total = stats.get('total_servers', 0)
             running = stats.get('running_servers', 0)
             stopped = stats.get('stopped_servers', 0)
+            
+            print(f"🔍 서버 수: {len(servers)}")
+            print(f"🔍 통계: total={total}, running={running}, stopped={stopped}")
         else:
+            print(f"❌ get_all_vms 실패: {result.get('message', '알 수 없는 오류')}")
             # 데이터베이스에서 직접 조회
             with proxmox_service._get_db_connection() as conn:
                 cursor = conn.cursor()
@@ -165,6 +171,8 @@ def dashboard_content():
                              servers=servers, total=total, running=running, stopped=stopped)
     except Exception as e:
         print(f"💥 /dashboard/content 예외 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return render_template('partials/dashboard_content.html', servers=[], total=0, running=0, stopped=0)
 
 @bp.route('/storage/content')
@@ -176,14 +184,20 @@ def storage_content():
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_storage_info()
         
+        print(f"🔍 get_storage_info 결과: {result}")
+        
         if result['success']:
             storages = result['data']
+            print(f"🔍 스토리지 수: {len(storages)}")
         else:
+            print(f"❌ get_storage_info 실패: {result.get('message', '알 수 없는 오류')}")
             storages = []
         
         return render_template('partials/storage_content.html', storages=storages)
     except Exception as e:
         print(f"💥 /storage/content 예외 발생: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return render_template('partials/storage_content.html', storages=[])
 
 @bp.route('/admin/iam/content')
@@ -223,15 +237,14 @@ def firewall_group_detail_content():
         return render_template('partials/firewall_group_detail_content.html', group_name='')
 
 # 기존 템플릿에서 호출하는 API 엔드포인트들
-# /all_server_status는 app/routes/api.py에서 처리됨 (중복 제거)
 
-# 호환성을 위한 API 엔드포인트들 (실제 로직은 api.py에서 처리)
+# 호환성을 위한 API 엔드포인트들 (실제 로직은 servers.py에서 처리)
 @bp.route('/all_server_status', methods=['GET'])
 @login_required
 def get_all_server_status_compat():
     """모든 서버 상태 조회 (호환성)"""
     try:
-        from app.routes.api import get_all_server_status
+        from app.routes.servers import get_all_server_status
         return get_all_server_status()
     except Exception as e:
         print(f"💥 /all_server_status 호환성 엔드포인트 오류: {str(e)}")
@@ -349,7 +362,7 @@ def clear_all_notifications_compat():
 def get_firewall_groups_compat():
     """방화벽 그룹 목록 조회 (호환성)"""
     try:
-        from app.routes.api import get_firewall_groups
+        from app.routes.firewall import get_firewall_groups
         return get_firewall_groups()
     except Exception as e:
         print(f"💥 방화벽 그룹 조회 오류: {str(e)}")
@@ -360,7 +373,7 @@ def get_firewall_groups_compat():
 def create_server_compat():
     """서버 생성 (호환성)"""
     try:
-        from app.routes.api import create_server
+        from app.routes.servers import create_server
         return create_server()
     except Exception as e:
         print(f"💥 서버 생성 호환성 엔드포인트 오류: {str(e)}")
@@ -399,7 +412,7 @@ def get_server_status_compat(server_name):
 def start_server_compat(server_name):
     """서버 시작 (호환성)"""
     try:
-        from app.routes.api import start_server
+        from app.routes.servers import start_server
         return start_server(server_name)
     except Exception as e:
         print(f"💥 서버 시작 호환성 엔드포인트 오류: {str(e)}")
@@ -410,7 +423,7 @@ def start_server_compat(server_name):
 def stop_server_compat(server_name):
     """서버 중지 (호환성)"""
     try:
-        from app.routes.api import stop_server
+        from app.routes.servers import stop_server
         return stop_server(server_name)
     except Exception as e:
         print(f"💥 서버 중지 호환성 엔드포인트 오류: {str(e)}")
@@ -421,7 +434,7 @@ def stop_server_compat(server_name):
 def reboot_server_compat(server_name):
     """서버 재부팅 (호환성)"""
     try:
-        from app.routes.api import reboot_server
+        from app.routes.servers import reboot_server
         return reboot_server(server_name)
     except Exception as e:
         print(f"💥 서버 재부팅 호환성 엔드포인트 오류: {str(e)}")
@@ -432,7 +445,7 @@ def reboot_server_compat(server_name):
 def delete_server_compat(server_name):
     """서버 삭제 (호환성)"""
     try:
-        from app.routes.api import delete_server
+        from app.routes.servers import delete_server
         return delete_server(server_name)
     except Exception as e:
         print(f"💥 서버 삭제 호환성 엔드포인트 오류: {str(e)}")
@@ -465,7 +478,7 @@ def remove_role_compat(server_name):
 def assign_firewall_group_compat(server_name):
     """방화벽 그룹 할당 (호환성)"""
     try:
-        from app.routes.api import assign_firewall_group
+        from app.routes.firewall import assign_firewall_group
         return assign_firewall_group(server_name)
     except Exception as e:
         print(f"💥 방화벽 그룹 할당 호환성 엔드포인트 오류: {str(e)}")
@@ -476,7 +489,7 @@ def assign_firewall_group_compat(server_name):
 def remove_firewall_group_compat(server_name):
     """방화벽 그룹 제거 (호환성)"""
     try:
-        from app.routes.api import remove_firewall_group
+        from app.routes.firewall import remove_firewall_group
         return remove_firewall_group(server_name)
     except Exception as e:
         print(f"💥 방화벽 그룹 제거 호환성 엔드포인트 오류: {str(e)}")
@@ -487,7 +500,7 @@ def remove_firewall_group_compat(server_name):
 def multi_server_summary():
     """멀티 서버 요약 (호환성)"""
     try:
-        from app.routes.api import get_all_server_status
+        from app.routes.servers import get_all_server_status
         return get_all_server_status()
     except Exception as e:
         print(f"💥 멀티 서버 요약 호환성 엔드포인트 오류: {str(e)}")
@@ -502,11 +515,32 @@ def favicon():
 def proxmox_storage():
     """Proxmox 스토리지 정보 (호환성)"""
     try:
-        from app.routes.api import proxmox_storage as api_proxmox_storage
+        from app.routes.servers import proxmox_storage as api_proxmox_storage
         return api_proxmox_storage()
     except Exception as e:
         print(f"💥 Proxmox 스토리지 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/sync_servers', methods=['POST'])
+@login_required
+def sync_servers_compat():
+    """서버 동기화 (호환성)"""
+    try:
+        from app.routes.servers import sync_servers as api_sync_servers
+        return api_sync_servers()
+    except Exception as e:
+        print(f"💥 서버 동기화 호환성 엔드포인트 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/tasks/status')
+def get_task_status_compat():
+    """Task 상태 조회 (호환성)"""
+    try:
+        from app.routes.servers import get_task_status
+        return get_task_status()
+    except Exception as e:
+        print(f"💥 Task 상태 조회 호환성 엔드포인트 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/debug/user-info', methods=['GET'])
 @login_required
@@ -517,16 +551,6 @@ def debug_user_info_compat():
         return debug_user_info()
     except Exception as e:
         print(f"💥 /debug/user-info 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/tasks/status', methods=['GET'])
-def get_task_status_compat():
-    """작업 상태 조회 (호환성)"""
-    try:
-        from app.routes.api import get_task_status
-        return get_task_status()
-    except Exception as e:
-        print(f"💥 /tasks/status 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/debug/servers', methods=['GET'])
