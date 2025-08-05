@@ -90,6 +90,8 @@ $(function() {
         let html = '';
         for (const [name, s] of Object.entries(res.servers)) {
           console.log(`[instances.js] 서버 처리: ${name} - 상태: ${s.status}`);
+          console.log(`[instances.js] 서버 데이터:`, s);
+          
           // 상태별 배지 색상 결정
           let statusBadge = '';
           switch(s.status) {
@@ -110,7 +112,7 @@ $(function() {
             fwGroupOptions += `<option value="${group.name}"${s.firewall_group===group.name?' selected':''}>${group.name}</option>`;
           });
           
-          html += `<tr data-server="${name}">
+          const serverRow = `<tr data-server="${name}">
             <td><a href="#" class="server-detail-link" data-server="${name}"><strong>${s.name}</strong></a></td>
             <td>
               <div class="d-flex align-items-center gap-2">
@@ -151,11 +153,20 @@ $(function() {
               </div>
             </td>
           </tr>`;
+          
+          console.log(`[instances.js] ${name} 서버 HTML 생성:`, serverRow.substring(0, 100) + '...');
+          html += serverRow;
         }
         
+        console.log(`[instances.js] 생성된 HTML 길이: ${html.length}`);
+        console.log(`[instances.js] 삽입 전 테이블 행 개수:`, $('#active-server-table tbody tr').length);
+        console.log(`[instances.js] 테이블 존재 여부:`, $('#active-server-table').length > 0);
+        console.log(`[instances.js] tbody 존재 여부:`, $('#active-server-table tbody').length > 0);
+        
         $('#active-server-table tbody').html(html);
+        
+        console.log(`[instances.js] 삽입 후 테이블 행 개수:`, $('#active-server-table tbody tr').length);
         console.log('[instances.js] 서버 목록 로드 완료');
-        console.log('[instances.js] 테이블 행 개수:', $('#active-server-table tbody tr').length);
         
         // 실시간 상태 폴링 시작
         startServerStatusPolling();
