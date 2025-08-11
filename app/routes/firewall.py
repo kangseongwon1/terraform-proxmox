@@ -25,6 +25,51 @@ def get_firewall_groups():
         print(f"💥 방화벽 그룹 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/firewall/groups', methods=['POST'])
+@login_required
+@permission_required('manage_firewall_groups')
+def create_firewall_group():
+    """방화벽 그룹 생성"""
+    try:
+        data = request.get_json()
+        group_name = data.get('name')
+        description = data.get('description', '')
+        
+        if not group_name:
+            return jsonify({'error': '그룹 이름이 필요합니다.'}), 400
+        
+        print(f"🔍 방화벽 그룹 생성 요청: {group_name} - {description}")
+        
+        # 그룹 이름 유효성 검사
+        if len(group_name) > 32:
+            return jsonify({'error': '그룹 이름은 32자를 초과할 수 없습니다.'}), 400
+            
+        if not group_name.replace('-', '').replace('_', '').isalnum():
+            return jsonify({'error': '그룹 이름은 영문, 숫자, 하이픈(-), 언더스코어(_)만 사용할 수 있습니다.'}), 400
+        
+        # ProxmoxService를 통해 방화벽 그룹 생성 시도
+        proxmox_service = ProxmoxService()
+        success = proxmox_service.create_firewall_group(group_name, description)
+        
+        if success:
+            print(f"✅ 방화벽 그룹 '{group_name}' 생성 성공")
+            return jsonify({
+                'success': True,
+                'message': f'방화벽 그룹 \'{group_name}\'이 성공적으로 생성되었습니다. (테스트 환경)',
+                'group': {
+                    'name': group_name,
+                    'description': description,
+                    'instance_count': 0
+                },
+                'note': '실제 Proxmox 환경에서는 방화벽 그룹을 수동으로 생성해야 할 수 있습니다.'
+            })
+        else:
+            print(f"❌ 방화벽 그룹 '{group_name}' 생성 실패")
+            return jsonify({'error': f'방화벽 그룹 \'{group_name}\' 생성에 실패했습니다.'}), 500
+    except Exception as e:
+        print(f"💥 방화벽 그룹 생성 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/firewall/groups/<group_name>', methods=['GET'])
 @login_required
 def get_firewall_group_detail(group_name):
@@ -98,22 +143,110 @@ def get_firewall_group_rules(group_name):
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/firewall/groups/<group_name>/rules', methods=['POST'])
+@login_required
+@permission_required('manage_firewall_groups')
 def add_firewall_group_rule(group_name):
-    """방화벽 그룹 규칙 추가"""
+    """Security Group에 규칙 추가"""
     try:
         data = request.get_json()
-        # 실제로는 데이터베이스에 저장
-        return jsonify({'success': True, 'message': '방화벽 규칙이 추가되었습니다.'})
+        print(f"🔍 Security Group '{group_name}'에 규칙 추가 요청")
+        print(f"🔍 받은 데이터: {data}")
+        print(f"🔍 데이터 타입: {type(data)}")
+        
+        if not data:
+            return jsonify({'error': '데이터가 없습니다.'}), 400
+        
+        # 필수 필드 검증
+        if not data.get('action'):
+            return jsonify({'error': '동작(ACCEPT/DENY)이 필요합니다.'}), 400
+        
+        print(f"🔍 Security Group '{group_name}'에 규칙 추가")
+        print(f"🔍 규칙 데이터: {data}")
+        
+        # ProxmoxService를 통해 Security Group에 규칙 추가
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        success = proxmox_service.add_firewall_rule(group_name, data)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '방화벽 규칙이 Security Group에 추가되었습니다.'
+            })
+        else:
+            return jsonify({'error': '방화벽 규칙 추가에 실패했습니다.'}), 500
+            
     except Exception as e:
+        print(f"💥 방화벽 규칙 추가 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/firewall/groups/<group_name>/rules/<int:rule_id>', methods=['DELETE'])
+@login_required
+@permission_required('manage_firewall_groups')
 def delete_firewall_group_rule(group_name, rule_id):
-    """방화벽 그룹 규칙 삭제"""
+    """Security Group에서 규칙 삭제"""
     try:
-        # 실제로는 데이터베이스에서 삭제
-        return jsonify({'success': True, 'message': '방화벽 규칙이 삭제되었습니다.'})
+        print(f"🔍 Security Group '{group_name}'에서 규칙 {rule_id} 삭제")
+        
+        # ProxmoxService를 통해 Security Group에서 규칙 삭제
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        success = proxmox_service.delete_firewall_rule(group_name, rule_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '방화벽 규칙이 Security Group에서 삭제되었습니다.'
+            })
+        else:
+            return jsonify({'error': '방화벽 규칙 삭제에 실패했습니다.'}), 500
+            
     except Exception as e:
+        print(f"💥 방화벽 규칙 삭제 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/apply_security_group/<server_name>', methods=['POST'])
+@login_required
+@permission_required('assign_firewall_groups')
+def apply_security_group_to_vm(server_name):
+    """VM에 Security Group 적용"""
+    try:
+        data = request.get_json()
+        group_name = data.get('security_group')
+        
+        if not group_name:
+            return jsonify({'error': 'Security Group이 필요합니다.'}), 400
+        
+        print(f"🔍 VM '{server_name}'에 Security Group '{group_name}' 적용")
+        
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        # VM에 Security Group 적용
+        success = proxmox_service.apply_security_group_to_vm(server_name, group_name)
+        
+        if success:
+            # DB에 firewall_group 정보 업데이트
+            from app.models import Server
+            from app import db
+            
+            server = Server.query.filter_by(name=server_name).first()
+            if server:
+                server.firewall_group = group_name
+                db.session.commit()
+                print(f"✅ DB에 Security Group 정보 업데이트 완료")
+            
+            return jsonify({
+                'success': True,
+                'message': f'VM \'{server_name}\'에 Security Group \'{group_name}\'이 적용되었습니다.'
+            })
+        else:
+            return jsonify({'error': f'VM \'{server_name}\'에 Security Group 적용에 실패했습니다.'}), 500
+            
+    except Exception as e:
+        print(f"💥 Security Group 적용 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/remove_firewall_group/<server_name>', methods=['POST'])

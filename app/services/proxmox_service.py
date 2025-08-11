@@ -6,6 +6,7 @@ import logging
 import sqlite3
 import json
 import os
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from flask import current_app
 from app.models.server import Server
@@ -30,7 +31,7 @@ class ProxmoxService:
     
     def _get_db_connection(self):
         """데이터베이스 연결"""
-        conn = sqlite3.connect('proxmox.db')
+        conn = sqlite3.connect('instance/proxmox_manager.db')
         conn.row_factory = sqlite3.Row
         return conn
     
@@ -201,17 +202,23 @@ class ProxmoxService:
                     # CPU 정보 추출 (tfvars에서 가져오거나 기본값 사용)
                     vm_cpu = server_data.get('cpu', 1)
                     
-                    # DB에서 방화벽 그룹 정보 가져오기
+                    # DB에서 역할 및 방화벽 그룹 정보 가져오기
                     firewall_group = None
+                    db_role = None
                     try:
                         with self._get_db_connection() as conn:
                             cursor = conn.cursor()
-                            cursor.execute('SELECT firewall_group FROM servers WHERE name = ?', (vm['name'],))
+                            cursor.execute('SELECT role, firewall_group FROM servers WHERE name = ?', (vm['name'],))
                             db_server = cursor.fetchone()
                             if db_server:
+                                db_role = db_server['role']
                                 firewall_group = db_server['firewall_group']
+                                print(f"🔍 DB에서 {vm['name']} 역할 조회: {db_role}")
                     except Exception as e:
                         print(f"⚠️ DB 조회 실패: {e}")
+                    
+                    # 역할 정보 우선순위: DB > tfvars > 기본값
+                    final_role = db_role if db_role else server_data.get('role', 'unknown')
                     
                     status_info = {
                         'name': vm['name'],
@@ -224,7 +231,7 @@ class ProxmoxService:
                         'uptime': vm.get('uptime', 0),
                         'disk': vm.get('disk', 0),
                         'maxdisk': vm.get('maxdisk', 0),
-                        'role': server_data.get('role', 'unknown'),
+                        'role': final_role,
                         'firewall_group': firewall_group,
                         'ip_addresses': ip_list,
                         'vm_cpu': vm_cpu  # tfvars에서 가져온 CPU 코어 수
@@ -664,38 +671,312 @@ class ProxmoxService:
         return False
     
     def get_firewall_groups(self) -> List[Dict[str, Any]]:
-        """방화벽 그룹 목록 조회"""
+        """Proxmox Datacenter Security Group 목록 조회"""
         try:
-            print("🔍 방화벽 그룹 목록 조회")
+            print("🔍 Proxmox Datacenter Security Group 목록 조회")
             headers, error = self.get_proxmox_auth()
             if error:
                 print(f"❌ 인증 실패: {error}")
                 return []
             
-            # Proxmox에서 방화벽 그룹 정보 가져오기
-            firewall_url = f"{self.endpoint}/api2/json/nodes/{self.node}/firewall/groups"
-            response = self.session.get(firewall_url, headers=headers, timeout=3)
+            # Proxmox Datacenter Security Group API 호출
+            firewall_url = f"{self.endpoint}/api2/json/cluster/firewall/groups"
+            response = self.session.get(firewall_url, headers=headers, timeout=10)
+            
+            print(f"🔍 Datacenter Security Group API 호출: {firewall_url}")
+            print(f"🔍 응답 상태: {response.status_code}")
             
             if response.status_code == 200:
                 firewall_data = response.json().get('data', {})
                 groups = []
                 
-                for group_name, group_info in firewall_data.items():
-                    groups.append({
-                        'name': group_name,
-                        'description': group_info.get('comment', ''),
-                        'rules': group_info.get('rules', [])
-                    })
+                print(f"🔍 Proxmox 응답 데이터: {firewall_data}")
                 
-                print(f"✅ 방화벽 그룹 조회 완료: {len(groups)}개")
+                                # Security Group 데이터 파싱
+                if isinstance(firewall_data, list):
+                    print("🔍 응답이 리스트 형태입니다. 리스트 파싱 시작")
+                    for group_item in firewall_data:
+                        print(f"🔍 그룹 아이템: {group_item}")
+                        if isinstance(group_item, dict) and 'group' in group_item:
+                            group_name = group_item['group']
+                            group_comment = group_item.get('comment', f'{group_name} Security Group')
+                            
+                            groups.append({
+                                'name': group_name,
+                                'description': group_comment,
+                                'instance_count': 0,  # 규칙 수는 별도 API로 조회 필요
+                                'rules': []
+                            })
+                            print(f"✅ 그룹 '{group_name}' 파싱 완료")
+                elif isinstance(firewall_data, dict):
+                    print("🔍 응답이 딕셔너리 형태입니다. 딕셔너리 파싱 시작")
+                    for group_name, group_info in firewall_data.items():
+                        # 각 그룹의 규칙 수 계산
+                        rules_count = len(group_info.get('rules', []))
+                        
+                        groups.append({
+                            'name': group_name,
+                            'description': group_info.get('comment', f'{group_name} Security Group'),
+                            'instance_count': rules_count,
+                            'rules': group_info.get('rules', [])
+                        })
+                else:
+                    print(f"⚠️ 예상치 못한 응답 형태: {type(firewall_data)}")
+                
+                print(f"✅ Datacenter Security Group 조회 완료: {len(groups)}개")
                 return groups
+                
+            elif response.status_code == 501:
+                print("⚠️ Datacenter Security Group API가 지원되지 않음 (501)")
+                print("🔄 테스트용 데이터 반환")
+                return self._get_test_firewall_groups()
             else:
-                print(f"❌ 방화벽 그룹 조회 실패: {response.status_code}")
-                return []
+                print(f"❌ Datacenter Security Group 조회 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return self._get_test_firewall_groups()
                 
         except Exception as e:
-            print(f"❌ 방화벽 그룹 조회 실패: {e}")
-            return []
+            print(f"❌ Datacenter Security Group 조회 실패: {e}")
+            return self._get_test_firewall_groups()
+
+    def get_firewall_group_detail(self, group_name: str) -> Dict[str, Any]:
+        """Proxmox Datacenter Security Group 상세 정보 조회"""
+        try:
+            print(f"🔍 Datacenter Security Group '{group_name}' 상세 정보 조회")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return {}
+            
+            # Security Group 정보 조회 (Rules 포함)
+            group_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            response = self.session.get(group_url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                group_data = response.json().get('data', [])
+                
+                # Rules는 이미 group_data에 포함되어 있음
+                rules = group_data if isinstance(group_data, list) else []
+                
+                # Security Group 기본 정보 조회
+                groups_url = f"{self.endpoint}/api2/json/cluster/firewall/groups"
+                groups_response = self.session.get(groups_url, headers=headers, timeout=10)
+                
+                group_info = {}
+                if groups_response.status_code == 200:
+                    groups_data = groups_response.json().get('data', [])
+                    for group in groups_data:
+                        if group.get('group') == group_name:
+                            group_info = group
+                            break
+                
+                group_detail = {
+                    'name': group_name,
+                    'description': group_info.get('comment', f'{group_name} Security Group'),
+                    'rules': rules,
+                    'group_info': group_info
+                }
+                
+                print(f"✅ Datacenter Security Group '{group_name}' 상세 조회 완료: {len(rules)}개 규칙")
+                return group_detail
+            else:
+                print(f"❌ Datacenter Security Group '{group_name}' 상세 조회 실패: {response.status_code}")
+                return {}
+                
+        except Exception as e:
+            print(f"❌ Datacenter Security Group '{group_name}' 상세 조회 실패: {e}")
+            return {}
+
+    def create_firewall_group(self, group_name: str, description: str = '') -> bool:
+        """Proxmox Datacenter Security Group 생성"""
+        try:
+            print(f"🔍 Datacenter Security Group '{group_name}' 생성 시도")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # Proxmox Datacenter Security Group 생성 API
+            firewall_url = f"{self.endpoint}/api2/json/cluster/firewall/groups"
+            payload = {
+                'group': group_name,
+                'comment': description
+            }
+            
+            print(f"🔍 Datacenter Security Group 생성 API 호출: {firewall_url}")
+            print(f"🔍 Payload: {payload}")
+            
+            response = self.session.post(firewall_url, headers=headers, data=payload, timeout=10)
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ Datacenter Security Group '{group_name}' 생성 성공")
+                return True
+            else:
+                print(f"❌ Datacenter Security Group '{group_name}' 생성 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Datacenter Security Group '{group_name}' 생성 실패: {e}")
+            return False
+
+    def add_firewall_rule(self, group_name: str, rule_data: Dict[str, Any]) -> bool:
+        """Datacenter Security Group에 규칙 추가"""
+        try:
+            print(f"🔍 Datacenter Security Group '{group_name}'에 규칙 추가")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # Security Group에 규칙 추가 (올바른 API 엔드포인트)
+            rules_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            
+            # Proxmox API 형식에 맞게 규칙 데이터 변환
+            payload = {
+                'type': 'in',  # 기본값: 인바운드
+                'action': rule_data.get('action', 'ACCEPT'),
+                'proto': rule_data.get('protocol', 'tcp'),
+                'dport': rule_data.get('port', ''),
+                'source': rule_data.get('source_ip', ''),
+                'dest': rule_data.get('dest_ip', ''),
+                'comment': rule_data.get('description', '')
+            }
+            
+            print(f"🔍 Security Group 규칙 추가 API 호출: {rules_url}")
+            print(f"🔍 원본 데이터: {rule_data}")
+            print(f"🔍 변환된 Payload: {payload}")
+            
+            response = self.session.post(rules_url, headers=headers, data=payload, timeout=10)
+            
+            print(f"🔍 API 응답 상태: {response.status_code}")
+            print(f"🔍 API 응답 내용: {response.text}")
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ Security Group '{group_name}'에 규칙 추가 성공")
+                return True
+            else:
+                print(f"❌ Security Group '{group_name}'에 규칙 추가 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Security Group '{group_name}'에 규칙 추가 실패: {e}")
+            return False
+
+    def delete_firewall_rule(self, group_name: str, rule_id: int) -> bool:
+        """Datacenter Security Group에서 규칙 삭제"""
+        try:
+            print(f"🔍 Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # Datacenter Security Group 규칙 삭제 API
+            rule_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}/rules/{rule_id}"
+            
+            print(f"🔍 Datacenter Security Group 규칙 삭제 API 호출: {rule_url}")
+            
+            response = self.session.delete(rule_url, headers=headers, timeout=10)
+            
+            if response.status_code in [200, 204]:
+                print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 성공")
+                return True
+            else:
+                print(f"❌ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 실패: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 실패: {e}")
+            return False
+
+    def delete_firewall_group(self, group_name: str) -> bool:
+        """Datacenter Security Group 삭제"""
+        try:
+            print(f"🔍 Datacenter Security Group '{group_name}' 삭제")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # Datacenter Security Group 삭제 API
+            group_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            
+            print(f"🔍 Datacenter Security Group 삭제 API 호출: {group_url}")
+            
+            response = self.session.delete(group_url, headers=headers, timeout=10)
+            
+            if response.status_code in [200, 204]:
+                print(f"✅ Datacenter Security Group '{group_name}' 삭제 성공")
+                return True
+            else:
+                print(f"❌ Datacenter Security Group '{group_name}' 삭제 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Datacenter Security Group '{group_name}' 삭제 실패: {e}")
+            return False
+
+    def apply_security_group_to_vm(self, vm_name: str, group_name: str) -> bool:
+        """VM에 Security Group 적용"""
+        try:
+            print(f"🔍 VM '{vm_name}'에 Security Group '{group_name}' 적용")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # VM 정보 조회
+            vm_info = self.get_vm_info(vm_name)
+            if not vm_info:
+                print(f"❌ VM '{vm_name}'을 찾을 수 없습니다.")
+                return False
+            
+            vmid = vm_info.get('vmid')
+            node = vm_info.get('node', self.node)
+            
+            # Security Group 규칙 조회
+            rules_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}/rules"
+            rules_response = self.session.get(rules_url, headers=headers, timeout=10)
+            
+            if rules_response.status_code != 200:
+                print(f"❌ Security Group '{group_name}' 규칙 조회 실패")
+                return False
+            
+            rules = rules_response.json().get('data', [])
+            print(f"🔍 Security Group '{group_name}' 규칙 {len(rules)}개 적용")
+            
+            # VM에 각 규칙 적용
+            vm_rules_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules"
+            
+            success_count = 0
+            for rule in rules:
+                # VM 방화벽 규칙 형식으로 변환
+                vm_rule_payload = {
+                    'protocol': rule.get('protocol', 'tcp'),
+                    'port': rule.get('port', ''),
+                    'source': rule.get('source', ''),
+                    'dest': rule.get('dest', ''),
+                    'action': rule.get('action', 'ACCEPT'),
+                    'comment': f"SG-{group_name}: {rule.get('comment', '')}"
+                }
+                
+                response = self.session.post(vm_rules_url, headers=headers, data=vm_rule_payload, timeout=10)
+                
+                if response.status_code in [200, 201]:
+                    success_count += 1
+                    print(f"✅ VM '{vm_name}'에 규칙 {rule.get('id')} 적용 성공")
+                else:
+                    print(f"❌ VM '{vm_name}'에 규칙 {rule.get('id')} 적용 실패: {response.status_code}")
+            
+            print(f"✅ VM '{vm_name}'에 Security Group '{group_name}' 적용 완료: {success_count}/{len(rules)}개 규칙")
+            return success_count > 0
+            
+        except Exception as e:
+            print(f"❌ VM '{vm_name}'에 Security Group '{group_name}' 적용 실패: {e}")
+            return False
 
     def sync_vm_data(self):
         """VM 데이터 동기화"""

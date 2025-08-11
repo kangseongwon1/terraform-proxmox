@@ -27,14 +27,79 @@ class AnsibleService:
             cwd = self.ansible_dir
         
         try:
-            result = subprocess.run(
-                command,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=600  # 10분 타임아웃
-            )
-            return result.returncode, result.stdout, result.stderr
+            # SSH 설정 환경 변수 추가
+            env = os.environ.copy()
+            ssh_user = current_app.config.get('SSH_USER', 'rocky')
+            ssh_private_key = current_app.config.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
+            
+            env['ANSIBLE_USER'] = ssh_user
+            env['ANSIBLE_SSH_PRIVATE_KEY_FILE'] = ssh_private_key
+            env['ANSIBLE_HOST_KEY_CHECKING'] = 'False'  # 호스트 키 검증 비활성화
+            
+            print(f"🔧 Ansible 명령어 실행: {' '.join(command)}")
+            print(f"🔧 SSH 사용자: {ssh_user}")
+            print(f"🔧 SSH 키: {ssh_private_key}")
+            
+            # Windows 환경에서 Ansible 명령어 경로 확인 및 수정
+            if os.name == 'nt':  # Windows 환경
+                # Windows에서 Ansible 실행 방법들 시도
+                possible_commands = [
+                    command,  # 원래 명령어
+                    ['python', '-m', 'ansible'] + command[1:],  # Python 모듈로 실행
+                    ['ansible.cmd'] + command[1:],  # .cmd 확장자
+                    ['ansible.exe'] + command[1:],  # .exe 확장자
+                ]
+                
+                for cmd in possible_commands:
+                    try:
+                        print(f"🔧 Windows에서 Ansible 명령어 시도: {' '.join(cmd)}")
+                        result = subprocess.run(
+                            cmd,
+                            cwd=cwd,
+                            env=env,
+                            capture_output=True,
+                            text=True,
+                            encoding='utf-8',
+                            errors='replace',
+                            timeout=600
+                        )
+                        
+                        print(f"🔧 Ansible 명령어 완료: returncode={result.returncode}")
+                        if result.stderr:
+                            print(f"🔧 Ansible stderr: {result.stderr}")
+                        
+                        return result.returncode, result.stdout, result.stderr
+                        
+                    except FileNotFoundError:
+                        print(f"🔧 명령어 실패, 다음 시도: {' '.join(cmd)}")
+                        continue
+                    except Exception as e:
+                        print(f"🔧 명령어 실행 중 오류: {e}")
+                        continue
+                
+                # 모든 시도 실패
+                error_msg = "Windows 환경에서 Ansible 명령어를 찾을 수 없습니다. Ansible이 설치되어 있고 PATH에 추가되었는지 확인하세요."
+                logger.error(error_msg)
+                return -1, "", error_msg
+            else:
+                # Linux/Mac 환경
+                result = subprocess.run(
+                    command,
+                    cwd=cwd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=600
+                )
+                
+                print(f"🔧 Ansible 명령어 완료: returncode={result.returncode}")
+                if result.stderr:
+                    print(f"🔧 Ansible stderr: {result.stderr}")
+                
+                return result.returncode, result.stdout, result.stderr
+                
         except subprocess.TimeoutExpired:
             logger.error("Ansible 명령어 실행 타임아웃")
             return -1, "", "Ansible 명령어 실행 타임아웃"
@@ -47,15 +112,21 @@ class AnsibleService:
         try:
             inventory_content = []
             
+            # SSH 설정 가져오기
+            ssh_user = current_app.config.get('SSH_USER', 'rocky')
+            ssh_private_key = current_app.config.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
+            
             for server in servers:
                 if server.get('ip_address'):
-                    inventory_content.append(f"{server['ip_address']}")
+                    # SSH 사용자명과 키 설정을 포함한 인벤토리 항목
+                    inventory_item = f"{server['ip_address']} ansible_user={ssh_user} ansible_ssh_private_key_file={ssh_private_key}"
+                    inventory_content.append(inventory_item)
             
             # 인벤토리 파일 저장
             with open(self.inventory_file, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(inventory_content))
             
-            logger.info("Ansible 인벤토리 파일 생성 성공")
+            logger.info(f"Ansible 인벤토리 파일 생성 성공: {len(inventory_content)}개 서버")
             return True
             
         except Exception as e:
@@ -90,10 +161,11 @@ class AnsibleService:
             
             if returncode == 0:
                 logger.info(f"Ansible 플레이북 실행 성공 (role: {role})")
-                return True, stdout
+                return True, stdout or f"Ansible 플레이북 실행 성공 (role: {role})"
             else:
-                logger.error(f"Ansible 플레이북 실행 실패 (role: {role}): {stderr}")
-                return False, stderr
+                error_msg = stderr or stdout or f"알 수 없는 Ansible 플레이북 실행 오류 (role: {role})"
+                logger.error(f"Ansible 플레이북 실행 실패 (role: {role}): {error_msg}")
+                return False, error_msg
                 
         except Exception as e:
             logger.error(f"Ansible 플레이북 실행 실패: {e}")
@@ -102,18 +174,79 @@ class AnsibleService:
     def run_role_for_server(self, server_name: str, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
         """특정 서버에 대해 역할 실행"""
         try:
-            # 서버 정보 조회
+            print(f"🔧 Ansible 역할 실행 시작: {server_name} - {role}")
+            
+            # 서버 정보 조회 (DB 또는 Proxmox에서)
+            server_ip = None
+            
+            # 1. DB에서 서버 정보 조회
             server = Server.get_by_name(server_name)
-            if not server or not server.ip_address:
+            if server and server.ip_address:
+                server_ip = server.ip_address
+                print(f"🔧 DB에서 IP 주소 조회: {server_ip}")
+            else:
+                # 2. Proxmox에서 서버 정보 조회
+                from app.services.proxmox_service import ProxmoxService
+                proxmox_service = ProxmoxService()
+                result = proxmox_service.get_all_vms()
+                
+                if result['success']:
+                    servers = result['data']['servers']
+                    for vm_key, s_data in servers.items():
+                        if s_data.get('name') == server_name:
+                            ip_addresses = s_data.get('ip_addresses', [])
+                            if ip_addresses:
+                                server_ip = ip_addresses[0]
+                                print(f"🔧 Proxmox에서 IP 주소 조회: {server_ip}")
+                                break
+            
+            if not server_ip:
                 return False, f"서버 {server_name}의 IP 주소를 찾을 수 없습니다"
             
             # 인벤토리 생성
-            servers_data = [{'ip_address': server.ip_address}]
+            servers_data = [{'ip_address': server_ip}]
             if not self.create_inventory(servers_data):
                 return False, "인벤토리 파일 생성 실패"
             
+            # 역할별 추가 변수 설정
+            role_vars = extra_vars or {}
+            
+            # 역할별 기본 설정
+            if role == 'web':
+                role_vars.update({
+                    'nginx_user': 'www-data',
+                    'nginx_port': 80
+                })
+            elif role == 'db':
+                role_vars.update({
+                    'mysql_root_password': 'dmc1234!',
+                    'mysql_port': 3306
+                })
+            elif role == 'was':
+                role_vars.update({
+                    'java_version': '11',
+                    'tomcat_port': 8080
+                })
+            elif role == 'java':
+                role_vars.update({
+                    'java_version': '11',
+                    'spring_profile': 'production'
+                })
+            elif role == 'search':
+                role_vars.update({
+                    'elasticsearch_port': 9200,
+                    'kibana_port': 5601
+                })
+            elif role == 'ftp':
+                role_vars.update({
+                    'ftp_port': 21,
+                    'ftp_user': 'ftpuser'
+                })
+            
+            print(f"🔧 역할 변수 설정: {role_vars}")
+            
             # 플레이북 실행
-            return self.run_playbook(role, extra_vars)
+            return self.run_playbook(role, role_vars)
             
         except Exception as e:
             logger.error(f"서버 {server_name}에 대한 역할 {role} 실행 실패: {e}")
@@ -193,4 +326,46 @@ class AnsibleService:
             return os.path.exists(tasks_file)
         except Exception as e:
             logger.error(f"역할 {role} 유효성 검사 실패: {e}")
-            return False 
+            return False
+    
+    def check_ansible_installation(self) -> Tuple[bool, str]:
+        """Ansible 설치 상태 확인"""
+        try:
+            if os.name == 'nt':  # Windows 환경
+                # Windows에서 Ansible 설치 확인
+                possible_commands = [
+                    ['ansible', '--version'],
+                    ['ansible.cmd', '--version'],
+                    ['ansible.exe', '--version'],
+                    ['python', '-m', 'ansible', '--version']
+                ]
+                
+                for cmd in possible_commands:
+                    try:
+                        result = subprocess.run(
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            return True, f"Ansible 설치됨: {' '.join(cmd)}"
+                    except (FileNotFoundError, subprocess.TimeoutExpired):
+                        continue
+                
+                return False, "Windows에서 Ansible이 설치되지 않았습니다. 'pip install ansible' 또는 WSL을 사용하세요."
+            else:
+                # Linux/Mac 환경
+                result = subprocess.run(
+                    ['ansible', '--version'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    return True, "Ansible 설치됨"
+                else:
+                    return False, "Linux/Mac에서 Ansible이 설치되지 않았습니다. 'sudo apt install ansible' 또는 'brew install ansible'을 사용하세요."
+                    
+        except Exception as e:
+            return False, f"Ansible 설치 확인 중 오류: {str(e)}" 

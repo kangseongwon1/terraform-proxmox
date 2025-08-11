@@ -25,7 +25,7 @@ $(function() {
     $('#storage-table').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-3x mb-3"></i><br>스토리지 정보를 불러오는 중...</div>');
     
     // 실제 API 연동
-    $.get('/proxmox_storage', function(res) {
+    $.get('/api/proxmox_storage', function(res) {
       console.log('[storage.js] API 응답:', res);
       
       // API 응답 구조에 맞게 수정

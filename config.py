@@ -32,7 +32,8 @@ class Config:
     DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
     
     # SQLAlchemy 설정
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///proxmox_manager.db')
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "instance", "proxmox_manager.db")}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Proxmox 설정 (환경 변수 필수)
@@ -47,7 +48,7 @@ class Config:
     SESSION_COOKIE_HTTPONLY = os.environ.get('SESSION_COOKIE_HTTPONLY', 'True').lower() == 'true'
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
     PERMANENT_SESSION_LIFETIME = timedelta(
-        seconds=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600))
+        seconds=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 28800))  # 8시간으로 연장
     )
     
     # 로깅 설정
@@ -57,6 +58,7 @@ class Config:
     # SSH 설정
     SSH_PRIVATE_KEY_PATH = os.environ.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
     SSH_PUBLIC_KEY_PATH = os.environ.get('SSH_PUBLIC_KEY_PATH', '~/.ssh/id_rsa.pub')
+    SSH_USER = os.environ.get('SSH_USER', 'rocky')
 
 class DevelopmentConfig(Config):
     """개발 환경 설정"""

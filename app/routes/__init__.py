@@ -22,8 +22,9 @@ __all__ = ['main', 'auth', 'admin', 'servers', 'api', 'firewall', 'notification'
 
 def register_blueprints(app):
     """블루프린트 등록"""
-    from app.routes import auth, admin, servers, api, firewall, notification
+    from app.routes import main, auth, admin, servers, api, firewall, notification
 
+    app.register_blueprint(main)
     app.register_blueprint(auth)
     app.register_blueprint(admin)
     app.register_blueprint(servers)

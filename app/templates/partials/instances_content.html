@@ -220,91 +220,166 @@
           </div>
           <!-- Server List Tab -->
           <div class="tab-pane fade show active" id="list" role="tabpanel">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0"><i class="fas fa-list me-2"></i>서버 목록</h5>
-              <button class="btn btn-outline-primary btn-sm refresh-btn">
-                <i class="fas fa-sync-alt me-1"></i>새로고침
-              </button>
+            <!-- 서버 목록 헤더 -->
+            <div class="servers-header">
+              <div class="servers-title">
+                <h4><i class="fas fa-server me-2"></i>서버 목록</h4>
+                <span class="server-count badge bg-secondary ms-2" id="server-count">0개</span>
+              </div>
+              <div class="servers-controls">
+                <!-- 검색 바 -->
+                <div class="search-container">
+                  <input type="text" class="form-control search-input" id="server-search" placeholder="서버 검색...">
+                  <i class="fas fa-search search-icon"></i>
+                </div>
+                <!-- 뷰 전환 버튼 제거됨 - 리스트 뷰 전용 -->
+                <!-- 액션 버튼들 -->
+                <div class="servers-actions">
+                  <button class="btn-modern btn-secondary" id="bulk-actions-btn" disabled>
+                    <i class="fas fa-tasks"></i>
+                    <span>대량 작업</span>
+                  </button>
+                  <button class="btn-modern btn-refresh refresh-btn">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>새로고침</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="table-responsive">
-              <table class="table table-hover" id="active-server-table">
-                <thead>
-                  <tr>
-                    <th><i class="fas fa-server me-1"></i>서버명</th>
-                    <th><i class="fas fa-tag me-1"></i>역할</th>
-                    <th><i class="fas fa-microchip me-1"></i>CPU</th>
-                    <th><i class="fas fa-memory me-1"></i>메모리</th>
-                    <th><i class="fas fa-network-wired me-1"></i>IP 주소</th>
-                    <th><i class="fas fa-shield-virus me-1"></i>방화벽 그룹</th>
-                    <th><i class="fas fa-circle me-1"></i>상태</th>
-                    <th><i class="fas fa-cogs me-1"></i>액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% if server_data %}
-                    {% for server_name, server_info in server_data.items() %}
-                      <tr data-server="{{ server_name }}">
-                        <td><a href="#" class="server-detail-link" data-server="{{ server_name }}"><strong>{{ server_info.name }}</strong></a></td>
-                        <td>
-                          <div class="d-flex align-items-center gap-2">
-                            <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
-                              <option value="">(선택 안 함)</option>
-                              {% for key, role in roles.items() %}
-                                <option value="{{ key }}"{% if server_info.role == key %} selected{% endif %}>{{ role.name }}</option>
-                              {% endfor %}
-                            </select>
-                            <button class="btn btn-outline-primary btn-sm server-role-apply"><i class="fas fa-check"></i> <span>역할 적용</span></button>
-                            <button class="btn btn-outline-danger btn-sm server-role-remove"{% if not server_info.role %} disabled{% endif %}><i class="fas fa-trash"></i> <span>역할 삭제</span></button>
-                          </div>
-                        </td>
-                        <td>{{ server_info.vm_cpu or 0 }}코어</td>
-                        <td>{{ "%.2f"|format((server_info.memory or 0) / 1024 / 1024 / 1024) }}GB</td>
-                        <td>{{ server_info.ip_addresses|join(', ') if server_info.ip_addresses else '-' }}</td>
-                        <td>
-                          <div class="d-flex align-items-center gap-2">
-                            <select class="form-select form-select-sm server-firewall-group-select" style="min-width:120px;">
-                              <option value="">(선택 안 함)</option>
-                            </select>
-                            <button class="btn btn-outline-primary btn-sm server-firewall-group-apply"><i class="fas fa-check"></i> <span>적용</span></button>
-                            <button class="btn btn-outline-danger btn-sm server-firewall-group-remove"{% if not server_info.firewall_group %} disabled{% endif %}><i class="fas fa-trash"></i> <span>해제</span></button>
-                          </div>
-                        </td>
-                        <td>
-                          {% if server_info.status == 'running' %}
-                            <span class="badge bg-success">실행 중</span>
-                          {% elif server_info.status == 'stopped' %}
-                            <span class="badge bg-secondary">중지됨</span>
-                          {% elif server_info.status == 'paused' %}
-                            <span class="badge bg-warning">일시정지</span>
-                          {% elif server_info.status == 'suspended' %}
-                            <span class="badge bg-info">일시중단</span>
-                          {% else %}
-                            <span class="badge bg-dark">{{ server_info.status }}</span>
-                          {% endif %}
-                        </td>
-                        <td>
-                          <div class="btn-group" role="group">
-                            <button class="btn btn-success btn-sm start-btn" title="시작" {% if server_info.status == 'running' %}disabled{% endif %}>
-                              <i class="fas fa-play"></i> 시작
-                            </button>
-                            <button class="btn btn-info btn-sm stop-btn" title="중지" {% if server_info.status == 'stopped' %}disabled{% endif %}>
-                              <i class="fas fa-pause"></i> 중지
-                            </button>
-                            <button class="btn btn-warning btn-sm reboot-btn" title="리부팅" {% if server_info.status == 'stopped' %}disabled{% endif %}>
-                              <i class="fas fa-redo"></i> 리부팅
-                            </button>
-                            <button class="btn btn-danger btn-sm delete-btn" title="삭제">
-                              <i class="fas fa-trash"></i> 삭제
-                            </button>
-                          </div>
-                        </td>
+
+            <!-- 대량 작업 도구모음 -->
+            <div class="bulk-actions-toolbar" id="bulk-actions-toolbar">
+              <div class="bulk-actions-info">
+                <i class="fas fa-check-square me-2"></i>
+                <span id="selected-count">0</span>개 서버 선택됨
+              </div>
+              
+              <!-- 탭 네비게이션 -->
+              <div class="bulk-actions-tabs">
+                <button class="bulk-tab-btn active" data-tab="control">
+                  <i class="fas fa-cogs me-1"></i>제어
+                </button>
+                <button class="bulk-tab-btn" data-tab="settings">
+                  <i class="fas fa-wrench me-1"></i>설정
+                </button>
+              </div>
+              
+              <!-- 제어 탭 내용 -->
+              <div class="bulk-tab-content active" id="control-tab">
+                <div class="bulk-actions-buttons">
+                  <button class="btn btn-sm" onclick="bulkStartServers()">
+                    <i class="fas fa-play me-1"></i>일괄 시작
+                  </button>
+                  <button class="btn btn-sm" onclick="bulkStopServers()">
+                    <i class="fas fa-pause me-1"></i>일괄 중지
+                  </button>
+                  <button class="btn btn-sm" onclick="bulkRebootServers()">
+                    <i class="fas fa-redo me-1"></i>일괄 재시작
+                  </button>
+                  <button class="btn btn-sm" onclick="bulkDeleteServers()">
+                    <i class="fas fa-trash me-1"></i>일괄 삭제
+                  </button>
+                  <button class="btn btn-sm" onclick="clearSelection()">
+                    <i class="fas fa-times me-1"></i>선택 해제
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 설정 탭 내용 -->
+              <div class="bulk-tab-content" id="settings-tab">
+                <div class="bulk-settings-panel">
+                  <div class="setting-group">
+                    <label class="setting-label">
+                      <i class="fas fa-tag me-1"></i>역할 설정
+                    </label>
+                    <div class="setting-controls">
+                      <select class="form-select form-select-sm" id="bulk-role-select">
+                        <option value="">역할을 선택하세요</option>
+                        <option value="web">웹서버 (Nginx)</option>
+                        <option value="was">WAS (Tomcat + Python)</option>
+                        <option value="java">Java 서버 (OpenJDK + Maven)</option>
+                        <option value="db">데이터베이스 (MariaDB)</option>
+                        <option value="search">검색엔진 (Elasticsearch)</option>
+                        <option value="ftp">FTP 서버 (vsftpd)</option>
+                      </select>
+                      <button class="btn btn-sm btn-primary" onclick="executeBulkRoleAssignment()">
+                        <i class="fas fa-check me-1"></i>적용
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="setting-group">
+                    <label class="setting-label">
+                      <i class="fas fa-shield-alt me-1"></i>보안그룹 설정
+                    </label>
+                    <div class="setting-controls">
+                      <select class="form-select form-select-sm" id="bulk-security-group-select">
+                        <option value="">보안그룹을 선택하세요</option>
+                        <!-- 보안그룹 옵션은 JavaScript에서 동적으로 로드 -->
+                      </select>
+                      <button class="btn btn-sm btn-primary" onclick="bulkAssignSecurityGroup()">
+                        <i class="fas fa-check me-1"></i>적용
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-sm btn-secondary" onclick="clearSelection()">
+                    <i class="fas fa-times me-1"></i>선택 해제
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 서버 뷰 컨테이너 (리스트 뷰 전용) -->
+            <div class="servers-container">
+              <!-- 카드 뷰 제거됨 - 리스트 뷰만 사용 -->
+
+              <!-- 테이블 뷰 -->
+              <div class="servers-table-container" id="servers-table-container" style="display: none;">
+                <div class="table-responsive">
+                  <table class="table table-hover servers-table" id="servers-table">
+                    <thead>
+                      <tr>
+                        <th class="select-column">
+                          <input type="checkbox" class="form-check-input" id="select-all-servers">
+                        </th>
+                        <th class="sortable server-name-column" data-sort="name">
+                          <i class="fas fa-server me-1"></i>서버명
+                          <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable status-column" data-sort="status">
+                          <i class="fas fa-circle me-1"></i>상태
+                          <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable role-column" data-sort="role">
+                          <i class="fas fa-tag me-1"></i>역할
+                          <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable cpu-column" data-sort="cpu">
+                          <i class="fas fa-microchip me-1"></i>CPU
+                          <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable memory-column" data-sort="memory">
+                          <i class="fas fa-memory me-1"></i>메모리
+                          <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="ip-column">
+                          <i class="fas fa-network-wired me-1"></i>IP 주소
+                        </th>
+                        <th class="security-column">
+                          <i class="fas fa-shield-virus me-1"></i>Security Group
+                        </th>
+                        <th class="actions-column">
+                          <i class="fas fa-cogs me-1"></i>액션
+                        </th>
                       </tr>
-                    {% endfor %}
-                  {% else %}
-                    <tr><td colspan="8" class="text-center text-muted">서버가 없습니다.</td></tr>
-                  {% endif %}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      <!-- 테이블 데이터는 JavaScript에서 동적으로 생성 -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>

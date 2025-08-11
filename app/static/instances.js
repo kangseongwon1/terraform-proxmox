@@ -14,6 +14,30 @@ $(function() {
   
   // 실시간 서버 상태 폴링
   let serverStatusPolling = null;
+  let isBulkOperationInProgress = false; // 일괄 작업 진행 상태 플래그
+  let taskConfig = null; // Task 설정 정보
+  
+  // Task 설정 정보 로드
+  function loadTaskConfig() {
+    if (taskConfig) return Promise.resolve(taskConfig);
+    
+    return $.get('/api/tasks/config')
+      .then(function(config) {
+        taskConfig = config;
+        console.log('[instances.js] Task 설정 로드 완료:', config);
+        return config;
+      })
+      .fail(function(xhr) {
+        console.warn('[instances.js] Task 설정 로드 실패, 기본값 사용:', xhr);
+        // 기본값 설정
+        taskConfig = {
+          timeout: 18000,
+          timeout_hours: 5,
+          polling_interval: 5000
+        };
+        return taskConfig;
+      });
+  }
   
   function startServerStatusPolling() {
     if (serverStatusPolling) {
@@ -21,6 +45,12 @@ $(function() {
     }
     
     serverStatusPolling = setInterval(function() {
+      // 일괄 작업 중에는 폴링 중지
+      if (isBulkOperationInProgress) {
+        console.log('[instances.js] 일괄 작업 중 - 상태 폴링 건너뜀');
+        return;
+      }
+      
       console.log('[instances.js] 서버 상태 폴링 실행');
       loadActiveServers();
     }, 10000); // 10초마다 상태 업데이트
@@ -63,7 +93,30 @@ $(function() {
     alert(message);
   }
   
-  // 서버 목록 불러오기 (기존 index.html 구조 100% 복원)
+  // 서버 생성 탭으로 전환
+  window.switchToCreateTab = function() {
+    const createTab = document.getElementById('create-tab');
+    if (createTab) {
+      createTab.click();
+    }
+  };
+  
+  // 서버 설정 모달 열기 (향후 구현)
+  window.openServerConfig = function(serverName) {
+    alert(`${serverName} 서버 설정 기능은 곧 추가될 예정입니다.`);
+  };
+  
+  // 서버 로그 보기 (향후 구현)
+  window.viewServerLogs = function(serverName) {
+    alert(`${serverName} 서버 로그 보기 기능은 곧 추가될 예정입니다.`);
+  };
+  
+  // 서버 백업 (향후 구현)
+  window.backupServer = function(serverName) {
+    alert(`${serverName} 서버 백업 기능은 곧 추가될 예정입니다.`);
+  };
+  
+  // 서버 목록 불러오기 (리스트 뷰 전용)
   window.loadActiveServers = function() {
     console.log('[instances.js] loadActiveServers 호출');
     
@@ -74,98 +127,36 @@ $(function() {
     }
     window.loadActiveServers.isLoading = true;
     
-    // 현재 사용자 권한 디버깅 (개발용)
-    $.get('/current-user', function(res) {
-      console.log('[instances.js] 현재 사용자 정보:', res);
-    }).fail(function(xhr) {
-      console.log('[instances.js] 사용자 정보 조회 실패 (권한 없음):', xhr.status);
-    });
     // 방화벽 그룹 목록을 먼저 가져오기
-    $.get('/firewall/groups', function(fwData) {
+    $.get('/api/firewall/groups', function(fwData) {
+      console.log('[instances.js] 방화벽 그룹 API 응답:', fwData);
       const firewallGroups = fwData.groups || [];
+      console.log('[instances.js] 처리된 방화벽 그룹:', firewallGroups);
       
-      $.get('/all_server_status', function(res) {
+      $.get('/api/all_server_status', function(res) {
         console.log('[instances.js] /all_server_status 응답:', res);
         console.log('[instances.js] 서버 개수:', Object.keys(res.servers || {}).length);
-        let html = '';
-        for (const [name, s] of Object.entries(res.servers)) {
-          console.log(`[instances.js] 서버 처리: ${name} - 상태: ${s.status}`);
-          console.log(`[instances.js] 서버 데이터:`, s);
-          
-          // 상태별 배지 색상 결정
-          let statusBadge = '';
-          switch(s.status) {
-            case 'running': statusBadge = '<span class="badge bg-success">실행 중</span>'; break;
-            case 'stopped': statusBadge = '<span class="badge bg-secondary">중지됨</span>'; break;
-            case 'paused': statusBadge = '<span class="badge bg-warning">일시정지</span>'; break;
-            case 'suspended': statusBadge = '<span class="badge bg-info">일시중단</span>'; break;
-            default: statusBadge = '<span class="badge bg-dark">' + s.status + '</span>';
-          }
-          // 역할 드롭다운
-          let roleOptions = '<option value="">(선택 안 함)</option>';
-          for (const [k, v] of Object.entries(window.dashboardRoleMap)) {
-            roleOptions += `<option value="${k}"${s.role===k?' selected':''}>${v}</option>`;
-          }
-          // 방화벽 그룹 드롭다운
-          let fwGroupOptions = '<option value="">(선택 안 함)</option>';
-          firewallGroups.forEach(group => {
-            fwGroupOptions += `<option value="${group.name}"${s.firewall_group===group.name?' selected':''}>${group.name}</option>`;
-          });
-          
-          const serverRow = `<tr data-server="${name}">
-            <td><a href="#" class="server-detail-link" data-server="${name}"><strong>${s.name}</strong></a></td>
-            <td>
-              <div class="d-flex align-items-center gap-2">
-                <select class="form-select form-select-sm server-role-select" style="min-width:110px;">
-                  ${roleOptions}
-                </select>
-                <button class="btn btn-outline-primary btn-sm server-role-apply"><i class="fas fa-check"></i> <span>역할 적용</span></button>
-                <button class="btn btn-outline-danger btn-sm server-role-remove"${s.role?'':' disabled'}><i class="fas fa-trash"></i> <span>역할 삭제</span></button>
-              </div>
-            </td>
-            <td>${parseInt(s.cpu || 0)}코어</td>
-            <td>${format2f((s.memory || 0) / 1024 / 1024 / 1024)}GB</td>
-            <td>${(s.network_devices && s.network_devices.length > 0) ? s.network_devices.map(nd=>nd.ip_address).join(', ') : '-'}</td>
-            <td>
-              <div class="d-flex align-items-center gap-2">
-                <select class="form-select form-select-sm server-firewall-group-select" style="min-width:120px;">
-                  ${fwGroupOptions}
-                </select>
-                <button class="btn btn-outline-primary btn-sm server-firewall-group-apply"><i class="fas fa-check"></i> <span>적용</span></button>
-                <button class="btn btn-outline-danger btn-sm server-firewall-group-remove"${s.firewall_group?'':' disabled'}><i class="fas fa-trash"></i> <span>해제</span></button>
-              </div>
-            </td>
-            <td>${statusBadge}</td>
-            <td>
-              <div class="btn-group" role="group">
-                <button class="btn btn-success btn-sm start-btn" title="시작" ${s.status === 'running' ? 'disabled' : ''}>
-                  <i class="fas fa-play"></i> 시작
-                </button>
-                <button class="btn btn-info btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
-                  <i class="fas fa-stop"></i> 중지
-                </button>
-                <button class="btn btn-warning btn-sm reboot-btn" title="재부팅">
-                  <i class="fas fa-redo"></i> 재부팅
-                </button>
-                <button class="btn btn-danger btn-sm delete-btn" title="삭제">
-                  <i class="fas fa-trash"></i> 삭제
-                </button>
-              </div>
-            </td>
-          </tr>`;
-          
-          console.log(`[instances.js] ${name} 서버 HTML 생성:`, serverRow.substring(0, 100) + '...');
-          html += serverRow;
+        
+        // 서버 개수 업데이트
+        const serverCount = Object.keys(res.servers || {}).length;
+        $('#server-count').text(`${serverCount}개`);
+        
+        // 서버 데이터 저장 (검색/필터링용)
+        window.serversData = res.servers || {};
+        window.firewallGroups = firewallGroups;
+        
+        if (serverCount === 0) {
+          showEmptyState();
+          window.loadActiveServers.isLoading = false;
+          return;
         }
         
-        console.log(`[instances.js] 생성된 HTML 길이: ${html.length}`);
-        console.log(`[instances.js] 삽입 전 테이블 행 개수:`, $('#active-server-table tbody tr').length);
-        console.log(`[instances.js] 테이블 존재 여부:`, $('#active-server-table').length > 0);
-        console.log(`[instances.js] tbody 존재 여부:`, $('#active-server-table tbody').length > 0);
+        // 리스트 뷰로 렌더링
+        console.log('[instances.js] 리스트 뷰 렌더링');
+        $('#servers-grid').hide();
+        $('#servers-table-container').show();
+        renderTableView(res.servers, firewallGroups);
         
-        $('#active-server-table tbody').html(html);
-        
-        console.log(`[instances.js] 삽입 후 테이블 행 개수:`, $('#active-server-table tbody tr').length);
         console.log('[instances.js] 서버 목록 로드 완료');
         
         // 실시간 상태 폴링 시작
@@ -175,7 +166,7 @@ $(function() {
         window.loadActiveServers.isLoading = false;
       }).fail(function(xhr) {
         console.error('[instances.js] /all_server_status 실패:', xhr);
-        $('#active-server-table tbody').html('<tr><td colspan="8" class="text-center text-danger">서버 정보를 불러오지 못했습니다.</td></tr>');
+        showErrorState();
         window.loadActiveServers.isLoading = false;
       });
     }).fail(function(xhr) {
@@ -183,6 +174,244 @@ $(function() {
       window.loadActiveServers.isLoading = false;
     });
   };
+  
+  // 현재 뷰 타입 가져오기 (리스트 뷰 전용)
+  function getCurrentViewType() {
+    return 'table'; // 항상 테이블 뷰
+  }
+  
+  // 빈 상태 표시
+  function showEmptyState() {
+    const emptyHtml = `
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="fas fa-server"></i>
+        </div>
+        <h3>서버가 없습니다</h3>
+        <p>새로운 서버를 생성하여 시작해보세요.</p>
+        <button class="btn-modern btn-primary" onclick="switchToCreateTab()">
+          <i class="fas fa-plus"></i>
+          <span>서버 생성</span>
+        </button>
+      </div>
+    `;
+    
+    $('#servers-grid').html(emptyHtml);
+    $('#servers-table tbody').html('');
+  }
+  
+  // 에러 상태 표시
+  function showErrorState() {
+    const errorHtml = `
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3>서버 정보를 불러오지 못했습니다</h3>
+        <p>네트워크 연결을 확인하고 다시 시도해주세요.</p>
+        <button class="btn-modern btn-refresh" onclick="loadActiveServers()">
+          <i class="fas fa-sync-alt"></i>
+          <span>다시 시도</span>
+        </button>
+      </div>
+    `;
+    
+    $('#servers-grid').html(errorHtml);
+    $('#servers-table tbody').html('<tr><td colspan="9" class="text-center text-danger">서버 정보를 불러오지 못했습니다.</td></tr>');
+  }
+  
+
+  
+  // 테이블 뷰 렌더링
+  function renderTableView(servers, firewallGroups) {
+    // 현재 선택된 서버들 저장
+    const selectedServers = getSelectedServerNames();
+    console.log('[instances.js] 현재 선택된 서버들:', selectedServers);
+    
+    let html = '';
+    for (const [name, s] of Object.entries(servers)) {
+      // 상태 배지
+      let statusBadge = '';
+      switch(s.status) {
+        case 'running': 
+          statusBadge = '<span class="status-badge status-success">실행 중</span>';
+          break;
+        case 'stopped':
+          statusBadge = '<span class="status-badge status-stopped">중지됨</span>';
+          break;
+        case 'paused':
+          statusBadge = '<span class="status-badge status-warning">일시정지</span>';
+          break;
+        default:
+          statusBadge = '<span class="status-badge status-unknown">' + s.status + '</span>';
+      }
+      
+      // 역할 상태 표시
+      const roleDisplay = s.role ? (window.dashboardRoleMap[s.role] || s.role) : '<span class="text-muted">(설정 안 함)</span>';
+      
+      // Security Group 상태 표시
+      const securityGroupDisplay = s.firewall_group ? s.firewall_group : '<span class="text-muted">(설정 안 함)</span>';
+      
+      // IP 주소 표시
+      const ipAddresses = (s.ip_addresses && s.ip_addresses.length > 0) 
+        ? s.ip_addresses.join(', ') 
+        : '미할당';
+      
+      // 메모리 포맷팅 (GB)
+      const memoryGB = ((s.memory || 0) / 1024 / 1024 / 1024).toFixed(1);
+      
+      // 체크박스 상태 복원
+      const isChecked = selectedServers.includes(s.name) ? 'checked' : '';
+      
+      const serverRow = `
+        <tr class="server-row" data-server="${s.name}" data-status="${s.status}" data-role="${s.role || ''}" data-memory="${s.memory || 0}" data-cpu="${s.vm_cpu || 0}">
+          <td class="select-column">
+            <input type="checkbox" class="form-check-input server-checkbox" value="${s.name}" ${isChecked}>
+          </td>
+          <td class="server-name-cell" style="cursor: pointer;">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-chevron-right expand-icon me-2" style="transition: transform 0.2s;"></i>
+              <strong>${s.name}</strong>
+            </div>
+          </td>
+          <td>${statusBadge}</td>
+          <td class="role-column">
+            <div class="role-display">
+              <i class="fas fa-tag me-1 text-muted"></i>
+              ${roleDisplay}
+            </div>
+          </td>
+          <td>${s.vm_cpu || 0}코어</td>
+          <td>${memoryGB}GB</td>
+          <td>${ipAddresses}</td>
+          <td class="security-column">
+            <div class="security-group-display">
+              <i class="fas fa-shield-alt me-1 text-muted"></i>
+              ${securityGroupDisplay}
+            </div>
+          </td>
+          <td>
+            <div class="table-actions">
+              <button class="btn btn-success btn-sm start-btn" title="시작" ${s.status === 'running' ? 'disabled' : ''}>
+                <i class="fas fa-play"></i>
+              </button>
+              <button class="btn btn-warning btn-sm stop-btn" title="중지" ${s.status === 'stopped' ? 'disabled' : ''}>
+                <i class="fas fa-pause"></i>
+              </button>
+              <button class="btn btn-info btn-sm reboot-btn" title="재시작" ${s.status === 'stopped' ? 'disabled' : ''}>
+                <i class="fas fa-redo"></i>
+              </button>
+              <button class="btn btn-danger btn-sm delete-btn" title="삭제">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        <tr class="server-detail-row" data-server="${s.name}" style="display: none;">
+          <td colspan="9">
+            <div class="server-detail-content p-3 bg-light border-top">
+              <div class="row">
+                <div class="col-md-6">
+                  <h6 class="mb-3"><i class="fas fa-info-circle text-primary"></i> 서버 상세 정보</h6>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>VM ID:</strong></div>
+                    <div class="col-8">${s.vmid || 'N/A'}</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>노드:</strong></div>
+                    <div class="col-8">${s.node || 'N/A'}</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>CPU 사용률:</strong></div>
+                    <div class="col-8">${format2f(s.cpu_usage || 0)}%</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>메모리 사용률:</strong></div>
+                    <div class="col-8">${format2f(s.memory_usage || 0)}%</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>디스크 사용률:</strong></div>
+                    <div class="col-8">${format2f(s.disk_usage || 0)}%</div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <h6 class="mb-3"><i class="fas fa-network-wired text-success"></i> 네트워크 정보</h6>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>IP 주소:</strong></div>
+                    <div class="col-8">${ipAddresses}</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>방화벽 그룹:</strong></div>
+                    <div class="col-8">${s.firewall_group || '미설정'}</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>역할:</strong></div>
+                    <div class="col-8">${s.role ? window.dashboardRoleMap[s.role] || s.role : '미설정'}</div>
+                  </div>
+                  <div class="row mb-2">
+                    <div class="col-4"><strong>상태:</strong></div>
+                    <div class="col-8">${s.status}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="openServerConfig('${s.name}')">
+                  <i class="fas fa-cog"></i> 서버 설정
+                </button>
+                <button class="btn btn-outline-info btn-sm me-2" onclick="viewServerLogs('${s.name}')">
+                  <i class="fas fa-file-alt"></i> 로그 보기
+                </button>
+                <button class="btn btn-outline-warning btn-sm" onclick="backupServer('${s.name}')">
+                  <i class="fas fa-download"></i> 백업
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+      
+      html += serverRow;
+    }
+    
+    $('#servers-table tbody').html(html);
+    
+    // 전체 선택 체크박스 상태 복원
+    const totalCheckboxes = $('.server-checkbox').length;
+    const checkedCheckboxes = $('.server-checkbox:checked').length;
+    
+    if (checkedCheckboxes === 0) {
+      $('#select-all-servers').prop('indeterminate', false).prop('checked', false);
+    } else if (checkedCheckboxes === totalCheckboxes) {
+      $('#select-all-servers').prop('indeterminate', false).prop('checked', true);
+    } else {
+      $('#select-all-servers').prop('indeterminate', true);
+    }
+    
+    // 일괄 작업 도구모음 상태 업데이트
+    updateBulkActionsToolbar();
+    
+    // 서버 이름 클릭 이벤트 바인딩
+    $('.server-name-cell').off('click').on('click', function(e) {
+      e.stopPropagation();
+      const serverName = $(this).closest('tr').data('server');
+      const detailRow = $(`.server-detail-row[data-server="${serverName}"]`);
+      const expandIcon = $(this).find('.expand-icon');
+      
+      if (detailRow.is(':visible')) {
+        // 상세 정보 접기
+        detailRow.slideUp(200);
+        expandIcon.css('transform', 'rotate(0deg)');
+      } else {
+        // 다른 모든 상세 정보 접기
+        $('.server-detail-row').slideUp(200);
+        $('.expand-icon').css('transform', 'rotate(0deg)');
+        
+        // 현재 서버 상세 정보 펼치기
+        detailRow.slideDown(200);
+        expandIcon.css('transform', 'rotate(90deg)');
+      }
+    });
+  }
   
   // 중복 바인딩 방지: 기존 이벤트 제거
   $('#list-tab').off('shown.bs.tab');
@@ -204,53 +433,158 @@ $(function() {
     if (!task_id) return;
     let progressNotified = false;
     let startTime = Date.now();
-    const TIMEOUT = 60000; // 60초 타임아웃
     
-    activeTasks[task_id] = setInterval(function() {
-      // 클라이언트 측 타임아웃 체크
-      const elapsed = Date.now() - startTime;
-      if (elapsed > TIMEOUT) {
-        console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
-        addSystemNotification('error', type, `${name} ${type} 타임아웃 (60초 초과)`);
-        clearInterval(activeTasks[task_id]);
-        delete activeTasks[task_id];
-        return;
-      }
+    // Task 설정 로드 후 폴링 시작
+    loadTaskConfig().then(function(config) {
+      const TIMEOUT = config.timeout * 1000; // 서버에서 가져온 타임아웃 (밀리초)
+      console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${config.timeout_hours}시간`);
       
-      $.get('/tasks/status', { task_id }, function(res) {
-        console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
-        
-        if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
-          addSystemNotification('info', type, `${name} ${type} 중...`);
-          progressNotified = true;
-        } else if (res.status === 'completed') {
-          addSystemNotification('success', type, `${name} ${type} 완료`);
+      activeTasks[task_id] = setInterval(function() {
+        // 클라이언트 측 타임아웃 체크
+        const elapsed = Date.now() - startTime;
+        if (elapsed > TIMEOUT) {
+          console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
+          addSystemNotification('error', type, `${name} ${type} 타임아웃 (${config.timeout_hours}시간 초과)`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
           
-          // 서버 목록 즉시 새로고침
-          console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
-          setTimeout(function() {
-          loadActiveServers();
-          }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
-        } else if (res.status === 'failed') {
-          addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
-          clearInterval(activeTasks[task_id]);
-          delete activeTasks[task_id];
-          
-          // 실패 시에도 목록 새로고침 (DB 정리 확인)
-          console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
-          setTimeout(function() {
-            loadActiveServers();
-          }, 1000);
+          // 일괄 작업 타임아웃 시에도 플래그 해제
+          if (type === 'bulk_server_action') {
+            isBulkOperationInProgress = false;
+            console.log('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
+            updateRefreshButtonState();
+          }
+          return;
         }
-      }).fail(function(xhr, status, error) {
-        console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
-        clearInterval(activeTasks[task_id]);
-        delete activeTasks[task_id];
-      });
-    }, 5000);
+        
+        $.get('/api/tasks/status', { task_id }, function(res) {
+          console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
+          
+          if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
+            addSystemNotification('info', type, `${name} ${type} 중...`);
+            progressNotified = true;
+          } else if (res.status === 'completed') {
+            addSystemNotification('success', type, `${name} ${type} 완료`);
+            clearInterval(activeTasks[task_id]);
+            delete activeTasks[task_id];
+            
+            // 역할 설치 완료 시 버튼 상태 복원
+            if (type === 'ansible_role_install') {
+              console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
+              const btn = $(`.server-role-apply[data-server="${name}"]`);
+              if (btn.length) {
+                btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+              }
+            }
+            
+            // 일괄 역할 할당 완료 시 플래그 해제
+            if (type === 'assign_roles_bulk') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 역할 할당 완료 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 일괄 보안그룹 할당 완료 시 플래그 해제
+            if (type === 'assign_security_groups_bulk') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 보안그룹 할당 완료 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 다중 서버 생성 완료 시 폼 복원
+            if (type === 'create_servers_bulk') {
+              console.log(`🔄 다중 서버 생성 완료, 폼 복원: ${task_id}`);
+              restoreServerForm();
+            }
+            
+            // 일괄 작업 완료 시 플래그 해제 및 새로고침
+            if (type === 'bulk_server_action') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 서버 목록 즉시 새로고침
+            console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
+            setTimeout(function() {
+              loadActiveServers();
+            }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
+          } else if (res.status === 'failed') {
+            addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+            clearInterval(activeTasks[task_id]);
+            delete activeTasks[task_id];
+            
+            // 역할 설치 실패 시 버튼 상태 복원
+            if (type === 'ansible_role_install') {
+              console.log(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
+              const btn = $(`.server-role-apply[data-server="${name}"]`);
+              if (btn.length) {
+                btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+              }
+            }
+            
+            // 일괄 역할 할당 실패 시에도 플래그 해제
+            if (type === 'assign_roles_bulk') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 역할 할당 실패 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 일괄 보안그룹 할당 실패 시에도 플래그 해제
+            if (type === 'assign_security_groups_bulk') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 보안그룹 할당 실패 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 다중 서버 생성 실패 시 폼 복원
+            if (type === 'create_servers_bulk') {
+              console.log(`🔄 다중 서버 생성 실패, 폼 복원: ${task_id}`);
+              restoreServerForm();
+            }
+            
+            // 일괄 작업 실패 시에도 플래그 해제
+            if (type === 'bulk_server_action') {
+              isBulkOperationInProgress = false;
+              console.log('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
+              updateRefreshButtonState();
+            }
+            
+            // 실패 시에도 목록 새로고침 (DB 정리 확인)
+            console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
+            setTimeout(function() {
+              loadActiveServers();
+            }, 1000);
+          }
+        }).fail(function(xhr, status, error) {
+          console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
+          clearInterval(activeTasks[task_id]);
+          delete activeTasks[task_id];
+          
+          // 일괄 작업 AJAX 실패 시에도 플래그 해제
+          if (type === 'bulk_server_action') {
+            isBulkOperationInProgress = false;
+            console.log('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
+            updateRefreshButtonState();
+          }
+        });
+      }, config.polling_interval || 5000);
+    });
   }
+
+  // AJAX 전역 설정 - 세션 만료 처리
+  $.ajaxSetup({
+    statusCode: {
+      401: function() {
+        console.log('[instances.js] AJAX 401 오류 - 세션 만료');
+        if (window.sessionManager) {
+          window.sessionManager.handleSessionExpired();
+        } else {
+          window.location.href = '/auth/login';
+        }
+      }
+    }
+  });
 
   // 서버 생성 버튼 (단일/다중 모드 분기, 중복 바인딩 제거)
   $(document).off('click', '#create-server-btn').on('click', '#create-server-btn', async function(e) {
@@ -342,7 +676,8 @@ $(function() {
       $('#create-server-form').html('<div id="multiServerSummarySection"></div>');
       
       // 요약 섹션 로드
-      $.get('/instances/multi-server-summary', function(html) {
+      $.get('/api/instances/multi-server-summary', function(html) {
+        console.log('다중서버 요약 템플릿 로드 성공:', html.substring(0, 100) + '...');
         $('#multiServerSummarySection').html(html);
         
         // 테이블 내용 동적 생성
@@ -360,7 +695,7 @@ $(function() {
                     <input type="number" class="form-control form-control-sm summary-cpu" value="${s.cpu}" min="1" max="32" placeholder="코어">
                   </td>
                   <td rowspan="${s.networks.length}">
-                    <input type="number" class="form-control form-control-sm summary-memory" value="${s.memory}" min="1" max="128" placeholder="GB">
+                    <input type="number" class="form-control form-control-sm summary-memory" value="${s.memory}" min="1" max="131072" placeholder="MB">
                   </td>
                   <td rowspan="${s.networks.length}">
                     <div class="disk-inputs">
@@ -390,6 +725,11 @@ $(function() {
         
         // 페이지를 요약 섹션으로 스크롤
         $('#multiServerSummarySection')[0].scrollIntoView({ behavior: 'smooth' });
+      }).fail(function(xhr, status, error) {
+        console.error('다중서버 요약 템플릿 로드 실패:', error);
+        console.error('상태:', status);
+        console.error('응답:', xhr.responseText);
+        alertModal('다중서버 요약 화면을 로드할 수 없습니다: ' + error);
       });
       // 서버 생성 버튼 클릭 시 - 중복 바인딩 방지
       $(document).off('click', '#multi-server-final-create').on('click', '#multi-server-final-create', function() {
@@ -441,8 +781,8 @@ $(function() {
           if (s.cpu < 1 || s.cpu > 32) {
             errors.push(`서버 ${s.name}: CPU는 1-32 코어 사이여야 합니다.`);
           }
-          if (s.memory < 1 || s.memory > 128) {
-            errors.push(`서버 ${s.name}: 메모리는 1-128 GB 사이여야 합니다.`);
+          if (s.memory < 1 || s.memory > 131072) {
+            errors.push(`서버 ${s.name}: 메모리는 1-131072 MB 사이여야 합니다.`);
           }
           s.disks.forEach((disk, diskIdx) => {
             if (disk.size < 1 || disk.size > 1000) {
@@ -479,18 +819,24 @@ $(function() {
         
         // 한 번에 서버 정보 배열 전송
         $.ajax({
-          url: '/create_servers_bulk',
+          url: '/api/create_servers_bulk',
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify({servers}),
           success: function(res) {
-            addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
-            // 서버 생성 폼 복원
-            restoreServerForm();
-            loadActiveServers();
+            if (res.success && res.task_id) {
+              addSystemNotification('success', '서버 생성', res.message);
+              // 작업 상태 폴링 시작
+              pollTaskStatus(res.task_id, 'create_servers_bulk', serverList.map(s => s.name).join(', '));
+            } else {
+              addSystemNotification('success', '서버 생성', '다중 서버 생성 요청 완료');
+              // 서버 생성 폼 복원
+              restoreServerForm();
+              loadActiveServers();
+            }
           },
           error: function(xhr) {
-            addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
+            addSystemNotification('error', '서버 생성', '다중 서버 생성 실패: ' + (xhr.responseJSON?.error || xhr.statusText));
             // 서버 생성 폼 복원
             restoreServerForm();
             loadActiveServers();
@@ -629,7 +975,7 @@ function initializeServerForm() {
     };
     $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
     $.ajax({
-      url: '/create_server',
+      url: '/api/servers',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(data),
@@ -659,162 +1005,55 @@ function initializeServerForm() {
     });
   }
 
-  // 역할 적용
-  $(document).off('click', '.server-role-apply').on('click', '.server-role-apply', function() {
-    console.log('[instances.js] .server-role-apply 클릭');
-    const btn = $(this);
-    const tr = btn.closest('tr');
-    const server = tr.data('server');
-    const role = tr.find('.server-role-select').val();
-    
-    // 시작 알림 추가
-    addSystemNotification('info', '역할 변경', `${server} 서버에 ${role} 역할을 적용하는 중...`);
-    
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 적용 중...</span>');
-    console.log(`[instances.js] 역할 할당 요청: ${server} - ${role}`);
-    console.log(`[instances.js] 요청 데이터:`, { role: role });
-    
-    $.ajax({
-      url: `/assign_role/${server}`,
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({ role: role }),
-      beforeSend: function(xhr) {
-        console.log(`[instances.js] Content-Type 헤더 설정: application/json`);
-        console.log(`[instances.js] 요청 URL: /assign_role/${server}`);
-        console.log(`[instances.js] 요청 메서드: POST`);
-      },
-      success: function(res) {
-      console.log('[instances.js] /assign_role 성공', res);
-      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-      loadActiveServers();
-      addSystemNotification('success', '역할 변경', `${server} 서버에 ${role} 역할이 성공적으로 적용되었습니다.`);
-      },
-      error: function(xhr) {
-      console.error('[instances.js] /assign_role 실패', xhr);
-      btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-      
-      let errorMsg = '알 수 없는 오류';
-      if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 역할 부여 권한이 필요합니다.';
-      } else if (xhr.responseJSON?.error) {
-        errorMsg = xhr.responseJSON.error;
-      }
-      
-      addSystemNotification('error', '역할 변경', `${server} 서버 역할 적용 실패: ${errorMsg}`);
-      }
-    });
-  });
 
-  // 역할 삭제
-  $(document).off('click', '.server-role-remove').on('click', '.server-role-remove', async function() {
-    console.log('[instances.js] .server-role-remove 클릭');
-    const btn = $(this);
-    const tr = btn.closest('tr');
-    const server = tr.data('server');
-    const ok = await confirmModal('정말로 이 서버의 역할을 삭제하시겠습니까?');
-    if (!ok) return;
-    
-    // 시작 알림 추가
-    addSystemNotification('info', '역할 삭제', `${server} 서버의 역할을 삭제하는 중...`);
-    
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>역할 삭제 중...</span>');
-    $.post(`/remove_role/${server}`, {}, function(res) {
-      console.log('[instances.js] /remove_role 성공', res);
-      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
-      loadActiveServers();
-      addSystemNotification('success', '역할 삭제', `${server} 서버의 역할이 성공적으로 삭제되었습니다.`);
-    }).fail(function(xhr) {
-      console.error('[instances.js] /remove_role 실패', xhr);
-      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>역할 삭제</span>');
-      
-      let errorMsg = '알 수 없는 오류';
-      if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 역할 삭제 권한이 필요합니다.';
-      } else if (xhr.responseJSON?.error) {
-        errorMsg = xhr.responseJSON.error;
-      }
-      
-      addSystemNotification('error', '역할 삭제', `${server} 서버 역할 삭제 실패: ${errorMsg}`);
-    });
-  });
 
-  // 방화벽 그룹 적용
-  $(document).off('click', '.server-firewall-group-apply').on('click', '.server-firewall-group-apply', function() {
-    console.log('[instances.js] .server-firewall-group-apply 클릭');
+
+
+  // Security Group 적용
+  $(document).off('click', '.server-security-group-apply').on('click', '.server-security-group-apply', function() {
+    console.log('[instances.js] .server-security-group-apply 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
     const server = tr.data('server');
-    const firewallGroup = tr.find('.server-firewall-group-select').val();
+    const securityGroup = tr.find('.server-security-group-select').val();
     
-    if (!firewallGroup) {
-      addSystemNotification('error', '방화벽 그룹 적용', '방화벽 그룹을 선택해주세요.');
+    if (!securityGroup) {
+      addSystemNotification('error', 'Security Group 적용', 'Security Group을 선택해주세요.');
       return;
     }
     
     // 시작 알림 추가
-    addSystemNotification('info', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹을 적용하는 중...`);
+    addSystemNotification('info', 'Security Group 적용', `${server} 서버에 ${securityGroup} Security Group을 적용하는 중...`);
     
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>적용 중...</span>');
     $.ajax({
-      url: `/assign_firewall_group/${server}`,
+      url: `/api/apply_security_group/${server}`,
       method: 'POST',
       contentType: 'application/json',
-      data: JSON.stringify({ firewall_group: firewallGroup }),
+      data: JSON.stringify({ security_group: securityGroup }),
       success: function(res) {
-      console.log('[instances.js] /assign_firewall_group 성공', res);
+      console.log('[instances.js] /api/apply_security_group 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       loadActiveServers();
-      addSystemNotification('success', '방화벽 그룹 적용', `${server} 서버에 ${firewallGroup} 방화벽 그룹이 성공적으로 적용되었습니다.`);
+      addSystemNotification('success', 'Security Group 적용', `${server} 서버에 ${securityGroup} Security Group이 성공적으로 적용되었습니다.`);
       },
       error: function(xhr) {
-      console.error('[instances.js] /assign_firewall_group 실패', xhr);
+      console.error('[instances.js] /api/apply_security_group 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       
       let errorMsg = '알 수 없는 오류';
       if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 방화벽 그룹 할당 권한이 필요합니다.';
+        errorMsg = '권한이 없습니다. Security Group 할당 권한이 필요합니다.';
       } else if (xhr.responseJSON?.error) {
         errorMsg = xhr.responseJSON.error;
       }
       
-      addSystemNotification('error', '방화벽 그룹 적용', `${server} 서버 방화벽 그룹 적용 실패: ${errorMsg}`);
+      addSystemNotification('error', 'Security Group 적용', `${server} 서버 Security Group 적용 실패: ${errorMsg}`);
       }
     });
   });
 
-  // 방화벽 그룹 해제
-  $(document).off('click', '.server-firewall-group-remove').on('click', '.server-firewall-group-remove', async function() {
-    console.log('[instances.js] .server-firewall-group-remove 클릭');
-    const btn = $(this);
-    const tr = btn.closest('tr');
-    const server = tr.data('server');
-    const ok = await confirmModal('정말로 이 서버의 방화벽 그룹을 해제하시겠습니까?');
-    if (!ok) return;
-    
-    // 시작 알림 추가
-    addSystemNotification('info', '방화벽 그룹 해제', `${server} 서버의 방화벽 그룹을 해제하는 중...`);
-    
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <span>해제 중...</span>');
-    $.post(`/remove_firewall_group/${server}`, {}, function(res) {
-      console.log('[instances.js] /remove_firewall_group 성공', res);
-      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>해제</span>');
-      loadActiveServers();
-      addSystemNotification('success', '방화벽 그룹 해제', `${server} 서버의 방화벽 그룹이 성공적으로 해제되었습니다.`);
-    }).fail(function(xhr) {
-      console.error('[instances.js] /remove_firewall_group 실패', xhr);
-      btn.prop('disabled', false).html('<i class="fas fa-trash"></i> <span>해제</span>');
-      
-      let errorMsg = '알 수 없는 오류';
-      if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 방화벽 그룹 해제 권한이 필요합니다.';
-      } else if (xhr.responseJSON?.error) {
-        errorMsg = xhr.responseJSON.error;
-      }
-      
-      addSystemNotification('error', '방화벽 그룹 해제', `${server} 서버 방화벽 그룹 해제 실패: ${errorMsg}`);
-    });
-  });
+
 
   // 서버 시작
   $(document).off('click', '.start-btn').on('click', '.start-btn', async function() {
@@ -825,8 +1064,8 @@ function initializeServerForm() {
     const ok = await confirmModal(`${name} 서버를 시작하시겠습니까?`);
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
-    $.post('/start_server/' + name, function(res) {
-      console.log('[instances.js] /start_server 성공', res);
+    $.post('/api/servers/' + name + '/start', function(res) {
+      console.log('[instances.js] /api/servers/' + name + '/start 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -834,7 +1073,7 @@ function initializeServerForm() {
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
     }).fail(function(xhr){
-      console.error('[instances.js] /start_server 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/start 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -857,8 +1096,8 @@ function initializeServerForm() {
     const ok = await confirmModal(`${name} 서버를 중지하시겠습니까?`);
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
-    $.post('/stop_server/' + name, function(res) {
-      console.log('[instances.js] /stop_server 성공', res);
+    $.post('/api/servers/' + name + '/stop', function(res) {
+      console.log('[instances.js] /api/servers/' + name + '/stop 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -866,7 +1105,7 @@ function initializeServerForm() {
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
     }).fail(function(xhr){
-      console.error('[instances.js] /stop_server 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/stop 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -889,8 +1128,8 @@ function initializeServerForm() {
     const ok = await confirmModal(`${name} 서버를 리부팅하시겠습니까?`);
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
-    $.post('/reboot_server/' + name, function(res) {
-      console.log('[instances.js] /reboot_server 성공', res);
+    $.post('/api/servers/' + name + '/reboot', function(res) {
+      console.log('[instances.js] /api/servers/' + name + '/reboot 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -898,7 +1137,7 @@ function initializeServerForm() {
       }, 2000); // 2초 후 상태 업데이트 (재부팅은 시간이 더 필요)
       addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
     }).fail(function(xhr){
-      console.error('[instances.js] /reboot_server 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/reboot 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -923,15 +1162,15 @@ function initializeServerForm() {
     btn.closest('tr').addClass('table-warning');
     $('#delete-status-message').remove();
     $('#active-server-table').before('<div id="delete-status-message" class="alert alert-warning mb-2">서버 삭제 중입니다. 완료까지 수 분 소요될 수 있습니다.</div>');
-    $.post('/delete_server/' + name, function(res) {
-      console.log('[instances.js] /delete_server 성공', res);
+    $.post('/api/servers/' + name + '/delete', function(res) {
+      console.log('[instances.js] /api/servers/' + name + '/delete 성공', res);
       if (res.task_id) {
         pollTaskStatus(res.task_id, '서버 삭제', name);
       }
       $('#delete-status-message').remove();
       addSystemNotification('success', '서버 삭제', `${name} 서버 삭제를 시작합니다.`);
     }).fail(function(xhr){
-      console.error('[instances.js] /delete_server 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/delete 실패', xhr);
       $('#delete-status-message').remove();
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
@@ -973,15 +1212,430 @@ function initializeServerForm() {
   // 새로고침 버튼 클릭 시 서버 목록 갱신
   $(document).off('click', '.refresh-btn').on('click', '.refresh-btn', function() {
     console.log('[instances.js] .refresh-btn 클릭');
+    
+    // 일괄 작업 중에는 강제 새로고침 허용
+    if (isBulkOperationInProgress) {
+      console.log('[instances.js] 일괄 작업 중 강제 새로고침 실행');
+      isBulkOperationInProgress = false; // 플래그 해제
+      updateRefreshButtonState();
+    }
+    
     loadActiveServers();
   });
+
+  // 뷰 전환 버튼 클릭 이벤트
+  $(document).off('click', '.btn-view').on('click', '.btn-view', function() {
+    const viewType = $(this).data('view');
+    console.log('[instances.js] 뷰 전환 버튼 클릭:', viewType);
+    
+    // 활성 버튼 변경
+    $('.btn-view').removeClass('active');
+    $(this).addClass('active');
+    
+    console.log('[instances.js] 뷰 컨테이너 전환 시작');
+    
+    // 뷰 컨테이너 전환
+    if (viewType === 'table') {
+      console.log('[instances.js] 테이블 뷰로 전환');
+      $('#servers-grid').hide();
+      $('#servers-table-container').show();
+      // 테이블 뷰로 다시 렌더링
+      if (window.serversData) {
+        renderTableView(window.serversData, window.firewallGroups || []);
+      }
+    } else {
+      console.log('[instances.js] 카드 뷰로 전환');
+      $('#servers-table-container').hide();
+      $('#servers-grid').show();
+      // 카드 뷰로 다시 렌더링
+      if (window.serversData) {
+        renderCardView(window.serversData, window.firewallGroups || []);
+      }
+    }
+    
+    console.log('[instances.js] 뷰 전환 완료');
+  });
+
+  // 서버 검색 기능
+  $(document).off('input', '#server-search').on('input', '#server-search', function() {
+    const searchTerm = $(this).val().toLowerCase();
+    console.log('[instances.js] 서버 검색:', searchTerm);
+    
+    if (!window.serversData) return;
+    
+    // 검색 결과 필터링
+    const filteredServers = {};
+    for (const [name, server] of Object.entries(window.serversData)) {
+      if (name.toLowerCase().includes(searchTerm) || 
+          (server.role && server.role.toLowerCase().includes(searchTerm)) ||
+          (server.ip_addresses && server.ip_addresses.some(ip => ip.includes(searchTerm)))) {
+        filteredServers[name] = server;
+      }
+    }
+    
+    // 현재 뷰에 따라 렌더링
+    const currentView = getCurrentViewType();
+    if (currentView === 'table') {
+      renderTableView(filteredServers, window.firewallGroups || []);
+    } else {
+      renderCardView(filteredServers, window.firewallGroups || []);
+    }
+    
+    // 검색 결과 개수 업데이트
+    const resultCount = Object.keys(filteredServers).length;
+    $('#server-count').text(`${resultCount}개`);
+  });
+
+  // 전체 선택/해제 체크박스
+  $(document).off('change', '#select-all-servers').on('change', '#select-all-servers', function() {
+    const isChecked = $(this).is(':checked');
+    $('.server-checkbox').prop('checked', isChecked);
+    updateBulkActionsToolbar();
+  });
+
+  // 개별 서버 체크박스
+  $(document).off('change', '.server-checkbox').on('change', '.server-checkbox', function() {
+    updateBulkActionsToolbar();
+    
+    // 전체 선택 체크박스 상태 업데이트
+    const totalCheckboxes = $('.server-checkbox').length;
+    const checkedCheckboxes = $('.server-checkbox:checked').length;
+    
+    if (checkedCheckboxes === 0) {
+      $('#select-all-servers').prop('indeterminate', false).prop('checked', false);
+    } else if (checkedCheckboxes === totalCheckboxes) {
+      $('#select-all-servers').prop('indeterminate', false).prop('checked', true);
+    } else {
+      $('#select-all-servers').prop('indeterminate', true);
+    }
+  });
+
+  // 대량 작업 도구모음 업데이트
+  function updateBulkActionsToolbar() {
+    const checkedServers = $('.server-checkbox:checked');
+    const count = checkedServers.length;
+    
+    if (count > 0) {
+      $('#bulk-actions-btn').prop('disabled', false);
+      $('#bulk-actions-toolbar').addClass('show');
+      $('#selected-count').text(count);
+    } else {
+      $('#bulk-actions-btn').prop('disabled', true);
+      $('#bulk-actions-toolbar').removeClass('show');
+    }
+  }
+
+  // 탭 전환 기능
+  $(document).off('click', '.bulk-tab-btn').on('click', '.bulk-tab-btn', function() {
+    const tabName = $(this).data('tab');
+    
+    // 탭 버튼 활성화
+    $('.bulk-tab-btn').removeClass('active');
+    $(this).addClass('active');
+    
+    // 탭 내용 전환
+    $('.bulk-tab-content').removeClass('active');
+    $(`#${tabName}-tab`).addClass('active');
+    
+    // 설정 탭일 때 보안그룹 목록 로드
+    if (tabName === 'settings') {
+      loadSecurityGroupsForBulk();
+    }
+  });
+
+  // 보안그룹 목록 로드 (일괄 설정용)
+  function loadSecurityGroupsForBulk() {
+    $.get('/api/firewall/groups', function(res) {
+      if (res.success) {
+        let options = '<option value="">보안그룹을 선택하세요</option>';
+        res.groups.forEach(function(group) {
+          options += `<option value="${group.name}">${group.name} (${group.description || '설명 없음'})</option>`;
+        });
+        $('#bulk-security-group-select').html(options);
+      }
+    }).fail(function(xhr) {
+      console.error('보안그룹 목록 로드 실패:', xhr);
+      $('#bulk-security-group-select').html('<option value="">로드 실패</option>');
+    });
+  }
+
+  // 대량 작업 함수들 (새로운 API 사용)
+  window.bulkStartServers = function() {
+    const serverNames = getSelectedServerNames();
+    if (serverNames.length === 0) return;
+    
+    if (confirm(`선택된 ${serverNames.length}개 서버를 시작하시겠습니까?`)) {
+      console.log('[instances.js] 일괄 시작:', serverNames);
+      executeBulkAction(serverNames, 'start');
+    }
+  };
+
+  window.bulkStopServers = function() {
+    const serverNames = getSelectedServerNames();
+    if (serverNames.length === 0) return;
+    
+    if (confirm(`선택된 ${serverNames.length}개 서버를 중지하시겠습니까?`)) {
+      console.log('[instances.js] 일괄 중지:', serverNames);
+      executeBulkAction(serverNames, 'stop');
+    }
+  };
+
+  window.bulkRebootServers = function() {
+    const serverNames = getSelectedServerNames();
+    if (serverNames.length === 0) return;
+    
+    if (confirm(`선택된 ${serverNames.length}개 서버를 재시작하시겠습니까?`)) {
+      console.log('[instances.js] 일괄 재시작:', serverNames);
+      executeBulkAction(serverNames, 'reboot');
+    }
+  };
+
+  window.bulkDeleteServers = function() {
+    const serverNames = getSelectedServerNames();
+    if (serverNames.length === 0) return;
+    
+    if (confirm(`선택된 ${serverNames.length}개 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
+      console.log('[instances.js] 일괄 삭제:', serverNames);
+      executeBulkAction(serverNames, 'delete');
+    }
+  };
+
+  // 대량 작업 API 호출
+  function executeBulkAction(serverNames, action) {
+    console.log(`[instances.js] 대량 작업 실행: ${action} - ${serverNames.length}개 서버`);
+    
+    // 일괄 작업 시작 플래그 설정
+    isBulkOperationInProgress = true;
+    console.log('[instances.js] 일괄 작업 시작 - 자동 새로고침 비활성화');
+    
+    // 새로고침 버튼 상태 업데이트
+    updateRefreshButtonState();
+    
+    // 선택 해제 및 도구모음 숨김
+    clearSelection();
+    
+    // 대량 작업 API 호출
+    $.ajax({
+      url: '/api/servers/bulk_action',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        server_names: serverNames,
+        action: action
+      }),
+      success: function(res) {
+        if (res.success && res.task_id) {
+          const actionNames = {
+            'start': '시작',
+            'stop': '중지',
+            'reboot': '재시작', 
+            'delete': '삭제'
+          };
+          const actionName = actionNames[action] || action;
+          
+          addSystemNotification('success', '대량 작업', res.message);
+          
+          // 작업 상태 폴링 시작
+          pollTaskStatus(res.task_id, 'bulk_server_action', `${serverNames.length}개 서버 ${actionName}`);
+        } else {
+          addSystemNotification('error', '대량 작업', '대량 작업 요청 실패');
+        }
+      },
+      error: function(xhr) {
+        const errorMsg = xhr.responseJSON?.error || xhr.statusText || '알 수 없는 오류';
+        addSystemNotification('error', '대량 작업', `대량 작업 실패: ${errorMsg}`);
+        console.error('[instances.js] 대량 작업 실패:', xhr);
+      }
+    });
+  }
+
+  window.clearSelection = function() {
+    $('.server-checkbox, #select-all-servers').prop('checked', false);
+    updateBulkActionsToolbar();
+  };
+
+
+
+  // 일괄 역할 할당 실행 (설정 탭에서 호출)
+  window.executeBulkRoleAssignment = function() {
+    const serverNames = getSelectedServerNames();
+    const role = $('#bulk-role-select').val();
+    
+    if (serverNames.length === 0) {
+      addSystemNotification('warning', '서버 선택', '할당할 서버를 선택해주세요.');
+      return;
+    }
+    
+    if (!role) {
+      addSystemNotification('warning', '역할 선택', '할당할 역할을 선택해주세요.');
+      return;
+    }
+    
+    console.log(`[instances.js] 일괄 역할 할당: ${serverNames.length}개 서버 - ${role}`);
+    
+    // 일괄 작업 시작 플래그 설정
+    isBulkOperationInProgress = true;
+    console.log('[instances.js] 일괄 역할 할당 시작 - 자동 새로고침 비활성화');
+    
+    // 새로고침 버튼 상태 업데이트
+    updateRefreshButtonState();
+    
+    // 선택 해제 및 도구모음 숨김
+    clearSelection();
+    
+    // 시작 알림
+    addSystemNotification('info', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할을 할당하는 중...`);
+    
+    // 일괄 역할 할당 API 호출
+    $.ajax({
+      url: '/api/roles/assign_bulk',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        server_names: serverNames,
+        role: role
+      }),
+      success: function(res) {
+        console.log('[instances.js] 일괄 역할 할당 성공:', res);
+        
+        if (res.task_id) {
+          // Task 진행 상황 모니터링
+          pollTaskStatus(res.task_id, 'assign_roles_bulk', `${serverNames.length}개 서버`);
+        } else {
+          // 즉시 완료된 경우
+          addSystemNotification('success', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할이 성공적으로 할당되었습니다.`);
+          loadActiveServers();
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 일괄 역할 할당 실패:', xhr);
+        
+        // 일괄 작업 플래그 해제
+        isBulkOperationInProgress = false;
+        updateRefreshButtonState();
+        
+        let errorMsg = '알 수 없는 오류';
+        if (xhr.status === 403) {
+          errorMsg = '권한이 없습니다. 역할 할당 권한이 필요합니다.';
+        } else if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        
+        addSystemNotification('error', '일괄 역할 할당', `${serverNames.length}개 서버 역할 할당 실패: ${errorMsg}`);
+      }
+    });
+  };
+
+  // 일괄 보안그룹 할당 (새로운 함수)
+  window.bulkAssignSecurityGroup = function() {
+    const serverNames = getSelectedServerNames();
+    const securityGroup = $('#bulk-security-group-select').val();
+    
+    if (serverNames.length === 0) {
+      addSystemNotification('warning', '서버 선택', '할당할 서버를 선택해주세요.');
+      return;
+    }
+    
+    if (!securityGroup) {
+      addSystemNotification('warning', '보안그룹 선택', '할당할 보안그룹을 선택해주세요.');
+      return;
+    }
+    
+    console.log(`[instances.js] 일괄 보안그룹 할당: ${serverNames.length}개 서버 - ${securityGroup}`);
+    
+    // 일괄 작업 시작 플래그 설정
+    isBulkOperationInProgress = true;
+    console.log('[instances.js] 일괄 보안그룹 할당 시작 - 자동 새로고침 비활성화');
+    
+    // 새로고침 버튼 상태 업데이트
+    updateRefreshButtonState();
+    
+    // 선택 해제 및 도구모음 숨김
+    clearSelection();
+    
+    // 시작 알림
+    addSystemNotification('info', '일괄 보안그룹 할당', `${serverNames.length}개 서버에 ${securityGroup} 보안그룹을 할당하는 중...`);
+    
+    // 일괄 보안그룹 할당 API 호출
+    $.ajax({
+      url: '/api/firewall/assign_bulk',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        server_names: serverNames,
+        security_group: securityGroup
+      }),
+      success: function(res) {
+        console.log('[instances.js] 일괄 보안그룹 할당 성공:', res);
+        
+        if (res.task_id) {
+          // Task 진행 상황 모니터링
+          pollTaskStatus(res.task_id, 'assign_security_groups_bulk', `${serverNames.length}개 서버`);
+        } else {
+          // 즉시 완료된 경우
+          addSystemNotification('success', '일괄 보안그룹 할당', `${serverNames.length}개 서버에 ${securityGroup} 보안그룹이 성공적으로 할당되었습니다.`);
+          loadActiveServers();
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 일괄 보안그룹 할당 실패:', xhr);
+        
+        // 일괄 작업 플래그 해제
+        isBulkOperationInProgress = false;
+        updateRefreshButtonState();
+        
+        let errorMsg = '알 수 없는 오류';
+        if (xhr.status === 403) {
+          errorMsg = '권한이 없습니다. 보안그룹 할당 권한이 필요합니다.';
+        } else if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        
+        addSystemNotification('error', '일괄 보안그룹 할당', `${serverNames.length}개 서버 보안그룹 할당 실패: ${errorMsg}`);
+      }
+    });
+  };
+
+  // 선택된 서버 이름들 가져오기
+  function getSelectedServerNames() {
+    return $('.server-checkbox:checked').map(function() {
+      return $(this).val();
+    }).get();
+  }
+
+  // 서버 액션 실행 (기존 함수 활용)
+  function executeServerAction(serverName, action) {
+    const $serverElement = $(`[data-server="${serverName}"]`);
+    let $actionBtn;
+    
+    switch(action) {
+      case 'start':
+        $actionBtn = $serverElement.find('.start-btn');
+        break;
+      case 'stop':
+        $actionBtn = $serverElement.find('.stop-btn');
+        break;
+      case 'reboot':
+        $actionBtn = $serverElement.find('.reboot-btn');
+        break;
+      case 'delete':
+        $actionBtn = $serverElement.find('.delete-btn');
+        break;
+      default:
+        return;
+    }
+    
+    if ($actionBtn.length > 0 && !$actionBtn.prop('disabled')) {
+      $actionBtn.trigger('click');
+    }
+  }
 
   // 모든 알림 삭제 버튼 핸들러
   $(document).off('click', '#clear-all-notifications').on('click', '#clear-all-notifications', async function(e) {
     e.preventDefault();
     const ok = await confirmModal('모든 알림을 삭제하시겠습니까?');
     if (!ok) return;
-    $.post('/notifications/clear-all', function(res) {
+    $.post('/api/notifications/clear-all', function(res) {
       window.systemNotifications = [];
       // 알림 드롭다운만 갱신(성공 알림은 띄우지 않음)
       if (typeof addSystemNotification === 'function') {
@@ -1045,6 +1699,22 @@ function initializeServerForm() {
 
   // 다중 서버 모드: 다음 버튼 클릭 시 요약/수정 모달 표시
   // 이 부분은 이미 위에서 처리되었으므로 제거
+
+  // 일괄 작업 상태에 따른 새로고침 버튼 업데이트
+  function updateRefreshButtonState() {
+    const $refreshBtn = $('.refresh-btn');
+    if (isBulkOperationInProgress) {
+      $refreshBtn.addClass('btn-warning').removeClass('btn-refresh');
+      $refreshBtn.find('span').text('일괄 작업 중...');
+      $refreshBtn.find('i').removeClass('fa-sync-alt').addClass('fa-clock');
+      $refreshBtn.prop('title', '일괄 작업 중입니다. 필요시 클릭하여 강제 새로고침');
+    } else {
+      $refreshBtn.removeClass('btn-warning').addClass('btn-refresh');
+      $refreshBtn.find('span').text('새로고침');
+      $refreshBtn.find('i').removeClass('fa-clock').addClass('fa-sync-alt');
+      $refreshBtn.prop('title', '서버 목록 새로고침');
+    }
+  }
 });
 
 // =========================

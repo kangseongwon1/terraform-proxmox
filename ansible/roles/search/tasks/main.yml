@@ -4,7 +4,8 @@
     name:
       - wget
       - apt-transport-https
-      - openjdk-17-jdk
+      - openjdk-11-jdk
+      - curl
     state: present
     update_cache: yes
   when: ansible_os_family == "Debian"
@@ -13,7 +14,8 @@
   ansible.builtin.yum:
     name:
       - wget
-      - java-17-openjdk
+      - java-11-openjdk-devel
+      - curl
     state: present
     update_cache: yes
   when: ansible_os_family == "RedHat"
@@ -51,29 +53,50 @@
     group: elasticsearch
     recurse: yes
 
+- name: Configure elasticsearch
+  ansible.builtin.template:
+    src: elasticsearch.yml.j2
+    dest: /opt/elasticsearch/config/elasticsearch.yml
+    owner: elasticsearch
+    group: elasticsearch
+    mode: '0644'
+
 - name: Create systemd service for elasticsearch
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: elasticsearch.service.j2
     dest: /etc/systemd/system/elasticsearch.service
-    content: |
-      [Unit]
-      Description=Elasticsearch
-      After=network.target
-      [Service]
-      Type=simple
-      User=elasticsearch
-      Group=elasticsearch
-      ExecStart=/opt/elasticsearch/bin/elasticsearch
-      Restart=always
-      [Install]
-      WantedBy=multi-user.target
     mode: '0644'
 
 - name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: yes
 
+- name: Configure firewall for Elasticsearch (RedHat/Rocky/CentOS)
+  ansible.builtin.firewalld:
+    port: "{{ elasticsearch_port | default(9200) }}/tcp"
+    permanent: yes
+    state: enabled
+  when: ansible_os_family == "RedHat"
+
+- name: Configure UFW for Elasticsearch (Debian/Ubuntu)
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ elasticsearch_port | default(9200) }}"
+    proto: tcp
+  when: ansible_os_family == "Debian"
+
 - name: Enable and start elasticsearch
   ansible.builtin.service:
     name: elasticsearch
     state: started
-    enabled: yes 
+    enabled: yes
+
+- name: Wait for Elasticsearch to be ready
+  ansible.builtin.uri:
+    url: http://localhost:{{ elasticsearch_port | default(9200) }}
+    method: GET
+    status_code: 200
+  register: elasticsearch_ready
+  until: elasticsearch_ready.status == 200
+  retries: 30
+  delay: 10 

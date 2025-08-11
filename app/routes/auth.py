@@ -182,4 +182,57 @@ def get_profile_api():
         return jsonify(user_data)
     except Exception as e:
         print(f"💥 프로필 API 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/session/refresh', methods=['POST'])
+@login_required
+def refresh_session():
+    """세션 갱신 API"""
+    try:
+        # 세션을 영구 세션으로 설정하여 갱신
+        session.permanent = True
+        
+        # 사용자 정보 업데이트
+        current_user.update_user_login()
+        
+        # 세션에 권한 정보 재설정
+        permissions = [perm.permission for perm in current_user.permissions]
+        session['permissions'] = permissions
+        session['user_role'] = current_user.role
+        session['user_id'] = current_user.id
+        session['username'] = current_user.username
+        
+        return jsonify({
+            'success': True,
+            'message': '세션이 갱신되었습니다.',
+            'user': {
+                'username': current_user.username,
+                'role': current_user.role,
+                'permissions': permissions
+            }
+        })
+    except Exception as e:
+        print(f"💥 세션 갱신 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/session/check', methods=['GET'])
+def check_session():
+    """세션 상태 확인 API"""
+    try:
+        if current_user.is_authenticated:
+            return jsonify({
+                'authenticated': True,
+                'user': {
+                    'username': current_user.username,
+                    'role': current_user.role,
+                    'permissions': [perm.permission for perm in current_user.permissions]
+                }
+            })
+        else:
+            return jsonify({
+                'authenticated': False,
+                'message': '로그인이 필요합니다.'
+            }), 401
+    except Exception as e:
+        print(f"💥 세션 상태 확인 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 

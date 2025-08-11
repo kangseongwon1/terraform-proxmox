@@ -4,6 +4,8 @@
     name:
       - software-properties-common
       - wget
+      - openjdk-11-jdk
+      - curl
     state: present
     update_cache: yes
   when: ansible_os_family == "Debian"
@@ -29,11 +31,75 @@
     executable: /bin/bash
   when: ansible_os_family == "Debian"
 
-- name: Install python3 (RedHat/Rocky/CentOS)
+- name: Install Java and dependencies (RedHat/Rocky/CentOS)
   ansible.builtin.yum:
     name:
-      - python3
+      - java-11-openjdk-devel
       - wget
+      - curl
     state: present
     update_cache: yes
-  when: ansible_os_family == "RedHat" 
+  when: ansible_os_family == "RedHat"
+
+- name: Create tomcat user
+  ansible.builtin.user:
+    name: tomcat
+    shell: /bin/false
+    home: /opt/tomcat
+    create_home: no
+
+- name: Download Tomcat
+  ansible.builtin.get_url:
+    url: https://downloads.apache.org/tomcat/tomcat-9/v9.0.85/bin/apache-tomcat-9.0.85.tar.gz
+    dest: /tmp/apache-tomcat-9.0.85.tar.gz
+    mode: '0644'
+
+- name: Extract Tomcat
+  ansible.builtin.unarchive:
+    src: /tmp/apache-tomcat-9.0.85.tar.gz
+    dest: /opt
+    remote_src: yes
+    creates: /opt/apache-tomcat-9.0.85
+
+- name: Create Tomcat directory
+  ansible.builtin.file:
+    path: /opt/tomcat
+    state: link
+    src: /opt/apache-tomcat-9.0.85
+    owner: tomcat
+    group: tomcat
+
+- name: Set Tomcat permissions
+  ansible.builtin.file:
+    path: /opt/tomcat
+    state: directory
+    recurse: yes
+    owner: tomcat
+    group: tomcat
+
+- name: Create Tomcat systemd service
+  ansible.builtin.template:
+    src: tomcat.service.j2
+    dest: /etc/systemd/system/tomcat.service
+    mode: '0644'
+
+- name: Start and enable Tomcat
+  ansible.builtin.systemd:
+    name: tomcat
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Configure firewall for Tomcat (RedHat/Rocky/CentOS)
+  ansible.builtin.firewalld:
+    port: "{{ tomcat_port | default(8080) }}/tcp"
+    permanent: yes
+    state: enabled
+  when: ansible_os_family == "RedHat"
+
+- name: Configure UFW for Tomcat (Debian/Ubuntu)
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ tomcat_port | default(8080) }}"
+    proto: tcp
+  when: ansible_os_family == "Debian" 

@@ -25,20 +25,28 @@ class TerraformService:
         if cwd is None:
             cwd = self.terraform_dir
         
+        print(f"🔧 Terraform 명령어 실행: {' '.join(command)} (cwd: {cwd})")
+        
         try:
+            # Windows 환경에서 인코딩 문제 해결을 위해 UTF-8 명시적 지정
             result = subprocess.run(
                 command,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',  # 디코딩 에러 시 대체 문자 사용
                 timeout=300  # 5분 타임아웃
             )
+            print(f"🔧 Terraform 명령어 완료: returncode={result.returncode}")
             return result.returncode, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
             logger.error("Terraform 명령어 실행 타임아웃")
+            print("❌ Terraform 명령어 실행 타임아웃")
             return -1, "", "Terraform 명령어 실행 타임아웃"
         except Exception as e:
             logger.error(f"Terraform 명령어 실행 실패: {e}")
+            print(f"❌ Terraform 명령어 실행 실패: {e}")
             return -1, "", str(e)
     
     def init(self) -> bool:
@@ -50,37 +58,55 @@ class TerraformService:
             logger.info("Terraform 초기화 성공")
             return True
         else:
-            logger.error(f"Terraform 초기화 실패: {stderr}")
+            error_msg = stderr or stdout or "알 수 없는 Terraform 초기화 오류"
+            logger.error(f"Terraform 초기화 실패: {error_msg}")
             return False
     
     def plan(self) -> Tuple[bool, str]:
         """Terraform 계획"""
         logger.info("Terraform 계획 시작")
+        print("🔧 Terraform plan 명령어 실행")
         returncode, stdout, stderr = self._run_terraform_command(["terraform", "plan"])
+        print(f"🔧 Terraform plan 결과: returncode={returncode}, stdout_length={len(stdout) if stdout else 0}, stderr_length={len(stderr) if stderr else 0}")
         
         if returncode == 0:
             logger.info("Terraform 계획 성공")
-            return True, stdout
+            result_msg = stdout or "Terraform 계획이 성공적으로 완료되었습니다."
+            print(f"✅ Terraform 계획 성공: {len(result_msg)} 문자")
+            return True, result_msg
         else:
-            logger.error(f"Terraform 계획 실패: {stderr}")
-            return False, stderr
+            error_msg = stderr or stdout or "알 수 없는 Terraform 계획 오류"
+            logger.error(f"Terraform 계획 실패: {error_msg}")
+            print(f"❌ Terraform 계획 실패: {error_msg}")
+            return False, error_msg
     
-    def apply(self) -> Tuple[bool, str]:
-        """Terraform 적용"""
+    def apply(self, targets: List[str] = None) -> Tuple[bool, str]:
+        """Terraform 적용
+        
+        Args:
+            targets: 특정 리소스만 대상으로 적용할 때 사용 (예: ["module.server[\"server1\"]"])
+        """
         logger.info("Terraform 적용 시작")
-        returncode, stdout, stderr = self._run_terraform_command(
-            ["terraform", "apply", "-auto-approve"]
-        )
+        command = ["terraform", "apply", "-auto-approve"]
+        
+        if targets:
+            for target in targets:
+                command.extend(["-target", target])
+            logger.info(f"Targeted apply 실행: {targets}")
+            print(f"🔧 Targeted Terraform apply 실행: {targets}")
+        
+        returncode, stdout, stderr = self._run_terraform_command(command)
         
         if returncode == 0:
             logger.info("Terraform 적용 성공")
-            return True, stdout
+            return True, stdout or "Terraform 적용이 성공적으로 완료되었습니다."
         else:
-            logger.error(f"Terraform 적용 실패: {stderr}")
-            return False, stderr
+            error_msg = stderr or stdout or "알 수 없는 Terraform 적용 오류"
+            logger.error(f"Terraform 적용 실패: {error_msg}")
+            return False, error_msg
     
     def destroy(self, target: str = None) -> Tuple[bool, str]:
-        """Terraform 삭제"""
+        """Terraform 삭제 (단일 타겟)"""
         logger.info("Terraform 삭제 시작")
         command = ["terraform", "destroy", "-auto-approve"]
         if target:
@@ -90,10 +116,40 @@ class TerraformService:
         
         if returncode == 0:
             logger.info("Terraform 삭제 성공")
-            return True, stdout
+            return True, stdout or "Terraform 삭제가 성공적으로 완료되었습니다."
         else:
-            logger.error(f"Terraform 삭제 실패: {stderr}")
-            return False, stderr
+            error_msg = stderr or stdout or "알 수 없는 Terraform 삭제 오류"
+            logger.error(f"Terraform 삭제 실패: {error_msg}")
+            return False, error_msg
+    
+    def destroy_targets(self, targets: List[str]) -> Tuple[bool, str]:
+        """Terraform 대량 삭제 (여러 타겟)
+        
+        Args:
+            targets: 삭제할 리소스 목록 (예: ["module.server[\"server1\"]", "module.server[\"server2\"]"])
+        """
+        if not targets:
+            return False, "삭제할 타겟이 지정되지 않았습니다."
+        
+        logger.info(f"Terraform 대량 삭제 시작: {targets}")
+        command = ["terraform", "destroy", "-auto-approve"]
+        
+        # 모든 타겟을 -target 옵션으로 추가
+        for target in targets:
+            command.extend(["-target", target])
+        
+        logger.info(f"Targeted destroy 실행: {targets}")
+        print(f"🔥 Targeted Terraform destroy 실행: {targets}")
+        
+        returncode, stdout, stderr = self._run_terraform_command(command)
+        
+        if returncode == 0:
+            logger.info(f"Terraform 대량 삭제 성공: {targets}")
+            return True, stdout or f"{len(targets)}개 리소스 삭제가 성공적으로 완료되었습니다."
+        else:
+            error_msg = stderr or stdout or "알 수 없는 Terraform 삭제 오류"
+            logger.error(f"Terraform 대량 삭제 실패: {error_msg}")
+            return False, error_msg
     
     def output(self) -> Dict[str, Any]:
         """Terraform 출력값 조회"""
@@ -102,12 +158,13 @@ class TerraformService:
         
         if returncode == 0:
             try:
-                return json.loads(stdout)
+                return json.loads(stdout) if stdout.strip() else {}
             except json.JSONDecodeError:
                 logger.error("Terraform 출력값 파싱 실패")
                 return {}
         else:
-            logger.error(f"Terraform 출력값 조회 실패: {stderr}")
+            error_msg = stderr or stdout or "알 수 없는 Terraform 출력값 조회 오류"
+            logger.error(f"Terraform 출력값 조회 실패: {error_msg}")
             return {}
     
     def load_tfvars(self) -> Dict[str, Any]:
@@ -183,6 +240,26 @@ class TerraformService:
         """인프라 배포"""
         try:
             print("🔧 deploy_infrastructure 시작")
+            
+            # tfvars 파일 존재 확인
+            if not os.path.exists(self.tfvars_file):
+                error_msg = f"terraform.tfvars.json 파일이 존재하지 않습니다: {self.tfvars_file}"
+                print(f"❌ {error_msg}")
+                return False, error_msg
+            
+            # tfvars 파일 내용 확인
+            try:
+                tfvars = self.load_tfvars()
+                if not tfvars or 'servers' not in tfvars:
+                    error_msg = "terraform.tfvars.json 파일에 서버 설정이 없습니다."
+                    print(f"❌ {error_msg}")
+                    return False, error_msg
+                print(f"✅ tfvars 파일 로드 성공: {len(tfvars.get('servers', {}))}개 서버")
+            except Exception as e:
+                error_msg = f"tfvars 파일 로드 실패: {e}"
+                print(f"❌ {error_msg}")
+                return False, error_msg
+            
             # 초기화
             print("🔧 Terraform 초기화 시작")
             if not self.init():
@@ -193,6 +270,7 @@ class TerraformService:
             # 계획
             print("🔧 Terraform 계획 시작")
             plan_success, plan_output = self.plan()
+            print(f"🔧 Terraform 계획 결과: success={plan_success}, output_length={len(plan_output) if plan_output else 0}")
             if not plan_success:
                 print(f"❌ Terraform 계획 실패: {plan_output}")
                 return False, f"Terraform 계획 실패: {plan_output}"
@@ -212,6 +290,8 @@ class TerraformService:
         except Exception as e:
             print(f"💥 deploy_infrastructure 실패: {e}")
             logger.error(f"인프라 배포 실패: {e}")
+            import traceback
+            traceback.print_exc()
             return False, str(e)
     
     def destroy_infrastructure(self, server_name: str = None) -> Tuple[bool, str]:
@@ -229,7 +309,11 @@ class TerraformService:
             return False, str(e)
 
     def delete_server(self, server_name: str) -> Dict[str, Any]:
-        """서버 삭제 (중지 후 Terraform apply)"""
+        """서버 삭제 (중지 후 Terraform apply)
+        
+        @deprecated: 이 메서드는 더 이상 권장되지 않습니다. 
+        대신 destroy_targets() 메서드를 사용하세요.
+        """
         try:
             print(f"🔧 서버 삭제 시작: {server_name}")
             

@@ -1,294 +1,415 @@
-// 전역 함수로 정의
+// Datacenter Security Group 관리 시스템
 window.loadFirewallGroups = function() {
-    console.log('[firewall.js] loadFirewallGroups 호출');
+    console.log('[firewall.js] Datacenter Security Group 목록 로드 시작');
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
-    $.get('/firewall/groups', function(data) {
+    
+    $.ajax({
+        url: '/api/firewall/groups',
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            console.log('[firewall.js] Security Group 데이터 로드 성공:', data);
+            console.log('[firewall.js] data 타입:', typeof data);
+            console.log('[firewall.js] data 구조:', Object.keys(data));
+            console.log('[firewall.js] groups 배열:', data.groups);
+            console.log('[firewall.js] groups 타입:', typeof data.groups);
+            console.log('[firewall.js] groups 길이:', data.groups ? data.groups.length : 'undefined');
+            console.log('[firewall.js] groups 내용:', JSON.stringify(data.groups, null, 2));
+            
+            $.get('/firewall/groups/content', function(html) {
+                console.log('[firewall.js] HTML 템플릿 로드 성공');
+                $('#main-content').html(html);
+                renderSecurityGroups(data.groups || []);
+            }).fail(function(xhr) {
+                console.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
+                $('#main-content').html(`<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><br>HTML 템플릿 로드 실패</div>`);
+            });
+        },
+        error: function(xhr, status, error) {
+            console.error('[firewall.js] Security Group 데이터 로드 실패:', xhr);
+            
+            // API 호출 실패 시에도 HTML 템플릿은 로드하고 테스트 데이터 표시
       $.get('/firewall/groups/content', function(html) {
+                console.log('[firewall.js] HTML 템플릿 로드 성공 (API 실패 시)');
         $('#main-content').html(html);
-        renderGroups(data.groups || []);
-      });
+                
+                // 테스트 데이터로 표시
+                const testGroups = [
+                    {
+                        name: 'web-servers',
+                        description: '웹서버용 Security Group (테스트)',
+                        instance_count: 3
+                    },
+                    {
+                        name: 'db-servers',
+                        description: '데이터베이스 서버용 Security Group (테스트)',
+                        instance_count: 2
+                    },
+                    {
+                        name: 'management',
+                        description: '관리용 Security Group (테스트)',
+                        instance_count: 1
+                    }
+                ];
+                
+                console.log('[firewall.js] 테스트 데이터로 렌더링:', testGroups);
+                renderSecurityGroups(testGroups);
+                
+                // 오류 메시지 표시
+                let errorMsg = 'Security Group 조회 실패';
+                if (xhr.status === 501) {
+                    errorMsg = 'Datacenter Security Group API가 지원되지 않습니다.';
+                } else if (xhr.status === 401) {
+                    errorMsg = '인증이 필요합니다. 다시 로그인해주세요.';
+                } else if (xhr.status === 403) {
+                    errorMsg = '권한이 없습니다.';
+                } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                } else if (xhr.responseText) {
+                    errorMsg = `서버 오류: ${xhr.responseText}`;
+                }
+                
+                // 오류 메시지를 테이블 위에 표시
+                $('#fw-group-tbody').before(`<tr><td colspan="4" class="text-center text-warning"><i class="fas fa-exclamation-triangle"></i> ${errorMsg} (테스트 데이터 표시)</td></tr>`);
+            }).fail(function(xhr) {
+                console.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
+                $('#main-content').html(`<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><br>HTML 템플릿 로드 실패</div>`);
+            });
+        }
     });
 }
 
-  function renderGroups(groups) {
+// Security Group 목록 렌더링
+function renderSecurityGroups(groups) {
+    console.log('[firewall.js] Security Group 목록 렌더링 시작');
+    console.log('[firewall.js] groups:', groups);
+    console.log('[firewall.js] groups 타입:', typeof groups);
+    console.log('[firewall.js] groups 길이:', groups ? groups.length : 'undefined');
+    console.log('[firewall.js] groups 배열 여부:', Array.isArray(groups));
+    
     const $tbody = $('#fw-group-tbody');
+    console.log('[firewall.js] tbody 요소 찾기:', $tbody.length > 0 ? '성공' : '실패');
+    
+    if (!$tbody.length) {
+        console.error('[firewall.js] #fw-group-tbody 요소를 찾을 수 없습니다!');
+        return;
+    }
+    
     $tbody.empty();
-    if (!groups.length) {
-      $tbody.append('<tr><td colspan="4" class="text-center text-muted">등록된 방화벽 그룹이 없습니다.</td></tr>');
+    console.log('[firewall.js] tbody 비움 완료');
+    
+    if (!groups || !groups.length) {
+        console.log('[firewall.js] 그룹이 없음, 빈 메시지 표시');
+        $tbody.append('<tr><td colspan="4" class="text-center text-muted">등록된 Security Group이 없습니다.</td></tr>');
       return;
     }
-    groups.forEach(g => {
-      $tbody.append(`
-        <tr>
-          <td class="fw-bold">${g.name}</td>
-          <td>${g.description || ''}</td>
-          <td>${g.instance_count || 0}</td>
-          <td>
-            <button class="btn btn-outline-primary btn-sm fw-detail-btn" data-group="${g.name}"><i class="fas fa-list"></i> 상세</button>
-            <button class="btn btn-outline-danger btn-sm fw-delete-btn" data-group="${g.name}"><i class="fas fa-trash"></i> 삭제</button>
+    
+    console.log('[firewall.js] 그룹 렌더링 시작, 개수:', groups.length);
+    groups.forEach((group, index) => {
+        console.log(`[firewall.js] Security Group ${index + 1}:`, group);
+        
+        const rowHtml = `
+            <tr>
+                <td class="fw-bold">${group.name || '이름 없음'}</td>
+                <td>
+                    <div>${group.description || ''}</div>
+                    <small class="text-muted">할당된 VM: ${group.vms ? group.vms.join(', ') : '없음'}</small>
+                </td>
+                <td>${group.instance_count || 0}</td>
+                <td>
+                    <button class="btn btn-outline-primary btn-sm sg-config-btn" data-group="${group.name}">
+                        <i class="fas fa-cog"></i> 설정
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm sg-delete-btn" data-group="${group.name}">
+                        <i class="fas fa-trash"></i> 삭제
+                    </button>
           </td>
         </tr>
-      `);
+        `;
+        
+        console.log(`[firewall.js] Security Group ${index + 1} HTML:`, rowHtml);
+        $tbody.append(rowHtml);
+        console.log(`[firewall.js] Security Group ${index + 1} 추가 완료`);
     });
-  }
+    console.log('[firewall.js] 그룹 렌더링 완료');
+}
 
-// 전역 함수로 정의
-window.loadFirewallGroupDetail = function(group) {
-    console.log('[firewall.js] loadFirewallGroupDetail 호출:', group);
-    $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
-    $.get(`/firewall/groups/${group}/rules`, function(data) {
-      $.get('/firewall/group-detail/content', function(html) {
-        $('#main-content').html(html);
-        $('#fw-group-title').text(`방화벽 그룹: ${data.group.name}`);
-        $('#fw-group-desc').text(data.group.description || '');
-        renderRules(data.rules || []);
-      });
+// Security Group 설정 모달 열기
+function openSecurityGroupConfig(groupName) {
+    console.log('[firewall.js] Security Group 설정 모달 열기:', groupName);
+    
+    // 모달에 그룹 이름 저장
+    $('#security-group-config-modal').data('group-name', groupName);
+    
+    // 그룹 정보 로드
+    loadSecurityGroupDetail(groupName);
+    
+    // 모달 표시
+    $('#security-group-config-modal').modal('show');
+}
+
+// Security Group 상세 정보 로드
+function loadSecurityGroupDetail(groupName) {
+    console.log('[firewall.js] Security Group 상세 정보 로드:', groupName);
+    
+    $.ajax({
+        url: `/api/firewall/groups/${groupName}`,
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            console.log('[firewall.js] Security Group 상세 정보 로드 성공:', data);
+            
+            if (data.success && data.group) {
+                const group = data.group;
+                
+                // 그룹 정보 설정
+                $('#sg-group-name').text(group.name);
+                $('#sg-group-name-input').val(group.name);
+                $('#sg-group-description-input').val(group.description);
+                
+                // 규칙 목록 렌더링
+                renderSecurityGroupRules(group.rules || []);
+            }
+        },
+        error: function(xhr) {
+            console.error('[firewall.js] Security Group 상세 정보 로드 실패:', xhr);
+            alert('Security Group 상세 정보 로드에 실패했습니다.');
+        }
     });
 }
 
-  function renderRules(rules) {
-    const $tbody = $('#fw-rule-tbody');
+// Security Group 규칙 렌더링
+function renderSecurityGroupRules(rules) {
+    console.log('[firewall.js] Security Group 규칙 렌더링:', rules);
+    
+    const $tbody = $('#sg-rules-tbody');
     $tbody.empty();
-    if (!rules.length) {
-      $tbody.append('<tr><td colspan="6" class="text-center text-muted">등록된 규칙이 없습니다.</td></tr>');
+    
+    if (!rules || !rules.length) {
+        $tbody.append('<tr><td colspan="7" class="text-center text-muted">등록된 규칙이 없습니다.</td></tr>');
       return;
     }
-    rules.forEach(r => {
+    
+    rules.forEach((rule, index) => {
+        console.log(`[firewall.js] 규칙 ${index + 1}:`, rule);
       $tbody.append(`
         <tr>
-          <td>${r.direction}</td>
-          <td>${r.protocol}</td>
-          <td>${r.port}</td>
-          <td>${r.source || r.target || ''}</td>
-          <td>${r.description || ''}</td>
-          <td><button class="btn btn-outline-danger btn-sm fw-rule-delete-btn" data-rule-id="${r.id}"><i class="fas fa-trash"></i> 삭제</button></td>
+                <td>${rule.protocol || 'any'}</td>
+                <td>${rule.port || '-'}</td>
+                <td>${rule.source || '-'}</td>
+                <td>${rule.dest || '-'}</td>
+                <td><span class="badge ${rule.action === 'ACCEPT' ? 'bg-success' : 'bg-danger'}">${rule.action}</span></td>
+                <td>${rule.comment || '-'}</td>
+                <td>
+                    <button class="btn btn-outline-danger btn-sm delete-sg-rule-btn" data-rule-id="${rule.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
         </tr>
       `);
     });
   }
 
-// 이벤트 리스너들을 document.ready로 감싸기
+// 이벤트 리스너들
 $(function() {
-  // 중복 실행 방지 플래그
-  if (window.firewallInitialized) {
-    console.log('[firewall.js] 이미 초기화됨, 중복 실행 방지');
-    return;
-  }
-  window.firewallInitialized = true;
-  
-  console.log('[firewall.js] firewall.js loaded');
-  
-  // 초기화 플래그 설정
-  window.firewallInitialized = true;
-  
-  // 초기 로드 실행
-  loadFirewallGroups();
-  // 상세 버튼 클릭 시 상세 페이지로 이동
-  $(document).on('click', '.fw-detail-btn', function() {
-    const group = $(this).data('group');
-    location.hash = `#firewall-group-${group}`;
-  });
-
-  // 규칙 추가 버튼 클릭 시 모달 표시
-  $(document).on('click', '#fw-rule-add-btn', function() {
-    showRuleAddModal();
-  });
-
-  function showRuleAddModal() {
-    const modalHtml = `
-      <div class="modal fade" id="fw-rule-add-modal" tabindex="-1">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="fas fa-plus me-2"></i>규칙 추가</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <form id="fw-rule-add-form">
-                <div class="mb-2">
-                  <label class="form-label">방향</label>
-                  <select class="form-select" name="direction" required>
-                    <option value="in">IN (수신)</option>
-                    <option value="out">OUT (발신)</option>
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label">프로토콜</label>
-                  <select class="form-select" name="protocol" required>
-                    <option value="tcp">TCP</option>
-                    <option value="udp">UDP</option>
-                    <option value="icmp">ICMP</option>
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label">포트</label>
-                  <input type="text" class="form-control" name="port" placeholder="예: 80, 22, 1000:2000" required>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label">소스/대상</label>
-                  <input type="text" class="form-control" name="source" placeholder="예: 0.0.0.0/0, 192.168.0.0/24">
-                </div>
-                <div class="mb-2">
-                  <label class="form-label">설명</label>
-                  <input type="text" class="form-control" name="description">
-                </div>
-              </form>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="submit" class="btn btn-primary" form="fw-rule-add-form">추가</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    $(modalHtml).appendTo('body');
-    const $modal = $('#fw-rule-add-modal');
-    $modal.modal('show');
-    $modal.on('hidden.bs.modal', function() { $modal.remove(); });
-  }
-
-  // 규칙 추가 폼 제출
-  $(document).on('submit', '#fw-rule-add-form', function(e) {
-    e.preventDefault();
-    const group = decodeURIComponent(location.hash.replace('#firewall-group-', ''));
-    const data = $(this).serialize();
-    $.post(`/firewall/groups/${group}/rules`, data, function(resp) {
-      if (resp.success) {
-        $('.modal').modal('hide');
-        loadFirewallGroupDetail(group);
-      } else {
-        alert(resp.error || '규칙 추가 실패');
-      }
-    });
-  });
-
-  // 규칙 삭제 버튼 클릭
-  $(document).on('click', '.fw-rule-delete-btn', function() {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
-    const group = decodeURIComponent(location.hash.replace('#firewall-group-', ''));
-    const ruleId = $(this).data('rule-id');
-    $.ajax({
-      url: `/firewall/groups/${group}/rules/${ruleId}`,
-      type: 'DELETE',
-      success: function(resp) {
-        if (resp.success) {
-          loadFirewallGroupDetail(group);
-        } else {
-          alert(resp.error || '규칙 삭제 실패');
-        }
-      }
-    });
-  });
-
-  // 신규 그룹 추가, 상세, 삭제 등 이벤트 핸들러는 추후 구현
-  
-  // 목록으로 돌아가기 버튼
-  $(document).on('click', '#fw-group-list-btn', function() {
-    location.hash = '#firewall-groups';
-  });
-  
-  // 모달 생성 전 기존 모달 제거
-  function removeExistingModal(modalId) {
-    const $modal = $(modalId);
-    if ($modal.length) {
-      $modal.modal('hide');
-      $modal.remove();
+    console.log('[firewall.js] Datacenter Security Group 관리 시스템 초기화');
+    
+    // 페이지 로드 시 자동으로 Security Group 데이터 로드
+    if (window.location.hash === '#firewall-groups' || window.location.pathname.includes('firewall')) {
+        console.log('[firewall.js] 방화벽 페이지 감지, 데이터 자동 로드');
+        window.loadFirewallGroups();
     }
-  }
-  // 새 그룹 추가 버튼 클릭 시 모달 표시
-  $(document).on('click', '#add-fw-group-btn', function() {
-    removeExistingModal('#fw-group-add-modal');
-    const modalHtml = `
-      <div class="modal fade" id="fw-group-add-modal" tabindex="-1">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="fas fa-plus me-2"></i>새 그룹 추가</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <form id="fw-group-add-form">
-                <div class="mb-2">
-                  <label class="form-label">그룹명</label>
-                  <input type="text" class="form-control" name="name" required maxlength="32">
-                </div>
-                <div class="mb-2">
-                  <label class="form-label">설명</label>
-                  <input type="text" class="form-control" name="description" maxlength="100">
-                </div>
-              </form>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="submit" class="btn btn-primary" form="fw-group-add-form">추가</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    $(modalHtml).appendTo('body');
-    const $modal = $('#fw-group-add-modal');
-    $modal.modal('show');
-    $modal.on('hidden.bs.modal', function() { $modal.remove(); });
-  });
-  
-  // 새 그룹 추가 폼 제출
-  $(document).on('submit', '#fw-group-add-form', function(e) {
-    e.preventDefault();
-    const data = $(this).serialize();
-    $.post('/firewall/groups', data, function(resp) {
-      if (resp.success) {
-        $('.modal').modal('hide');
-        loadFirewallGroups();
+    
+    // 새 Security Group 추가 버튼 클릭
+    $(document).on('click', '#add-fw-group-btn', function() {
+        $('#create-security-group-modal').modal('show');
+    });
+    
+    // Security Group 생성 폼 제출
+    $(document).on('submit', '#create-sg-group-form', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const groupData = {
+            name: formData.get('group_name'),
+            description: formData.get('description')
+        };
+        
+        console.log('[firewall.js] Security Group 생성:', groupData);
+        
+        $.ajax({
+            url: '/api/firewall/groups',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(groupData),
+            success: function(data) {
+                console.log('[firewall.js] Security Group 생성 성공:', data);
+                
+                if (data.success) {
+                    $('#create-security-group-modal').modal('hide');
+                    $('#create-sg-group-form')[0].reset();
+                    
+                    // Security Group 목록 새로고침
+                    window.loadFirewallGroups();
+                    
+                    alert('Security Group이 성공적으로 생성되었습니다.');
+                } else {
+                    alert(data.error || 'Security Group 생성에 실패했습니다.');
+                }
+            },
+            error: function(xhr) {
+                console.error('[firewall.js] Security Group 생성 실패:', xhr);
+                alert('Security Group 생성에 실패했습니다.');
+            }
+        });
+    });
+    
+    // Security Group 설정 버튼 클릭
+    $(document).on('click', '.sg-config-btn', function() {
+        const groupName = $(this).data('group');
+        openSecurityGroupConfig(groupName);
+    });
+    
+    // Security Group 삭제 버튼 클릭
+    $(document).on('click', '.sg-delete-btn', function() {
+        if (!confirm('정말 이 Security Group을 삭제하시겠습니까?')) return;
+        
+        const groupName = $(this).data('group');
+        console.log('[firewall.js] Security Group 삭제:', groupName);
+        
+        $.ajax({
+            url: `/api/firewall/groups/${groupName}`,
+            method: 'DELETE',
+            success: function(data) {
+                console.log('[firewall.js] Security Group 삭제 성공:', data);
+                
+                if (data.success) {
+                    // Security Group 목록 새로고침
+                    window.loadFirewallGroups();
+                    
+                    alert('Security Group이 삭제되었습니다.');
       } else {
-        alert(resp.error || '그룹 추가 실패');
+                    alert(data.error || 'Security Group 삭제에 실패했습니다.');
+                }
+            },
+            error: function(xhr) {
+                console.error('[firewall.js] Security Group 삭제 실패:', xhr);
+                alert('Security Group 삭제에 실패했습니다.');
+      }
+    });
+  });
+
+    // Security Group 설정 모달에서 삭제 버튼 클릭
+    $(document).on('click', '#delete-sg-group-btn', function() {
+        if (!confirm('정말 이 Security Group을 삭제하시겠습니까?')) return;
+        
+        const groupName = $('#security-group-config-modal').data('group-name');
+        console.log('[firewall.js] Security Group 설정 모달에서 삭제:', groupName);
+        
+    $.ajax({
+            url: `/api/firewall/groups/${groupName}`,
+            method: 'DELETE',
+            success: function(data) {
+                console.log('[firewall.js] Security Group 삭제 성공:', data);
+                
+                if (data.success) {
+                    $('#security-group-config-modal').modal('hide');
+                    
+                    // Security Group 목록 새로고침
+                    window.loadFirewallGroups();
+                    
+                    alert('Security Group이 삭제되었습니다.');
+        } else {
+                    alert(data.error || 'Security Group 삭제에 실패했습니다.');
+        }
+            },
+            error: function(xhr) {
+                console.error('[firewall.js] Security Group 삭제 실패:', xhr);
+                alert('Security Group 삭제에 실패했습니다.');
+      }
+    });
+  });
+
+    // Security Group 규칙 추가 폼 제출
+    $(document).on('submit', '#add-sg-rule-form', function(e) {
+        e.preventDefault();
+        
+        const groupName = $('#security-group-config-modal').data('group-name');
+        const formData = new FormData(this);
+        
+        console.log('[firewall.js] Security Group 이름 확인:', groupName);
+        
+        if (!groupName) {
+            alert('Security Group 이름을 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
+            return;
+        }
+        
+        const ruleData = {
+            protocol: formData.get('protocol'),
+            port: formData.get('port'),
+            source_ip: formData.get('source_ip'),
+            dest_ip: formData.get('dest_ip'),
+            action: formData.get('action'),
+            description: formData.get('description')
+        };
+        
+        console.log('[firewall.js] Security Group 규칙 추가:', groupName, ruleData);
+        console.log('[firewall.js] 전송할 데이터:', JSON.stringify(ruleData, null, 2));
+        
+        $.ajax({
+            url: `/api/firewall/groups/${groupName}/rules`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(ruleData),
+            success: function(data) {
+                console.log('[firewall.js] Security Group 규칙 추가 성공:', data);
+                
+                if (data.success) {
+                    $('#add-sg-rule-form')[0].reset();
+                    
+                    // Security Group 상세 정보 다시 로드
+                    loadSecurityGroupDetail(groupName);
+                    
+                    alert('Security Group 규칙이 추가되었습니다.');
+      } else {
+                    alert(data.error || 'Security Group 규칙 추가에 실패했습니다.');
+                }
+            },
+            error: function(xhr) {
+                console.error('[firewall.js] Security Group 규칙 추가 실패:', xhr);
+                alert('Security Group 규칙 추가에 실패했습니다.');
       }
     });
   });
   
-  // 그룹 삭제 버튼 클릭 시 모달 중복 방지
-  $(document).on('click', '.fw-delete-btn', function() {
-    removeExistingModal('#fw-group-delete-modal');
-    const group = $(this).data('group');
-    const modalHtml = `
-      <div class="modal fade" id="fw-group-delete-modal" tabindex="-1">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="fas fa-trash me-2"></i>그룹 삭제</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <div class="mb-2">정말 <b>${group}</b> 그룹을 삭제하시겠습니까?</div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="button" class="btn btn-danger" id="fw-group-delete-confirm-btn" data-group="${group}">삭제</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    $(modalHtml).appendTo('body');
-    const $modal = $('#fw-group-delete-modal');
-    $modal.modal('show');
-    $modal.on('hidden.bs.modal', function() { $modal.remove(); });
-  });
-
-  // 삭제 확인 버튼 클릭
-  $(document).off('click', '#fw-group-delete-confirm-btn').on('click', '#fw-group-delete-confirm-btn', function() {
-    const group = $(this).data('group');
+    // Security Group 규칙 삭제 버튼 클릭
+    $(document).on('click', '.delete-sg-rule-btn', function() {
+        if (!confirm('정말 이 규칙을 삭제하시겠습니까?')) return;
+        
+        const groupName = $('#security-group-config-modal').data('group-name');
+        const ruleId = $(this).data('rule-id');
+        
+        console.log('[firewall.js] Security Group 규칙 삭제:', groupName, ruleId);
+        
     $.ajax({
-      url: `/firewall/groups/${encodeURIComponent(group)}`,
-      type: 'DELETE',
-      success: function(resp) {
-        $('.modal').modal('hide');
-        loadFirewallGroups();
+            url: `/api/firewall/groups/${groupName}/rules/${ruleId}`,
+            method: 'DELETE',
+            success: function(data) {
+                console.log('[firewall.js] Security Group 규칙 삭제 성공:', data);
+                
+                if (data.success) {
+                    // Security Group 상세 정보 다시 로드
+                    loadSecurityGroupDetail(groupName);
+                    
+                    alert('Security Group 규칙이 삭제되었습니다.');
+                } else {
+                    alert(data.error || 'Security Group 규칙 삭제에 실패했습니다.');
+                }
+            },
+            error: function(xhr) {
+                console.error('[firewall.js] Security Group 규칙 삭제 실패:', xhr);
+                alert('Security Group 규칙 삭제에 실패했습니다.');
       }
     });
   });
-
-  // 규칙 추가/삭제 모달 닫힘 보장
-  $(document).on('hidden.bs.modal', '.modal', function() { $(this).remove(); });
 });

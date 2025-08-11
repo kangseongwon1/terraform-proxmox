@@ -26,13 +26,16 @@ variable "servers" {
 
 
 
-variable "vault_token" {
-  description = "Vault token for authentication"
-  type        = string
-  sensitive   = true
-}
+# variable "vault_token" {
+#   description = "Vault token for authentication"
+#   type        = string
+#   sensitive   = true
+# }
 
 variable "proxmox_endpoint" { type = string }
 variable "proxmox_username" { type = string }
+variable "proxmox_password" { type = string }
 variable "proxmox_node" { type = string }
 variable "vm_username" { type = string }
+variable "vm_password" { type = string }
+variable "ssh_keys" { type = string }

@@ -10,7 +10,7 @@ terraform {
 provider "proxmox" {
   endpoint = var.proxmox_endpoint
   username = var.proxmox_username
-  password = data.vault_generic_secret.proxmox.data["proxmox_password"]
+  password = var.proxmox_password
   insecure = true
 
   ssh {
@@ -19,7 +19,7 @@ provider "proxmox" {
 
 } 
 
-provider "vault" {
-  address = "http://127.0.0.1:8200"
-  token   = var.vault_token
-}
+# provider "vault" {
+#   address = "http://127.0.0.1:8200"
+#   token   = var.vault_token
+# }

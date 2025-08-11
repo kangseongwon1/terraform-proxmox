@@ -1,0 +1,73 @@
+{
+  "web-servers": {
+    "description": "웹서버용 Security Group",
+    "rules": [
+      {
+        "id": 1,
+        "protocol": "tcp",
+        "port": "80",
+        "source_ip": "0.0.0.0/0",
+        "action": "ACCEPT",
+        "description": "HTTP 접근 허용"
+      },
+      {
+        "id": 2,
+        "protocol": "tcp",
+        "port": "443",
+        "source_ip": "0.0.0.0/0",
+        "action": "ACCEPT",
+        "description": "HTTPS 접근 허용"
+      },
+      {
+        "id": 3,
+        "protocol": "tcp",
+        "port": "22",
+        "source_ip": "192.168.0.0/24",
+        "action": "ACCEPT",
+        "description": "SSH 관리 접근"
+      }
+    ]
+  },
+  "db-servers": {
+    "description": "데이터베이스 서버용 Security Group",
+    "rules": [
+      {
+        "id": 1,
+        "protocol": "tcp",
+        "port": "3306",
+        "source_ip": "192.168.0.0/24",
+        "action": "ACCEPT",
+        "description": "MySQL 접근"
+      },
+      {
+        "id": 2,
+        "protocol": "tcp",
+        "port": "22",
+        "source_ip": "192.168.0.0/24",
+        "action": "ACCEPT",
+        "description": "SSH 관리 접근"
+      }
+    ]
+  },
+  "management": {
+    "description": "관리용 Security Group",
+    "rules": [
+      {
+        "id": 1,
+        "protocol": "tcp",
+        "port": "22",
+        "source_ip": "192.168.0.0/24",
+        "action": "ACCEPT",
+        "description": "SSH 관리 접근"
+      },
+      {
+        "id": 2,
+        "protocol": "tcp",
+        "port": "3389",
+        "source_ip": "192.168.0.0/24",
+        "action": "ACCEPT",
+        "description": "RDP 접근"
+      }
+    ]
+  }
+}

@@ -1,9 +1,17 @@
 import sqlite3
 
 def create_tables():
-    """proxmox.db에 필요한 테이블들을 생성합니다."""
+    """instance/proxmox_manager.db에 필요한 테이블들을 생성합니다."""
     try:
-        conn = sqlite3.connect('proxmox.db')
+        # instance 디렉토리가 없으면 생성
+        import os
+        instance_dir = 'instance'
+        if not os.path.exists(instance_dir):
+            os.makedirs(instance_dir)
+            print(f"📁 {instance_dir} 디렉토리 생성됨")
+        
+        db_path = os.path.join(instance_dir, 'proxmox_manager.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         # 사용자 테이블

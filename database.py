@@ -11,7 +11,14 @@ import os
 import re
 
 class Database:
-    def __init__(self, db_path='proxmox_manager.db'):
+    def __init__(self, db_path='instance/proxmox_manager.db'):
+        # instance 디렉토리가 없으면 생성
+        import os
+        instance_dir = os.path.dirname(db_path)
+        if instance_dir and not os.path.exists(instance_dir):
+            os.makedirs(instance_dir)
+            print(f"📁 {instance_dir} 디렉토리 생성됨")
+        
         self.db_path = db_path
         self.init_database()
         self.secure_db_file()

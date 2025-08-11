@@ -69,13 +69,14 @@ resource "proxmox_virtual_environment_vm" "this" {
     vm_id = var.template_vm_id
   }
 
+  # VM 생성 후 자동 시작 (기본값: true)
+  started = true
+
   lifecycle {
     ignore_changes = [
-      disk[0].file_format,
-      disk[1].file_format,
-      disk[2].file_format,
-      disk[3].file_format,
-      disk[4].file_format
+      disk,
+      # VM의 전원 상태 변경 무시 (수동으로 중지/시작된 경우)
+      started
     ]
   }
 }

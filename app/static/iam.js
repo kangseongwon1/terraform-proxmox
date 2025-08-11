@@ -307,7 +307,7 @@ $(function() {
     console.log('[iam.js] .iam-save-perm-btn 클릭', $(this).data('username'), selectedPerms);
     const username = $(this).data('username');
     $.ajax({
-      url: `/admin/iam/${username}/permissions`,
+      url: `/api/admin/iam/${username}/permissions`,
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ permissions: selectedPerms }),
@@ -385,7 +385,7 @@ $(function() {
     console.log('[iam.js] 새 사용자 추가 요청:', logData);
 
     $.ajax({
-      url: '/users',
+      url: '/api/users',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(formData),
@@ -432,7 +432,7 @@ $(function() {
     console.log('[iam.js] 사용자 삭제 요청:', username);
     
     $.ajax({
-      url: `/users/${username}`,
+      url: `/api/users/${username}`,
       method: 'DELETE',
       success: function(res) {
         console.log('[iam.js] 사용자 삭제 성공:', res);
@@ -490,7 +490,7 @@ $(function() {
       return;
     }
     $.ajax({
-      url: `/users/${username}/password`,
+      url: `/api/users/${username}/password`,
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ new_password: newPassword, confirm_password: confirmPassword }),
@@ -523,7 +523,7 @@ $(function() {
   window.loadIAM = function() {
     console.log('[iam.js] loadIAM 호출');
     $('#iam-loading').removeClass('d-none');
-    $.get('/admin/iam', function(res) {
+    $.get('/api/admin/iam', function(res) {
       console.log('[iam.js] /admin/iam 응답:', res);
       USERS = res.users;
       PERMISSIONS = res.permissions;

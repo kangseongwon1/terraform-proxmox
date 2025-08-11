@@ -217,12 +217,17 @@ def admin_iam_api():
     try:
         users = User.query.all()
         
-        # 모든 권한 목록 (하드코딩)
-        all_permissions = [
-            'view_all', 'create_server', 'delete_server', 'start_server', 
-            'stop_server', 'reboot_server', 'manage_users', 'manage_storage', 
-            'manage_network', 'assign_roles', 'remove_role',
-            'assign_firewall_groups', 'remove_firewall_groups'
+        # 권한 목록을 중앙집중화된 설정에서 가져오기
+        from app.permissions import get_all_permissions, get_permission_description
+        all_permissions = get_all_permissions()
+        
+        # 권한 설명과 함께 반환
+        permissions_with_descriptions = [
+            {
+                'name': perm,
+                'description': get_permission_description(perm)
+            }
+            for perm in all_permissions
         ]
         
         user_data = []
@@ -239,7 +244,8 @@ def admin_iam_api():
         return jsonify({
             'success': True,
             'users': user_data,
-            'all_permissions': all_permissions
+            'all_permissions': all_permissions,
+            'permissions_with_descriptions': permissions_with_descriptions
         })
         
     except Exception as e:
@@ -247,45 +253,7 @@ def admin_iam_api():
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/api/users/<username>/permissions', methods=['POST'])
-@login_required
-@admin_required
-def update_user_permissions(username):
-    """사용자 권한 업데이트"""
-    user = User.query.get(username=username)
-    if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    
-    permissions = request.json.get('permissions', [])
-    
-    try:
-        user.set_permissions(permissions)
-        return jsonify({'message': '권한이 업데이트되었습니다.'})
-    except Exception as e:
-        logger.error(f"권한 업데이트 실패: {e}")
-        return jsonify({'error': '권한 업데이트 중 오류가 발생했습니다.'}), 500
-
-@bp.route('/api/users/<username>/role', methods=['POST'])
-@login_required
-@admin_required
-def update_user_role(username):
-    """사용자 역할 업데이트"""
-    user = User.query.get(username=username)
-    if not user:
-        return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
-    
-    role = request.json.get('role')
-    if not role:
-        return jsonify({'error': '역할이 필요합니다.'}), 400
-    
-    try:
-        user.role = role
-        db.session.commit()
-        return jsonify({'message': '역할이 업데이트되었습니다.'})
-    except Exception as e:
-        logger.error(f"역할 업데이트 실패: {e}")
-        db.session.rollback()
-        return jsonify({'error': '역할 업데이트 중 오류가 발생했습니다.'}), 500
+# 중복 라우트 제거 - admin_iam_set_permissions와 admin_iam_set_role을 사용
 
 @bp.route('/iam')
 @login_required
@@ -300,7 +268,7 @@ def iam():
 @admin_required
 def iam_set_permissions(username):
     """IAM 권한 설정"""
-    user = User.query.get(username=username)
+    user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -318,7 +286,7 @@ def iam_set_permissions(username):
 @admin_required
 def iam_set_role(username):
     """IAM 역할 설정"""
-    user = User.query.get(username=username)
+    user = User.query.filter_by(username=username).first()
     if not user:
         return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
     
@@ -349,6 +317,12 @@ def admin_iam_set_permissions(username):
         # 기존 권한 제거
         from app.models import UserPermission
         UserPermission.query.filter_by(user_id=user.id).delete()
+        
+        # 권한 유효성 검증
+        from app.permissions import validate_permission
+        invalid_permissions = [p for p in permissions if not validate_permission(p)]
+        if invalid_permissions:
+            return jsonify({'error': f'유효하지 않은 권한: {", ".join(invalid_permissions)}'}), 400
         
         # 새 권한 추가
         from app import db

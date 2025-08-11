@@ -73,6 +73,9 @@ SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa
 # SSH 공개키 경로
 SSH_PUBLIC_KEY_PATH=~/.ssh/id_rsa.pub
 
+# SSH 사용자명 (VM 접속용)
+SSH_USER=rocky
+
 # ========================================
 # Vault 설정 (선택사항)
 # ========================================

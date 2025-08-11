@@ -64,7 +64,7 @@ $(function() {
     console.log('[dashboard.js] loadDashboardServers 호출');
     $('#server-summary-container').html('<div class="text-center text-muted py-4">서버 정보를 불러오는 중...</div>');
     
-    $.get('/all_server_status', function(res) {
+    $.get('/api/all_server_status', function(res) {
       console.log('[dashboard.js] /all_server_status 응답:', res);
       const servers = res.servers || {};
       let html = '';
@@ -142,7 +142,7 @@ $(function() {
     console.log('[dashboard.js] loadDashboardStorage 호출');
     $('#dashboard-storage-panel').html('<div class="text-center text-muted py-4">스토리지 정보를 불러오는 중...</div>');
     
-    $.get('/proxmox_storage', function(res) {
+    $.get('/api/proxmox_storage', function(res) {
       console.log('[dashboard.js] /proxmox_storage 응답:', res);
       
       // API 응답 구조에 맞게 수정 - storage 키가 아닌 data 키로 접근
