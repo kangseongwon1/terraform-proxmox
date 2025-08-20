@@ -24,6 +24,9 @@ ALL_PERMISSIONS = [
     'assign_firewall_groups',    # 방화벽 그룹 할당
     'remove_firewall_groups',    # 방화벽 그룹 제거
     
+    # 백업 관리
+    'backup_management',     # 백업 관리 (복원, 삭제)
+    
     # 시스템 관리 권한
     'manage_users',          # 사용자 관리
     'manage_storage',        # 스토리지 관리
@@ -46,6 +49,7 @@ PERMISSION_DESCRIPTIONS = {
     'manage_firewall_groups': '방화벽 그룹 관리',
     'assign_firewall_groups': '방화벽 그룹 할당',
     'remove_firewall_groups': '방화벽 그룹 제거',
+    'backup_management': '백업 관리',
     'manage_users': '사용자 관리',
     'manage_storage': '스토리지 관리',
     'manage_network': '네트워크 관리',
@@ -56,9 +60,9 @@ PERMISSION_DESCRIPTIONS = {
 # 기본 역할별 권한 설정
 DEFAULT_ROLE_PERMISSIONS = {
     'admin': ALL_PERMISSIONS,  # 관리자는 모든 권한
-    'developer': ['view_all', 'create_server', 'start_server', 'stop_server', 'reboot_server', 'assign_roles'],
+    'developer': ['view_all', 'create_server', 'start_server', 'stop_server', 'reboot_server', 'assign_roles', 'backup_management'],
     'viewer': ['view_all'],
-    'operator': ['view_all', 'start_server', 'stop_server', 'reboot_server']
+    'operator': ['view_all', 'start_server', 'stop_server', 'reboot_server', 'backup_management']
 }
 
 def get_all_permissions():

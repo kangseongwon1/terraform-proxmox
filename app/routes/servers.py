@@ -1049,7 +1049,7 @@ def status():
 @bp.route('/api/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
-    """서버 역할 할당 및 Ansible 자동 설치"""
+    """서버 역할 할당 (통합 데이터 소스 사용)"""
     try:
         print(f"🔧 역할 할당 요청: {server_name}")
         
@@ -1064,17 +1064,15 @@ def assign_role(server_name):
         # get_all_vms로 현재 활성 서버 목록 조회
         result = proxmox_service.get_all_vms()
         server_exists = False
-        server_data = None
         
         if result['success']:
             servers = result['data']['servers']
             print(f"🔧 Proxmox에서 조회한 서버 목록: {list(servers.keys())}")
             
             # 서버 존재 확인 (서버 목록 API와 동일한 방식)
-            for vm_key, s_data in servers.items():
-                if s_data.get('name') == server_name:
+            for vm_key, server_data in servers.items():
+                if server_data.get('name') == server_name:
                     server_exists = True
-                    server_data = s_data
                     print(f"✅ 서버 발견: {server_name} (키: {vm_key})")
                     break
         
@@ -1118,114 +1116,8 @@ def assign_role(server_name):
             print(f"⚠️ tfvars.json 업데이트 실패: {str(e)} (DB는 정상 업데이트됨)")
             # tfvars 업데이트 실패해도 DB는 이미 업데이트되었으므로 성공으로 처리
         
-        # 4. Ansible을 통한 역할별 소프트웨어 자동 설치
-        if role and role != 'unknown':
-            print(f"🔧 Ansible 역할 설치 시작: {server_name} - {role}")
-            
-            # Task 생성
-            task_id = create_task('running', 'ansible_role_install', f'서버 {server_name}에 {role} 역할 설치 중...')
-            
-            def ansible_install_task():
-                try:
-                    from app import create_app
-                    app = create_app()
-                    with app.app_context():
-                        print(f"🔧 Ansible 설치 작업 시작: {server_name} - {role}")
-                        
-                        # Ansible 서비스 초기화
-                        from app.services.ansible_service import AnsibleService
-                        ansible_service = AnsibleService()
-                        
-                        # 역할 유효성 검사
-                        if not ansible_service.validate_role(role):
-                            error_msg = f'지원하지 않는 역할입니다: {role}'
-                            print(f"❌ {error_msg}")
-                            update_task(task_id, 'failed', error_msg)
-                            return
-                        
-                        # 서버 IP 주소 확인
-                        ip_addresses = server_data.get('ip_addresses', []) if server_data else []
-                        if not ip_addresses:
-                            error_msg = f'서버 {server_name}의 IP 주소를 찾을 수 없습니다'
-                            print(f"❌ {error_msg}")
-                            update_task(task_id, 'failed', error_msg)
-                            return
-                        
-                        server_ip = ip_addresses[0]  # 첫 번째 IP 사용
-                        print(f"🔧 서버 IP: {server_ip}")
-                        
-                        # 서버 연결 테스트
-                        print(f"🔧 서버 연결 테스트 시작: {server_ip}")
-                        ping_results = ansible_service.ping_servers([{'ip_address': server_ip}])
-                        
-                        if not ping_results.get(server_ip, False):
-                            error_msg = f'서버 {server_name} ({server_ip})에 연결할 수 없습니다'
-                            print(f"❌ {error_msg}")
-                            update_task(task_id, 'failed', error_msg)
-                            return
-                        
-                        print(f"✅ 서버 연결 성공: {server_ip}")
-                        
-                        # Ansible 플레이북 실행
-                        print(f"🔧 Ansible 플레이북 실행 시작: {role}")
-                        success, message = ansible_service.run_role_for_server(server_name, role)
-                        
-                        if success:
-                            success_msg = f'서버 {server_name}에 {role} 역할 설치 완료'
-                            update_task(task_id, 'completed', success_msg)
-                            print(f"✅ {success_msg}")
-                            
-                            # 알림 생성
-                            try:
-                                from app.services.notification_service import NotificationService
-                                notification_service = NotificationService()
-                                notification_service.create_notification(
-                                    user_id=current_user.id,
-                                    title=f'역할 설치 완료',
-                                    message=f'서버 {server_name}에 {role} 역할이 성공적으로 설치되었습니다.',
-                                    type='success'
-                                )
-                            except Exception as notif_error:
-                                print(f"⚠️ 알림 생성 실패: {notif_error}")
-                        else:
-                            error_msg = f'Ansible 설치 실패: {message}'
-                            update_task(task_id, 'failed', error_msg)
-                            print(f"❌ {error_msg}")
-                            
-                            # 알림 생성
-                            try:
-                                from app.services.notification_service import NotificationService
-                                notification_service = NotificationService()
-                                notification_service.create_notification(
-                                    user_id=current_user.id,
-                                    title=f'역할 설치 실패',
-                                    message=f'서버 {server_name}에 {role} 역할 설치 중 오류가 발생했습니다: {message}',
-                                    type='error'
-                                )
-                            except Exception as notif_error:
-                                print(f"⚠️ 알림 생성 실패: {notif_error}")
-                        
-                except Exception as e:
-                    error_msg = f'Ansible 설치 작업 중 예외 발생: {str(e)}'
-                    print(f"❌ {error_msg}")
-                    import traceback
-                    traceback.print_exc()
-                    update_task(task_id, 'failed', error_msg)
-            
-            # 백그라운드에서 Ansible 설치 작업 실행
-            thread = threading.Thread(target=ansible_install_task)
-            thread.daemon = True
-            thread.start()
-            
-            print(f"✅ 역할 할당 및 Ansible 설치 시작: {server_name} - {role}")
-            return jsonify({
-                'success': True, 
-                'message': f'서버 {server_name}에 역할 {role}이 할당되었습니다. 소프트웨어 설치가 백그라운드에서 진행됩니다.',
-                'task_id': task_id
-            })
-        else:
-            print(f"✅ 역할 할당 완료 (Ansible 설치 없음): {server_name} - {role}")
-            return jsonify({'success': True, 'message': f'서버 {server_name}에 역할 {role}이 할당되었습니다.'})
+        print(f"✅ 역할 할당 완료: {server_name} - {role}")
+        return jsonify({'success': True, 'message': f'서버 {server_name}에 역할 {role}이 할당되었습니다.'})
         
     except Exception as e:
         print(f"💥 역할 할당 실패: {str(e)}")
@@ -1243,448 +1135,109 @@ def remove_role(server_name):
         if not server:
             return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
         
-        old_role = server.role
         server.role = None
         db.session.commit()
         
-        # tfvars.json에서도 역할 제거
-        try:
-            from app.services.terraform_service import TerraformService
-            terraform_service = TerraformService()
-            tfvars = terraform_service.load_tfvars()
-            
-            if 'servers' in tfvars and server_name in tfvars['servers']:
-                tfvars['servers'][server_name]['role'] = None
-                terraform_service.save_tfvars(tfvars)
-                print(f"✅ tfvars.json에서 역할 제거 완료: {server_name}")
-        except Exception as e:
-            print(f"⚠️ tfvars.json 역할 제거 실패: {str(e)} (DB는 정상 제거됨)")
-        
         return jsonify({
             'success': True, 
-            'message': f'서버 {server_name}에서 역할 {old_role}이 제거되었습니다.'
+            'message': f'서버 {server_name}에서 역할이 제거되었습니다.'
         })
     except Exception as e:
         print(f"💥 역할 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/roles/available', methods=['GET'])
-@login_required
-def get_available_roles():
-    """사용 가능한 역할 목록 조회"""
+
+
+@bp.route('/api/server/config/<server_name>', methods=['GET'])
+@permission_required('view_all')
+def get_server_config(server_name):
+    """서버 설정 조회"""
     try:
-        from app.services.ansible_service import AnsibleService
-        ansible_service = AnsibleService()
-        roles = ansible_service.get_available_roles()
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
         
-        # 역할별 설명 추가
-        role_descriptions = {
-            'web': '웹서버 (Nginx)',
-            'was': 'WAS (Tomcat)',
-            'java': 'Java 애플리케이션 서버',
-            'db': '데이터베이스 서버 (MariaDB)',
-            'search': '검색 엔진 (Elasticsearch)',
-            'ftp': 'FTP 서버 (vsftpd)'
-        }
-        
-        role_list = []
-        for role in roles:
-            role_list.append({
-                'name': role,
-                'description': role_descriptions.get(role, f'{role} 서버')
-            })
-        
-        return jsonify({
-            'success': True,
-            'roles': role_list
-        })
+        result = proxmox_service.get_server_config(server_name)
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({'error': result.get('message', '서버 설정 조회 실패')}), 500
+            
     except Exception as e:
-        print(f"💥 사용 가능한 역할 목록 조회 실패: {str(e)}")
+        print(f"💥 서버 설정 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/roles/validate/<role_name>', methods=['GET'])
-@login_required
-def validate_role(role_name):
-    """역할 유효성 검사"""
-    try:
-        from app.services.ansible_service import AnsibleService
-        ansible_service = AnsibleService()
-        is_valid = ansible_service.validate_role(role_name)
-        
-        return jsonify({
-            'success': True,
-            'role': role_name,
-            'valid': is_valid
-        })
-    except Exception as e:
-        print(f"💥 역할 유효성 검사 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/api/ansible/status', methods=['GET'])
-@login_required
-def check_ansible_status():
-    """Ansible 설치 상태 확인"""
-    try:
-        from app.services.ansible_service import AnsibleService
-        ansible_service = AnsibleService()
-        
-        is_installed, status_message = ansible_service.check_ansible_installation()
-        
-        return jsonify({
-            'success': True,
-            'installed': is_installed,
-            'message': status_message,
-            'setup_guide': '/docs/ANSIBLE_WINDOWS_SETUP.md' if not is_installed else None
-        })
-        
-    except Exception as e:
-        print(f"💥 Ansible 상태 확인 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/api/roles/assign_bulk', methods=['POST'])
-@permission_required('assign_roles')
-def assign_roles_bulk():
-    """다중 서버에 역할 일괄 할당"""
+@bp.route('/api/server/config/<server_name>', methods=['PUT'])
+@permission_required('view_all')
+def update_server_config(server_name):
+    """서버 설정 업데이트"""
     try:
         data = request.get_json()
-        server_names = data.get('server_names', [])
-        role = data.get('role')
         
-        if not server_names:
-            return jsonify({'error': '서버 목록이 필요합니다.'}), 400
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
         
-        if not role:
-            return jsonify({'error': '할당할 역할이 필요합니다.'}), 400
-        
-        print(f"🔧 일괄 역할 할당 요청: {len(server_names)}개 서버 - {role}")
-        
-        # Task 생성
-        task_id = create_task('running', 'assign_roles_bulk', f'{len(server_names)}개 서버에 {role} 역할 할당 중...')
-        
-        def assign_roles_bulk_task():
-            try:
-                from app import create_app
-                app = create_app()
-                with app.app_context():
-                    print(f"🔧 일괄 역할 할당 작업 시작: {len(server_names)}개 서버 - {role}")
-                    
-                    # Ansible 서비스 초기화
-                    from app.services.ansible_service import AnsibleService
-                    ansible_service = AnsibleService()
-                    
-                    # Ansible 설치 상태 확인
-                    ansible_installed, ansible_status = ansible_service.check_ansible_installation()
-                    if not ansible_installed:
-                        error_msg = f'Ansible이 설치되지 않았습니다: {ansible_status}'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    print(f"✅ Ansible 설치 확인: {ansible_status}")
-                    
-                    # 역할 유효성 검사
-                    if not ansible_service.validate_role(role):
-                        error_msg = f'지원하지 않는 역할입니다: {role}'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    # Proxmox에서 서버 정보 조회
-                    from app.services.proxmox_service import ProxmoxService
-                    proxmox_service = ProxmoxService()
-                    result = proxmox_service.get_all_vms()
-                    
-                    if not result['success']:
-                        error_msg = 'Proxmox에서 서버 정보를 가져올 수 없습니다'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    servers = result['data']['servers']
-                    valid_servers = []
-                    failed_servers = []
-                    
-                    # 서버 존재 확인 및 IP 주소 수집
-                    for server_name in server_names:
-                        server_data = None
-                        for vm_key, s_data in servers.items():
-                            if s_data.get('name') == server_name:
-                                server_data = s_data
-                                break
-                        
-                        if server_data:
-                            ip_addresses = server_data.get('ip_addresses', [])
-                            if ip_addresses:
-                                valid_servers.append({
-                                    'name': server_name,
-                                    'ip_address': ip_addresses[0]
-                                })
-                            else:
-                                failed_servers.append(f"{server_name}: IP 주소 없음")
-                        else:
-                            failed_servers.append(f"{server_name}: 서버를 찾을 수 없음")
-                    
-                    if not valid_servers:
-                        error_msg = f'유효한 서버가 없습니다. 실패: {", ".join(failed_servers)}'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    print(f"🔧 유효한 서버: {len(valid_servers)}개, 실패: {len(failed_servers)}개")
-                    
-                    # DB에서 서버 정보 업데이트
-                    from app import db
-                    for server_info in valid_servers:
-                        server = Server.query.filter_by(name=server_info['name']).first()
-                        if not server:
-                            server = Server(
-                                name=server_info['name'],
-                                status='unknown',
-                                role=role
-                            )
-                            db.session.add(server)
-                        else:
-                            server.role = role
-                    
-                    db.session.commit()
-                    print(f"✅ DB 업데이트 완료: {len(valid_servers)}개 서버")
-                    
-                    # tfvars.json 업데이트
-                    try:
-                        from app.services.terraform_service import TerraformService
-                        terraform_service = TerraformService()
-                        tfvars = terraform_service.load_tfvars()
-                        
-                        for server_info in valid_servers:
-                            if 'servers' in tfvars and server_info['name'] in tfvars['servers']:
-                                tfvars['servers'][server_info['name']]['role'] = role
-                        
-                        terraform_service.save_tfvars(tfvars)
-                        print(f"✅ tfvars.json 업데이트 완료")
-                    except Exception as e:
-                        print(f"⚠️ tfvars.json 업데이트 실패: {e}")
-                    
-                    # Ansible을 통한 일괄 설치
-                    print(f"🔧 Ansible 일괄 설치 시작: {len(valid_servers)}개 서버")
-                    success, message = ansible_service.run_role_for_multiple_servers(valid_servers, role)
-                    
-                    if success:
-                        success_msg = f'{len(valid_servers)}개 서버에 {role} 역할 설치 완료'
-                        if failed_servers:
-                            success_msg += f' (실패: {", ".join(failed_servers)})'
-                        
-                        update_task(task_id, 'completed', success_msg)
-                        print(f"✅ {success_msg}")
-                        
-                        # 알림 생성
-                        try:
-                            from app.services.notification_service import NotificationService
-                            notification_service = NotificationService()
-                            notification_service.create_notification(
-                                user_id=current_user.id,
-                                title=f'일괄 역할 설치 완료',
-                                message=f'{len(valid_servers)}개 서버에 {role} 역할이 성공적으로 설치되었습니다.',
-                                type='success'
-                            )
-                        except Exception as notif_error:
-                            print(f"⚠️ 알림 생성 실패: {notif_error}")
-                    else:
-                        error_msg = f'Ansible 일괄 설치 실패: {message}'
-                        update_task(task_id, 'failed', error_msg)
-                        print(f"❌ {error_msg}")
-                        
-                        # 알림 생성
-                        try:
-                            from app.services.notification_service import NotificationService
-                            notification_service = NotificationService()
-                            notification_service.create_notification(
-                                user_id=current_user.id,
-                                title=f'일괄 역할 설치 실패',
-                                message=f'{len(valid_servers)}개 서버에 {role} 역할 설치 중 오류가 발생했습니다: {message}',
-                                type='error'
-                            )
-                        except Exception as notif_error:
-                            print(f"⚠️ 알림 생성 실패: {notif_error}")
-                    
-            except Exception as e:
-                error_msg = f'일괄 역할 할당 작업 중 예외 발생: {str(e)}'
-                print(f"❌ {error_msg}")
-                import traceback
-                traceback.print_exc()
-                update_task(task_id, 'failed', error_msg)
-        
-        # 백그라운드에서 일괄 역할 할당 작업 실행
-        thread = threading.Thread(target=assign_roles_bulk_task)
-        thread.daemon = True
-        thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': f'{len(server_names)}개 서버에 {role} 역할 할당이 시작되었습니다.',
-            'task_id': task_id
-        })
-        
+        result = proxmox_service.update_server_config(server_name, data)
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({'error': result.get('message', '서버 설정 업데이트 실패')}), 500
+            
     except Exception as e:
-        print(f"💥 일괄 역할 할당 실패: {str(e)}")
+        print(f"💥 서버 설정 업데이트 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/firewall/assign_bulk', methods=['POST'])
-@permission_required('assign_firewall_groups')
-def assign_security_groups_bulk():
-    """다중 서버에 보안그룹 일괄 할당"""
+@bp.route('/api/server/logs/<server_name>', methods=['GET'])
+@permission_required('view_all')
+def get_server_logs(server_name):
+    """서버 로그 조회"""
+    try:
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        result = proxmox_service.get_server_logs(server_name)
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({'error': result.get('message', '서버 로그 조회 실패')}), 500
+            
+    except Exception as e:
+        print(f"💥 서버 로그 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/server/disk/<server_name>', methods=['POST'])
+@permission_required('view_all')
+def add_server_disk(server_name):
+    """서버 디스크 추가"""
     try:
         data = request.get_json()
-        server_names = data.get('server_names', [])
-        security_group = data.get('security_group')
         
-        if not server_names:
-            return jsonify({'error': '서버 목록이 필요합니다.'}), 400
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
         
-        if not security_group:
-            return jsonify({'error': '할당할 보안그룹이 필요합니다.'}), 400
-        
-        print(f"🔧 일괄 보안그룹 할당 요청: {len(server_names)}개 서버 - {security_group}")
-        
-        # Task 생성
-        task_id = create_task('running', 'assign_security_groups_bulk', f'{len(server_names)}개 서버에 {security_group} 보안그룹 할당 중...')
-        
-        def assign_security_groups_bulk_task():
-            try:
-                from app import create_app
-                app = create_app()
-                with app.app_context():
-                    print(f"🔧 일괄 보안그룹 할당 작업 시작: {len(server_names)}개 서버 - {security_group}")
-                    
-                    # Proxmox에서 서버 정보 조회
-                    from app.services.proxmox_service import ProxmoxService
-                    proxmox_service = ProxmoxService()
-                    result = proxmox_service.get_all_vms()
-                    
-                    if not result['success']:
-                        error_msg = 'Proxmox에서 서버 정보를 가져올 수 없습니다'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    servers = result['data']['servers']
-                    valid_servers = []
-                    failed_servers = []
-                    
-                    # 서버 존재 확인 및 IP 주소 수집
-                    for server_name in server_names:
-                        server_data = None
-                        for vm_key, s_data in servers.items():
-                            if s_data.get('name') == server_name:
-                                server_data = s_data
-                                break
-                        
-                        if server_data:
-                            ip_addresses = server_data.get('ip_addresses', [])
-                            if ip_addresses:
-                                valid_servers.append({
-                                    'name': server_name,
-                                    'ip_address': ip_addresses[0]
-                                })
-                            else:
-                                failed_servers.append(f"{server_name}: IP 주소 없음")
-                        else:
-                            failed_servers.append(f"{server_name}: 서버를 찾을 수 없음")
-                    
-                    if not valid_servers:
-                        error_msg = f'유효한 서버가 없습니다. 실패: {", ".join(failed_servers)}'
-                        print(f"❌ {error_msg}")
-                        update_task(task_id, 'failed', error_msg)
-                        return
-                    
-                    print(f"🔧 유효한 서버: {len(valid_servers)}개, 실패: {len(failed_servers)}개")
-                    
-                    # 각 서버에 보안그룹 할당
-                    success_count = 0
-                    failed_count = 0
-                    
-                    for server_info in valid_servers:
-                        try:
-                            # 기존 assign_firewall_group 로직 사용
-                            from app.routes.firewall import assign_firewall_group
-                            
-                            # 임시로 request 객체 생성 (실제로는 다른 방법 사용)
-                            class MockRequest:
-                                def __init__(self, server_name, security_group):
-                                    self.json = lambda: {'security_group': security_group}
-                            
-                            mock_request = MockRequest(server_info['name'], security_group)
-                            
-                            # 보안그룹 할당 실행
-                            result = assign_firewall_group(server_info['name'])
-                            
-                            if result.status_code == 200:
-                                success_count += 1
-                                print(f"✅ {server_info['name']}: 보안그룹 할당 성공")
-                            else:
-                                failed_count += 1
-                                print(f"❌ {server_info['name']}: 보안그룹 할당 실패")
-                                
-                        except Exception as e:
-                            failed_count += 1
-                            print(f"❌ {server_info['name']}: 보안그룹 할당 중 오류 - {str(e)}")
-                    
-                    # 결과 처리
-                    if success_count > 0:
-                        success_msg = f'{success_count}개 서버에 {security_group} 보안그룹 할당 완료'
-                        if failed_count > 0:
-                            success_msg += f' (실패: {failed_count}개)'
-                        
-                        update_task(task_id, 'completed', success_msg)
-                        print(f"✅ {success_msg}")
-                        
-                        # 알림 생성
-                        try:
-                            from app.services.notification_service import NotificationService
-                            notification_service = NotificationService()
-                            notification_service.create_notification(
-                                user_id=current_user.id,
-                                title=f'일괄 보안그룹 할당 완료',
-                                message=f'{success_count}개 서버에 {security_group} 보안그룹이 성공적으로 할당되었습니다.',
-                                type='success'
-                            )
-                        except Exception as notif_error:
-                            print(f"⚠️ 알림 생성 실패: {notif_error}")
-                    else:
-                        error_msg = f'모든 서버에서 보안그룹 할당 실패'
-                        update_task(task_id, 'failed', error_msg)
-                        print(f"❌ {error_msg}")
-                        
-                        # 알림 생성
-                        try:
-                            from app.services.notification_service import NotificationService
-                            notification_service = NotificationService()
-                            notification_service.create_notification(
-                                user_id=current_user.id,
-                                title=f'일괄 보안그룹 할당 실패',
-                                message=f'{len(valid_servers)}개 서버에 {security_group} 보안그룹 할당 중 오류가 발생했습니다.',
-                                type='error'
-                            )
-                        except Exception as notif_error:
-                            print(f"⚠️ 알림 생성 실패: {notif_error}")
-                    
-            except Exception as e:
-                error_msg = f'일괄 보안그룹 할당 작업 중 예외 발생: {str(e)}'
-                print(f"❌ {error_msg}")
-                import traceback
-                traceback.print_exc()
-                update_task(task_id, 'failed', error_msg)
-        
-        # 백그라운드에서 일괄 보안그룹 할당 작업 실행
-        thread = threading.Thread(target=assign_security_groups_bulk_task)
-        thread.daemon = True
-        thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': f'{len(server_names)}개 서버에 {security_group} 보안그룹 할당이 시작되었습니다.',
-            'task_id': task_id
-        })
-        
+        result = proxmox_service.add_server_disk(server_name, data)
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({'error': result.get('message', '디스크 추가 실패')}), 500
+            
     except Exception as e:
-        print(f"💥 일괄 보안그룹 할당 실패: {str(e)}")
+        print(f"💥 디스크 추가 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/server/disk/<server_name>/<device>', methods=['DELETE'])
+@permission_required('view_all')
+def remove_server_disk(server_name, device):
+    """서버 디스크 제거"""
+    try:
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        result = proxmox_service.remove_server_disk(server_name, device)
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify({'error': result.get('message', '디스크 제거 실패')}), 500
+            
+    except Exception as e:
+        print(f"💥 디스크 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500    

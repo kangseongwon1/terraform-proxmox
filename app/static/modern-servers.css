@@ -49,6 +49,54 @@
   min-width: 180px;
 }
 
+/* 백업 중 서버 행 스타일 */
+.server-row.backup-in-progress {
+  background-color: rgba(255, 193, 7, 0.1) !important;
+  border-left: 4px solid var(--warning-yellow) !important;
+  position: relative;
+}
+
+.server-row.backup-in-progress::before {
+  content: "백업 중";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  background: var(--warning-yellow);
+  color: white;
+  padding: 2px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 10;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* 백업 중일 때 버튼 비활성화 스타일 */
+.backup-in-progress .table-actions button {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none; /* 클릭 방지 */
+}
+
+.backup-in-progress .server-detail-content button {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none; /* 클릭 방지 */
+}
+
+/* 백업 중 버튼 컨테이너 최적화 */
+.backup-in-progress .table-actions {
+  overflow: hidden; /* 넘치는 버튼 숨김 */
+  max-width: 100%; /* 컨테이너 최대 너비 제한 */
+}
+
 .refresh-status-indicator.active {
   border-color: var(--success-green);
   background: linear-gradient(135deg, var(--background-white), var(--success-green-light));
@@ -97,6 +145,85 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
   background: #f5f7fa;
   color: var(--dark-blue);
+}
+
+/* 백업 모달 작업 버튼 스타일 */
+.backup-action-btn {
+  min-width: 70px;
+  height: 36px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  border-width: 2px;
+  padding: 0 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backup-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+}
+
+.backup-action-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+.backup-action-btn.restore {
+  background: transparent;
+  border-color: #2196F3;
+  color: #2196F3;
+}
+
+.backup-action-btn.restore:hover {
+  background: rgba(33, 150, 243, 0.1);
+  border-color: #1976D2;
+  color: #1976D2;
+}
+
+.backup-action-btn.delete {
+  background: transparent;
+  border-color: #F44336;
+  color: #F44336;
+}
+
+.backup-action-btn.delete:hover {
+  background: rgba(244, 67, 54, 0.1);
+  border-color: #D32F2F;
+  color: #D32F2F;
+}
+
+/* 백업 모달 테이블 개선 */
+.backup-detail-table {
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-light);
+}
+
+.backup-detail-table thead th {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-bottom: 2px solid var(--neutral-gray-medium);
+  font-weight: 600;
+  color: var(--dark-blue);
+  padding: 12px 8px;
+}
+
+.backup-detail-table tbody td {
+  padding: 10px 8px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--neutral-gray-light);
+}
+
+.backup-detail-table tbody tr:hover {
+  background: rgba(0, 123, 255, 0.05);
 }
 
 /* 대시보드 카드 전체 스타일 개선 */
@@ -943,13 +1070,17 @@ body {
 .table-actions {
   display: flex;
   gap: 0.25rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* 줄바꿈 방지 */
+  align-items: center;
+  min-width: 0; /* 플렉스 아이템이 축소될 수 있도록 */
 }
 
 .table-actions .btn {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   min-width: auto;
+  flex-shrink: 0; /* 버튼이 축소되지 않도록 */
+  white-space: nowrap; /* 버튼 내 텍스트 줄바꿈 방지 */
 }
 
 /* 선택된 행 스타일 */
@@ -1208,4 +1339,62 @@ body {
 /* 상세 정보 펼침/접힘 애니메이션 */
 .server-detail-row {
   transition: all 0.2s ease;
+}
+
+/* 백업 관리 스타일 */
+.backup-row {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.backup-row:hover {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+.backup-filename {
+    font-size: 0.85em;
+    word-break: break-all;
+}
+
+/* 백업 액션 버튼 */
+.backup-action-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    border-radius: 0.25rem;
+    margin: 0 0.125rem;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    background: transparent;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.backup-action-btn.restore-btn {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.backup-action-btn.restore-btn:hover {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-color: #28a745;
+    color: #28a745;
+}
+
+.backup-action-btn.delete-btn {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.backup-action-btn.delete-btn:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.backup-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
 }

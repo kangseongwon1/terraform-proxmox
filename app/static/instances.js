@@ -3,13 +3,6 @@ $(function() {
   // 중복 호출 방지를 위한 플래그
   let isInitialized = false;
   
-  // 전역 중복 실행 방지 플래그
-  if (window.instancesInitialized) {
-    console.log('[instances.js] 이미 초기화됨, 중복 실행 방지');
-    return;
-  }
-  window.instancesInitialized = true;
-  
   console.log('[instances.js] 초기화 시작');
   
   // 실시간 서버 상태 폴링
@@ -63,6 +56,68 @@ $(function() {
     }
   }
   
+  // 작업 후 서버 상태 업데이트 함수
+  function updateServerStatusAfterAction(serverName, newStatus) {
+    console.log(`[instances.js] 서버 상태 업데이트: ${serverName} → ${newStatus}`);
+    
+    // 해당 서버의 상태 배지 업데이트
+    const $serverRow = $(`.server-row[data-server="${serverName}"]`);
+    if ($serverRow.length > 0) {
+      let statusBadge = '';
+      switch(newStatus) {
+        case 'running': 
+          statusBadge = '<span class="status-badge status-success">실행 중</span>';
+          break;
+        case 'stopped':
+          statusBadge = '<span class="status-badge status-stopped">중지됨</span>';
+          break;
+        case 'paused':
+          statusBadge = '<span class="status-badge status-warning">일시정지</span>';
+          break;
+        default:
+          statusBadge = '<span class="status-badge status-unknown">' + newStatus + '</span>';
+      }
+      
+      // 상태 배지 업데이트
+      $serverRow.find('.server-status').html(statusBadge);
+      $serverRow.data('status', newStatus);
+      
+      // 작업 버튼 상태 업데이트
+      updateServerActionButtons($serverRow, newStatus);
+      
+      console.log(`[instances.js] 서버 ${serverName} 상태 업데이트 완료: ${newStatus}`);
+    }
+  }
+  
+  // 서버 작업 버튼 상태 업데이트
+  function updateServerActionButtons($serverRow, status) {
+    const $startBtn = $serverRow.find('.start-btn');
+    const $stopBtn = $serverRow.find('.stop-btn');
+    const $rebootBtn = $serverRow.find('.reboot-btn');
+    
+    // 모든 버튼 활성화
+    $startBtn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-success');
+    $stopBtn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-danger');
+    $rebootBtn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-warning');
+    
+    // 상태에 따른 버튼 비활성화
+    switch(status) {
+      case 'running':
+        $startBtn.prop('disabled', true).removeClass('btn-success').addClass('btn-secondary');
+        break;
+      case 'stopped':
+        $stopBtn.prop('disabled', true).removeClass('btn-danger').addClass('btn-secondary');
+        $rebootBtn.prop('disabled', true).removeClass('btn-warning').addClass('btn-secondary');
+        break;
+      case 'paused':
+        $stopBtn.prop('disabled', true).removeClass('btn-danger').addClass('btn-secondary');
+        break;
+    }
+  }
+  
+  // 전역 함수로 노출
+  window.updateServerStatusAfterAction = updateServerStatusAfterAction;
+  
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
     return parseFloat(num).toFixed(2);
@@ -101,19 +156,657 @@ $(function() {
     }
   };
   
-  // 서버 설정 모달 열기 (향후 구현)
+  // 서버 설정 모달 열기
   window.openServerConfig = function(serverName) {
-    alert(`${serverName} 서버 설정 기능은 곧 추가될 예정입니다.`);
+    console.log(`[instances.js] 서버 설정 모달 열기: ${serverName}`);
+    
+    // 서버 설정 정보 로드
+    $.ajax({
+      url: `/api/server/config/${serverName}`,
+      method: 'GET',
+      success: function(res) {
+        if (res.success) {
+          const config = res.config;
+          
+          // 모달에 데이터 설정
+          $('#server-config-modal .modal-title').text(`서버 설정: ${serverName}`);
+          $('#server-name').val(config.name);
+          $('#server-vmid').val(config.vmid);
+          $('#server-node').val(config.node);
+          $('#server-status').val(config.status);
+          
+          // CPU 설정
+          $('#cpu-cores').val(config.cpu.cores);
+          $('#cpu-cores').attr('data-original', config.cpu.cores);
+          $('#cpu-sockets').val(config.cpu.sockets);
+          $('#cpu-type').val(config.cpu.type);
+          
+          // 메모리 설정
+          $('#memory-size').val(config.memory.size_mb);
+          $('#memory-size').attr('data-original', config.memory.size_mb);
+          $('#memory-balloon').val(config.memory.balloon);
+          
+          // 역할 및 방화벽 그룹
+          $('#server-role').val(config.role);
+          $('#server-firewall-group').val(config.firewall_group);
+          
+          // 설명 및 태그
+          $('#server-description').val(config.description);
+          $('#server-tags').val(config.tags);
+          
+          // 디스크 목록 표시
+          renderDiskList(config.disks);
+          
+          // 사용 가능한 디스크 번호 제안
+          suggestAvailableDiskNumber(config.disks);
+          
+          // 모달 표시
+          $('#server-config-modal').modal('show');
+        } else {
+          alert(`서버 설정 로드 실패: ${res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 서버 설정 로드 실패:', xhr);
+        alert('서버 설정을 불러올 수 없습니다.');
+      }
+    });
   };
   
-  // 서버 로그 보기 (향후 구현)
+  // 사용 가능한 디스크 번호 제안
+  function suggestAvailableDiskNumber(disks) {
+    const selectedType = $('#new-disk-type').val();
+    const existingNumbers = new Set();
+    
+    // 현재 선택된 타입의 기존 디스크 번호들 수집
+    disks.forEach(disk => {
+      if (disk.device.startsWith(selectedType)) {
+        const number = disk.device.replace(selectedType, '');
+        if (!isNaN(number)) {
+          existingNumbers.add(parseInt(number));
+        }
+      }
+    });
+    
+    // 사용 가능한 번호 찾기
+    let availableNumber = 0;
+    while (existingNumbers.has(availableNumber)) {
+      availableNumber++;
+    }
+    
+    // 제안 번호 설정
+    $('#new-disk-number').val(availableNumber);
+  }
+  
+  // 디스크 타입 변경 시 번호 제안 업데이트
+  $('#new-disk-type').on('change', function() {
+    const disks = [];
+    $('#disk-list .d-flex').each(function() {
+      const deviceText = $(this).find('strong').text();
+      const storageText = $(this).find('strong').parent().text().match(/\(([^)]+)\)/)[1];
+      const sizeText = $(this).find('small').text().match(/크기: (\d+)GB/)[1];
+      
+      disks.push({
+        device: deviceText,
+        storage: storageText,
+        size_gb: parseInt(sizeText)
+      });
+    });
+    
+    suggestAvailableDiskNumber(disks);
+  });
+  
+  // 디스크 목록 렌더링
+  function renderDiskList(disks) {
+    const diskList = $('#disk-list');
+    diskList.empty();
+    
+    if (!disks || disks.length === 0) {
+      diskList.html('<div class="text-muted">디스크가 없습니다.</div>');
+      return;
+    }
+    
+    disks.forEach((disk, index) => {
+      const diskHtml = `
+        <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+          <div>
+            <strong>${disk.device}</strong> (${disk.storage})
+            <br><small class="text-muted">크기: ${disk.size_gb}GB</small>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm" onclick="removeDisk('${disk.device}')">
+            <i class="fas fa-trash"></i> 삭제
+          </button>
+        </div>
+      `;
+      diskList.append(diskHtml);
+    });
+  }
+  
+  // 새 디스크 추가
+  window.addNewDisk = function() {
+    const type = $('#new-disk-type').val();
+    const number = $('#new-disk-number').val();
+    const storage = $('#new-disk-storage').val();
+    const size = $('#new-disk-size').val();
+    
+    if (!size || size < 1) {
+      alert('디스크 크기를 입력해주세요.');
+      return;
+    }
+    
+    if (number === '' || number < 0 || number > 15) {
+      alert('디스크 번호를 입력해주세요. (0-15)');
+      return;
+    }
+    
+    const serverName = $('#server-name').val();
+    const diskData = {
+      type: type,
+      number: parseInt(number),
+      storage: storage,
+      size_gb: parseInt(size)
+    };
+    
+    console.log(`[instances.js] 새 디스크 추가: ${serverName}`, diskData);
+    
+    $.ajax({
+      url: `/api/server/disk/${serverName}`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify(diskData),
+      success: function(res) {
+        if (res.success) {
+          alert('디스크가 추가되었습니다. 서버를 중지 후 재시작하면 적용됩니다.');
+          // 디스크 목록 새로고침
+          openServerConfig(serverName);
+        } else {
+          alert(`디스크 추가 실패: ${res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 디스크 추가 실패:', xhr);
+        alert('디스크 추가에 실패했습니다.');
+      }
+    });
+  };
+  
+  // 디스크 삭제
+  window.removeDisk = function(device) {
+    if (!confirm(`디스크 ${device}를 삭제하시겠습니까?\n\n⚠️ 주의: 이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+    
+    const serverName = $('#server-name').val();
+    
+    console.log(`[instances.js] 디스크 삭제: ${serverName} - ${device}`);
+    
+    $.ajax({
+      url: `/api/server/disk/${serverName}/${device}`,
+      method: 'DELETE',
+      success: function(res) {
+        if (res.success) {
+          alert('디스크가 삭제되었습니다. 서버를 중지 후 재시작하면 적용됩니다.');
+          // 디스크 목록 새로고침
+          openServerConfig(serverName);
+        } else {
+          alert(`디스크 삭제 실패: ${res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 디스크 삭제 실패:', xhr);
+        alert('디스크 삭제에 실패했습니다.');
+      }
+    });
+  };
+  
+  // 서버 설정 저장
+  window.saveServerConfig = function() {
+    const serverName = $('#server-name').val();
+    
+    // 현재 설정값과 변경된 설정값 비교
+    const currentCpu = parseInt($('#cpu-cores').attr('data-original') || $('#cpu-cores').val());
+    const currentMemory = parseInt($('#memory-size').attr('data-original') || $('#memory-size').val());
+    const newCpu = parseInt($('#cpu-cores').val());
+    const newMemory = parseInt($('#memory-size').val());
+    
+    const configData = {
+      cpu: {
+        cores: newCpu,
+        sockets: parseInt($('#cpu-sockets').val()),
+        type: $('#cpu-type').val()
+      },
+      memory: {
+        size_mb: newMemory,
+        balloon: parseInt($('#memory-balloon').val())
+      },
+      role: $('#server-role').val(),
+      firewall_group: $('#server-firewall-group').val(),
+      description: $('#server-description').val(),
+      tags: $('#server-tags').val()
+    };
+    
+    console.log(`[instances.js] 서버 설정 저장: ${serverName}`, configData);
+    
+    // CPU/메모리 변경 감지
+    const needsReboot = (currentCpu !== newCpu) || (currentMemory !== newMemory);
+    
+    $.ajax({
+      url: `/api/server/config/${serverName}`,
+      method: 'PUT',
+      contentType: 'application/json',
+      data: JSON.stringify(configData),
+      success: function(res) {
+        if (res.success) {
+          $('#server-config-modal').modal('hide');
+          
+          if (needsReboot) {
+            alert('서버 설정이 성공적으로 저장되었습니다.\n\n⚠️ CPU 또는 메모리 설정이 변경되었습니다.\n변경사항을 적용하기 위해 서버를 중지 후 재시작합니다...');
+            
+            // 중지 → 재시작 실행
+            $.ajax({
+              url: `/api/servers/${serverName}/stop`,
+              method: 'POST',
+              success: function(stopRes) {
+                if (stopRes.success) {
+                  alert('서버가 중지되었습니다. 잠시 후 재시작됩니다...');
+                  
+                  // 5초 후 재시작
+                  setTimeout(function() {
+                    $.ajax({
+                      url: `/api/servers/${serverName}/start`,
+                      method: 'POST',
+                      success: function(startRes) {
+                        if (startRes.success) {
+                          alert('서버가 재시작되었습니다. 설정 변경사항이 적용됩니다.');
+                        } else {
+                          alert(`재시작 실패: ${startRes.error}`);
+                        }
+                      },
+                      error: function(xhr) {
+                        console.error('[instances.js] 재시작 실패:', xhr);
+                        alert('서버 재시작에 실패했습니다.');
+                      }
+                    });
+                  }, 5000); // 5초 대기
+                  
+                } else {
+                  alert(`중지 실패: ${stopRes.error}`);
+                }
+              },
+              error: function(xhr) {
+                console.error('[instances.js] 중지 실패:', xhr);
+                alert('서버 중지에 실패했습니다.');
+              }
+            });
+          } else {
+            alert('서버 설정이 성공적으로 저장되었습니다.');
+          }
+          
+          // 서버 목록 새로고침
+          loadActiveServers();
+        } else {
+          alert(`서버 설정 저장 실패: ${res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 서버 설정 저장 실패:', xhr);
+        alert('서버 설정 저장에 실패했습니다.');
+      }
+    });
+  };
+  
+  // 서버 로그 보기
   window.viewServerLogs = function(serverName) {
-    alert(`${serverName} 서버 로그 보기 기능은 곧 추가될 예정입니다.`);
+    console.log(`[instances.js] 서버 로그 보기: ${serverName}`);
+    
+    // 로그 타입 선택 모달 표시
+    $('#log-type-modal .modal-title').text(`로그 보기: ${serverName}`);
+    $('#log-server-name').val(serverName);
+    $('#log-type-modal').modal('show');
   };
   
-  // 서버 백업 (향후 구현)
+  // 로그 조회 실행
+  window.loadServerLogs = function() {
+    const serverName = $('#log-server-name').val();
+    const logType = $('#log-type-select').val();
+    const lines = $('#log-lines').val();
+    
+    console.log(`[instances.js] 로그 조회: ${serverName}, 타입: ${logType}, 라인: ${lines}`);
+    
+    // 로그 조회 API 호출
+    $.ajax({
+      url: `/api/server/logs/${serverName}`,
+      method: 'GET',
+      data: {
+        type: logType,
+        lines: lines
+      },
+      success: function(res) {
+        if (res.success) {
+          const logData = res.logs;
+          
+          // 로그 내용 표시
+          $('#log-content-modal .modal-title').text(`${serverName} - ${logType} 로그`);
+          $('#log-content').text(logData.content);
+          $('#log-timestamp').text(`조회 시간: ${logData.timestamp}`);
+          
+          $('#log-type-modal').modal('hide');
+          $('#log-content-modal').modal('show');
+        } else {
+          alert(`로그 조회 실패: ${res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 로그 조회 실패:', xhr);
+        alert('로그를 불러올 수 없습니다.');
+      }
+    });
+  };
+  
+  // 서버 백업
   window.backupServer = function(serverName) {
-    alert(`${serverName} 서버 백업 기능은 곧 추가될 예정입니다.`);
+    console.log(`[instances.js] 서버 백업: ${serverName}`);
+    
+    // 백업 설정 모달 표시
+    $('#backup-modal .modal-title').text(`서버 백업: ${serverName}`);
+    $('#backup-server-name').val(serverName);
+    $('#backup-description').val(`Backup of ${serverName} - ${new Date().toLocaleString()}`);
+    $('#backup-modal').modal('show');
+  };
+  
+  // 백업 상태 확인 및 서버 작업 차단 관리
+  let backupPollingIntervals = {}; // 백업 상태 폴링 인터벌 관리
+  
+  // 서버가 백업 중인지 확인
+  function isServerBackingUp(serverName) {
+    return window.backingUpServers && window.backingUpServers.includes(serverName);
+  }
+  
+  // 백업 중인 서버 목록 관리
+  window.backingUpServers = window.backingUpServers || [];
+  
+  // 서버 작업 버튼 상태 업데이트 (백업 중이면 비활성화)
+  function updateBackupActionButtons(serverName, isBackingUp) {
+    const $serverRow = $(`.server-row[data-server="${serverName}"]`);
+    if ($serverRow.length > 0) {
+      const $actionButtons = $serverRow.find('.table-actions button');
+      const $detailButtons = $(`.server-detail-row[data-server="${serverName}"] button`);
+      
+      if (isBackingUp) {
+        // 백업 중이면 모든 작업 버튼 비활성화
+        $actionButtons.prop('disabled', true);
+        $detailButtons.prop('disabled', true);
+        
+        // 백업 중 표시 추가
+        $serverRow.addClass('backup-in-progress');
+      } else {
+        // 백업 완료되면 원래 상태로 복원
+        $serverRow.removeClass('backup-in-progress');
+        
+        // 서버 상태에 따른 버튼 활성화/비활성화 (기존 함수 호출)
+        const serverStatus = $serverRow.data('status');
+        updateServerActionButtons($serverRow, serverStatus);
+      }
+    }
+  }
+  
+  // 모든 서버의 백업 상태 확인
+  function checkAllBackupStatus() {
+    console.log('[instances.js] 모든 서버 백업 상태 확인 시작');
+    
+    $.ajax({
+      url: '/api/server/backup/status',
+      method: 'GET',
+      success: function(res) {
+        console.log('[instances.js] 전체 백업 상태 API 응답:', res);
+        
+        if (res.success && res.backup_status) {
+          console.log('[instances.js] 백업 중인 서버들:', Object.keys(res.backup_status));
+          
+          // 백업 중인 서버들 처리
+          for (const [serverName, status] of Object.entries(res.backup_status)) {
+            console.log(`[instances.js] 백업 상태 확인: ${serverName} - ${status.status}`);
+            
+            if (status.status === 'running') {
+              console.log(`[instances.js] 진행 중인 백업 발견: ${serverName}`);
+              
+              // 백업 중인 서버 목록에 추가
+              if (!window.backingUpServers.includes(serverName)) {
+                window.backingUpServers.push(serverName);
+                console.log(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
+              }
+              
+              // UI 업데이트
+              updateBackupActionButtons(serverName, true);
+              
+              // 폴링 시작 (이미 시작되지 않은 경우에만)
+              if (!backupPollingIntervals[serverName]) {
+                console.log(`[instances.js] 백업 폴링 시작: ${serverName}`);
+                startBackupStatusPolling(serverName, status.backup_id);
+              } else {
+                console.log(`[instances.js] 백업 폴링 이미 실행 중: ${serverName}`);
+              }
+            }
+          }
+        } else {
+          console.log('[instances.js] 백업 중인 서버 없음');
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 백업 상태 확인 실패:', xhr);
+        console.error('[instances.js] 응답 텍스트:', xhr.responseText);
+      }
+    });
+  }
+  
+  // 백업 상태 폴링 시작
+  function startBackupStatusPolling(serverName, backupId) {
+    console.log(`[instances.js] 백업 상태 폴링 시작: ${serverName} (${backupId})`);
+    
+    // 백업 중인 서버 목록에 추가
+    if (!window.backingUpServers.includes(serverName)) {
+      window.backingUpServers.push(serverName);
+      console.log(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
+    }
+    
+    // 서버 작업 버튼 비활성화
+    updateBackupActionButtons(serverName, true);
+    
+    // 30초마다 상태 확인
+    const pollInterval = setInterval(function() {
+      console.log(`[instances.js] 백업 상태 폴링 실행: ${serverName}`);
+      
+      $.ajax({
+        url: `/api/server/backup/status/${serverName}`,
+        method: 'GET',
+        success: function(res) {
+          console.log(`[instances.js] 백업 상태 API 응답: ${serverName}`, res);
+          
+          if (res.success && res.backup_status) {
+            const status = res.backup_status.status;
+            const message = res.backup_status.message;
+            
+            console.log(`[instances.js] 백업 상태: ${serverName} - ${status} - ${message}`);
+            
+            if (status === 'completed') {
+              // 백업 완료
+              console.log(`[instances.js] 백업 완료 감지: ${serverName}`);
+              addSystemNotification('success', '백업 완료', `서버 ${serverName} 백업이 완료되었습니다.`);
+              stopBackupStatusPolling(serverName);
+              
+            } else if (status === 'failed') {
+              // 백업 실패
+              console.log(`[instances.js] 백업 실패 감지: ${serverName}`);
+              addSystemNotification('error', '백업 실패', `서버 ${serverName} 백업이 실패했습니다: ${message}`);
+              stopBackupStatusPolling(serverName);
+            } else if (status === 'running') {
+              // 백업 진행 중
+              console.log(`[instances.js] 백업 진행 중: ${serverName}`);
+            }
+            // 'running' 상태면 계속 폴링
+          } else {
+            // 백업 상태가 없으면 완료된 것으로 간주
+            console.log(`[instances.js] 백업 상태 없음 - 완료된 것으로 간주: ${serverName}`);
+            stopBackupStatusPolling(serverName);
+          }
+        },
+        error: function(xhr) {
+          console.error(`[instances.js] 백업 상태 조회 실패: ${serverName}`, xhr);
+          console.error(`[instances.js] 응답 텍스트:`, xhr.responseText);
+          // 에러 시에도 폴링 중지
+          stopBackupStatusPolling(serverName);
+        }
+      });
+    }, 30000); // 30초마다 확인
+    
+    // 폴링 인터벌 저장
+    backupPollingIntervals[serverName] = pollInterval;
+    console.log(`[instances.js] 백업 폴링 인터벌 저장: ${serverName}`, pollInterval);
+  }
+  
+  // 백업 상태 폴링 중지
+  function stopBackupStatusPolling(serverName) {
+    console.log(`[instances.js] 백업 상태 폴링 중지: ${serverName}`);
+    
+    // 폴링 인터벌 정리
+    if (backupPollingIntervals[serverName]) {
+      clearInterval(backupPollingIntervals[serverName]);
+      delete backupPollingIntervals[serverName];
+    }
+    
+    // 백업 중인 서버 목록에서 제거
+    const index = window.backingUpServers.indexOf(serverName);
+    if (index > -1) {
+      window.backingUpServers.splice(index, 1);
+    }
+    
+    // 서버 작업 버튼 활성화
+    updateBackupActionButtons(serverName, false);
+  }
+  
+  // 백업 생성 실행
+  window.createServerBackup = function() {
+    const serverName = $('#backup-server-name').val();
+    const description = $('#backup-description').val();
+    const compress = $('#backup-compress').val();
+    const storage = $('#backup-storage').val();
+    const mode = $('#backup-mode').val();
+    
+    console.log(`[instances.js] 백업 생성 시작: ${serverName}`, { description, compress, storage, mode });
+    
+    // 이미 백업 중인지 확인
+    if (isServerBackingUp(serverName)) {
+      console.log(`[instances.js] 이미 백업 중인 서버: ${serverName}`);
+      alert(`서버 ${serverName}은(는) 이미 백업 중입니다.`);
+      return;
+    }
+    
+    const backupConfig = {
+      description: description,
+      compress: compress,
+      storage: storage,
+      mode: mode
+    };
+    
+    console.log(`[instances.js] 백업 API 호출: /api/server/backup/${serverName}`, backupConfig);
+    
+    $.ajax({
+      url: `/api/server/backup/${serverName}`,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify(backupConfig),
+      success: function(res) {
+        console.log(`[instances.js] 백업 API 응답:`, res);
+        
+        if (res.success) {
+          console.log(`[instances.js] 백업 생성 성공: ${serverName}, backup_id: ${res.backup_id}`);
+          $('#backup-modal').modal('hide');
+          
+          // 백업 시작 알림
+          addSystemNotification('info', '백업 시작', `서버 ${serverName} 백업이 시작되었습니다.`);
+          
+          // 백업 상태 폴링 시작
+          console.log(`[instances.js] 백업 상태 폴링 시작 호출: ${serverName}, ${res.backup_id}`);
+          startBackupStatusPolling(serverName, res.backup_id);
+          
+          // 백업 목록 새로고침 (있다면)
+          if (typeof loadBackupList === 'function') {
+            console.log(`[instances.js] 백업 목록 새로고침 호출`);
+            loadBackupList(serverName);
+          }
+        } else {
+          console.log(`[instances.js] 백업 생성 실패:`, res.message || res.error);
+          // 스냅샷 기능이 지원되지 않는 경우 특별 처리
+          if (res.message && res.message.includes('스냅샷 기능이 지원되지 않습니다')) {
+            alert(`⚠️ 백업 기능 제한\n\n${res.message}\n\n이 VM에서는 스냅샷 기반 백업이 지원되지 않습니다. Proxmox 관리자에게 문의하세요.`);
+          } else {
+            alert(`백업 생성 실패: ${res.message || res.error}`);
+          }
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 백업 생성 API 오류:', xhr);
+        console.error('[instances.js] 응답 텍스트:', xhr.responseText);
+        
+        if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.error && 
+            xhr.responseJSON.error.includes('이미 백업 중입니다')) {
+          alert(xhr.responseJSON.error);
+        } else {
+          alert('백업 생성에 실패했습니다.');
+        }
+      }
+    });
+  };
+  
+  // 백업 목록 보기
+  window.viewServerBackups = function(serverName) {
+    console.log(`[instances.js] 백업 목록 보기: ${serverName}`);
+    
+    $.ajax({
+      url: `/api/server/backups/${serverName}`,
+      method: 'GET',
+      success: function(res) {
+        if (res.success) {
+          const backupData = res.backups;
+          
+          // 백업 목록 표시
+          let backupListHtml = '';
+          if (backupData.backups.length === 0) {
+            backupListHtml = '<tr><td colspan="5" class="text-center text-muted">백업이 없습니다.</td></tr>';
+          } else {
+            backupData.backups.forEach(function(backup) {
+              const timestamp = backup.timestamp ? new Date(backup.timestamp).toLocaleString() : '알 수 없음';
+              const sizeDisplay = backup.size_gb ? `${backup.size_gb} GB` : '알 수 없음';
+              const fileName = backup.name ? backup.name.split('/').pop() : '알 수 없음';
+              
+              backupListHtml += `
+                <tr>
+                  <td><small>${fileName}</small><br><small class="text-muted">${backup.storage}</small></td>
+                  <td>${backup.storage}</td>
+                  <td>${timestamp}</td>
+                  <td>${sizeDisplay}</td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteBackup('${serverName}', '${backup.name}')" title="백업 삭제">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              `;
+            });
+          }
+          
+          $('#backup-list-modal .modal-title').text(`${serverName} - 백업 목록`);
+          $('#backup-list-tbody').html(backupListHtml);
+          $('#backup-list-modal').modal('show');
+        } else {
+          alert(`백업 목록 조회 실패: ${res.message || res.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 백업 목록 조회 실패:', xhr);
+        alert('백업 목록을 불러올 수 없습니다.');
+      }
+    });
   };
   
   // 서버 목록 불러오기 (리스트 뷰 전용)
@@ -159,8 +852,12 @@ $(function() {
         
         console.log('[instances.js] 서버 목록 로드 완료');
         
-        // 실시간 상태 폴링 시작
-        startServerStatusPolling();
+        // 백업 중인 서버 상태 확인
+        checkAllBackupStatus();
+        
+        // 인스턴스 페이지에서는 자동 폴링 하지 않음
+        // 사용자가 작업을 수행할 때만 상태 업데이트
+        console.log('[instances.js] 자동 폴링 비활성화 - 작업 시에만 상태 업데이트');
         
         // 중복 호출 방지 해제
         window.loadActiveServers.isLoading = false;
@@ -322,16 +1019,24 @@ $(function() {
                     <div class="col-8">${s.node || 'N/A'}</div>
                   </div>
                   <div class="row mb-2">
-                    <div class="col-4"><strong>CPU 사용률:</strong></div>
-                    <div class="col-8">${format2f(s.cpu_usage || 0)}%</div>
+                    <div class="col-4"><strong>CPU 할당:</strong></div>
+                    <div class="col-8">${s.vm_cpu || s.cpu || 0} 코어</div>
                   </div>
                   <div class="row mb-2">
-                    <div class="col-4"><strong>메모리 사용률:</strong></div>
-                    <div class="col-8">${format2f(s.memory_usage || 0)}%</div>
+                    <div class="col-4"><strong>메모리 할당:</strong></div>
+                    <div class="col-8">${Math.round((s.maxmem || s.memory || 0) / (1024 * 1024 * 1024))} GB</div>
                   </div>
                   <div class="row mb-2">
-                    <div class="col-4"><strong>디스크 사용률:</strong></div>
-                    <div class="col-8">${format2f(s.disk_usage || 0)}%</div>
+                    <div class="col-4"><strong>디스크 할당:</strong></div>
+                    <div class="col-8">
+                      ${s.total_disk_gb || Math.round((s.maxdisk || s.disk || 0) / (1024 * 1024 * 1024))} GB (총합)
+                      ${s.disks && s.disks.length > 0 ? 
+                        '<br><small class="text-muted">' + 
+                        s.disks.map(disk => `${disk.device}: ${disk.size_gb}GB (${disk.storage})`).join(', ') + 
+                        '</small>' : 
+                        ''
+                      }
+                    </div>
                   </div>
                 </div>
                 <div class="col-md-6">
@@ -497,18 +1202,40 @@ $(function() {
               restoreServerForm();
             }
             
-            // 일괄 작업 완료 시 플래그 해제 및 새로고침
+            // 일괄 작업 완료 시 플래그 해제 및 상태 업데이트
             if (type === 'bulk_server_action') {
               isBulkOperationInProgress = false;
               console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
-            }
-            
-            // 서버 목록 즉시 새로고침
+              
+              // 작업 결과에 따른 상태 업데이트
+              if (res.result && res.result.servers) {
+                Object.entries(res.result.servers).forEach(([serverName, result]) => {
+                  if (result.success) {
+                    // 작업 유형에 따른 예상 상태
+                    let expectedStatus = 'running';
+                    if (name.includes('중지')) {
+                      expectedStatus = 'stopped';
+                    } else if (name.includes('재시작')) {
+                      expectedStatus = 'running';
+                    } else if (name.includes('삭제')) {
+                      // 삭제된 서버는 UI에서 제거
+                      $(`.server-row[data-server="${serverName}"]`).remove();
+                      return;
+                    }
+                    
+                    // 서버 상태 즉시 업데이트
+                    updateServerStatusAfterAction(serverName, expectedStatus);
+                  }
+                });
+              }
+            } else {
+              // 다른 작업들은 기존대로 새로고침
             console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
             setTimeout(function() {
               loadActiveServers();
             }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
+            }
           } else if (res.status === 'failed') {
             addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
             clearInterval(activeTasks[task_id]);
@@ -1402,7 +2129,7 @@ function initializeServerForm() {
 
   // 대량 작업 API 호출
   function executeBulkAction(serverNames, action) {
-    console.log(`[instances.js] 대량 작업 실행: ${action} - ${serverNames.length}개 서버`);
+    console.log(`[instances.js] 일괄괄 작업 실행: ${action} - ${serverNames.length}개 서버`);
     
     // 일괄 작업 시작 플래그 설정
     isBulkOperationInProgress = true;

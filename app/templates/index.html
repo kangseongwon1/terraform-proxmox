@@ -783,9 +783,19 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="#storage" id="storage-tab" data-bs-toggle="tab" data-bs-target="#storage" type="button" role="tab">
-          <i class="fas fa-hdd"></i>스토리지
+        <a class="nav-link" data-bs-toggle="collapse" href="#storageSubmenu" role="button" aria-expanded="false" aria-controls="storageSubmenu">
+          <i class="fas fa-hdd me-1"></i>스토리지 <span class="dropdown-toggle"></span>
         </a>
+        <div class="collapse" id="storageSubmenu">
+          <ul class="nav flex-column ms-3 mb-2">
+            <li class="nav-item">
+              <a class="nav-link" href="#storage"><i class="fas fa-hdd me-1"></i>스토리지 정보</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#backups"><i class="fas fa-box-archive me-1"></i>백업관리</a>
+            </li>
+          </ul>
+        </div>
       </li>
       <li class="nav-item">
         <a class="nav-link" data-bs-toggle="collapse" href="#securitySubmenu" role="button" aria-expanded="false" aria-controls="securitySubmenu">
@@ -927,77 +937,22 @@
     $.get(url, function(html) {
       $('#main-content').html(html);
       if (scriptUrl) {
-        // 스크립트 중복 로드 방지
+        // 스크립트 로드 (중복 방지 제거, 각 스크립트에서 자체 관리)
         const scriptName = scriptUrl.split('/').pop();
-        if (!window.loadedScripts) window.loadedScripts = {};
         
         // 버전 파라미터가 있으면 캐시 무효화
         if (scriptUrl.includes('?v=')) {
           console.log(`[loadSPA] 캐시 무효화로 스크립트 재로드: ${scriptName}`);
-          delete window.loadedScripts[scriptName];
+          // 기존 스크립트 제거
+          $('script[src*="' + scriptName + '"]').remove();
         }
         
-        if (!window.loadedScripts[scriptName]) {
-          console.log(`[loadSPA] 스크립트 로드: ${scriptName}`);
-          $.getScript(scriptUrl).done(function() {
-            window.loadedScripts[scriptName] = true;
-          });
-        } else {
-          console.log(`[loadSPA] 스크립트 이미 로드됨: ${scriptName}`);
-          // 스크립트가 이미 로드되어 있으면 초기화 함수 실행
-          if (scriptName === 'dashboard.js' && typeof window.dashboardInitialized !== 'undefined') {
-            console.log(`[loadSPA] dashboard.js 재초기화 실행`);
-            // dashboard.js의 초기화 함수들을 다시 실행
-            if (typeof loadDashboardServers === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadDashboardServers 재실행');
-                loadDashboardServers();
-              }, 100);
-            }
-            if (typeof loadDashboardStorage === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadDashboardStorage 재실행');
-                loadDashboardStorage();
-              }, 200);
-            }
-          } else if (scriptName === 'iam.js' && typeof window.iamInitialized !== 'undefined') {
-            console.log(`[loadSPA] iam.js 재초기화 실행`);
-            // iam.js의 초기화 함수들을 다시 실행
-            if (typeof loadIAM === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadIAM 재실행');
-                loadIAM();
-              }, 100);
-            }
-          } else if (scriptName === 'storage.js' && typeof window.storageInitialized !== 'undefined') {
-            console.log(`[loadSPA] storage.js 재초기화 실행`);
-            // storage.js의 초기화 함수들을 다시 실행
-            if (typeof loadStorageInfo === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadStorageInfo 재실행');
-                loadStorageInfo();
-              }, 100);
-            }
-          } else if (scriptName === 'instances.js' && typeof window.instancesInitialized !== 'undefined') {
-            console.log(`[loadSPA] instances.js 재초기화 실행`);
-            // instances.js의 초기화 함수들을 다시 실행
-            if (typeof loadActiveServers === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadActiveServers 재실행');
-                loadActiveServers();
-              }, 100);
-            }
-          } else if (scriptName === 'firewall.js' && typeof window.firewallInitialized !== 'undefined') {
-            console.log(`[loadSPA] firewall.js 재초기화 실행`);
-            // firewall.js의 초기화 함수들을 다시 실행
-            if (typeof loadFirewallGroups === 'function') {
-              setTimeout(function() {
-                console.log('[loadSPA] loadFirewallGroups 재실행');
-                loadFirewallGroups();
-              }, 100);
-            }
-          }
-        }
+        console.log(`[loadSPA] 스크립트 로드: ${scriptName}`);
+        $.getScript(scriptUrl).done(function() {
+          console.log(`[loadSPA] 스크립트 로드 완료: ${scriptName}`);
+        }).fail(function() {
+          console.error(`[loadSPA] 스크립트 로드 실패: ${scriptName}`);
+        });
       }
     });
   }
@@ -1026,6 +981,8 @@
       loadSPA('/instances/content', '/static/instances.js');
     } else if (href === '#storage') {
       loadSPA('/storage/content', '/static/storage.js');
+    } else if (href === '#backups') {
+      loadSPA('/backups/content', '/static/backups.js');
     }
     // 필요시 네트워크, 모니터링 등 추가
   });
@@ -1057,6 +1014,8 @@
       loadSPA('/instances/content', '/static/instances.js');
     } else if (href === '#storage') {
       loadSPA('/storage/content', '/static/storage.js');
+    } else if (href === '#backups') {
+      loadSPA('/backups/content', '/static/backups.js');
     }
     // 필요시 네트워크, 모니터링 등 추가
   });
@@ -1142,6 +1101,11 @@
       });
       $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#backups') {
+      loadSPA('/backups/content', '/static/backups.js');
+      $('#storageSubmenu').addClass('show');
+      $('.sidebar .nav-link[href="#backups"]').addClass('active');
+      $('.sidebar .nav-link[href="#backups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else if (hash.startsWith('#firewall-group-')) {
       const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
       loadFirewallGroupDetail(group);
@@ -1185,6 +1149,11 @@
       loadFirewallGroupDetail(group);
       $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#backups') {
+      loadSPA('/backups/content', '/static/backups.js');
+      $('#storageSubmenu').addClass('show');
+      $('.sidebar .nav-link[href="#backups"]').addClass('active');
+      $('.sidebar .nav-link[href="#backups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
     } else {
       loadSPA('/dashboard/content', '/static/dashboard.js');
       $('.sidebar .nav-link[href="#dashboard"]').addClass('active');

@@ -69,7 +69,7 @@ def setup_logging(app):
 
 def register_blueprints(app):
     """블루프린트 등록"""
-    from app.routes import main, auth, admin, servers, api, firewall, notification
+    from app.routes import main, auth, admin, servers, api, firewall, notification, backup
     
     app.register_blueprint(main)
     app.register_blueprint(auth)
@@ -78,6 +78,7 @@ def register_blueprints(app):
     app.register_blueprint(api)
     app.register_blueprint(firewall)
     app.register_blueprint(notification)
+    app.register_blueprint(backup)
 
 def register_error_handlers(app):
     """에러 핸들러 등록"""

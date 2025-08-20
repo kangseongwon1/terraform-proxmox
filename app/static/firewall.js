@@ -186,22 +186,38 @@ function renderSecurityGroupRules(rules) {
     $tbody.empty();
     
     if (!rules || !rules.length) {
-        $tbody.append('<tr><td colspan="7" class="text-center text-muted">등록된 규칙이 없습니다.</td></tr>');
-      return;
+        $tbody.append('<tr><td colspan="8" class="text-center text-muted">등록된 규칙이 없습니다.</td></tr>');
+        return;
     }
     
     rules.forEach((rule, index) => {
         console.log(`[firewall.js] 규칙 ${index + 1}:`, rule);
-      $tbody.append(`
+        
+        // 매크로 정보 표시
+        const macroInfo = rule.macro ? `<br><small class="text-info"><i class="fas fa-tag"></i> ${rule.macro}</small>` : '';
+        
+        // 포트 정보 표시 (dport 사용)
+        const portInfo = rule.dport ? rule.dport : '-';
+        
+        // 프로토콜 정보 표시 + 매크로 동시 표기
+        const protoText = rule.proto ? rule.proto.toUpperCase() : 'ANY';
+        const macroBadge = rule.macro ? ` <span class="badge bg-info text-dark">${rule.macro}</span>` : '';
+        const protocolInfo = `${protoText}${macroBadge}`;
+        
+        // 방향 정보 표시
+        const directionInfo = rule.type === 'in' ? '인바운드' : rule.type === 'out' ? '아웃바운드' : rule.type;
+        
+        $tbody.append(`
         <tr>
-                <td>${rule.protocol || 'any'}</td>
-                <td>${rule.port || '-'}</td>
+                <td>${directionInfo}</td>
+                <td>${protocolInfo}</td>
+                <td>${portInfo}</td>
                 <td>${rule.source || '-'}</td>
                 <td>${rule.dest || '-'}</td>
                 <td><span class="badge ${rule.action === 'ACCEPT' ? 'bg-success' : 'bg-danger'}">${rule.action}</span></td>
-                <td>${rule.comment || '-'}</td>
+                <td>${rule.comment || '-'}${macroInfo}</td>
                 <td>
-                    <button class="btn btn-outline-danger btn-sm delete-sg-rule-btn" data-rule-id="${rule.id}">
+                    <button class="btn btn-outline-danger btn-sm delete-sg-rule-btn" data-rule-id="${rule.pos || index}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>

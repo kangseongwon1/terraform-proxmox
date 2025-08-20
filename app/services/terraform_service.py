@@ -66,6 +66,17 @@ class TerraformService:
         """Terraform 계획"""
         logger.info("Terraform 계획 시작")
         print("🔧 Terraform plan 명령어 실행")
+        
+        # 실행 중인 VM의 파괴적 변경 감지 및 차단
+        try:
+            destructive_changes = self.detect_destructive_changes()
+            if destructive_changes:
+                error_msg = f"실행 중인 서버의 파괴적 변경이 감지되어 차단되었습니다:\n{destructive_changes}"
+                print(f"❌ {error_msg}")
+                return False, error_msg
+        except Exception as plan_check_err:
+            print(f"⚠️ 파괴적 변경 감지 중 경고: {plan_check_err}")
+        
         returncode, stdout, stderr = self._run_terraform_command(["terraform", "plan"])
         print(f"🔧 Terraform plan 결과: returncode={returncode}, stdout_length={len(stdout) if stdout else 0}, stderr_length={len(stderr) if stderr else 0}")
         
@@ -179,6 +190,128 @@ class TerraformService:
         except Exception as e:
             logger.error(f"terraform.tfvars.json 파일 로드 실패: {e}")
             return {}
+
+    def sync_tfvars_with_proxmox(self) -> Dict[str, Any]:
+        """Proxmox의 실제 VM 상태를 기준으로 tfvars를 안전하게 동기화
+
+        - 살아있는(실행 중) VM은 삭제/생성 같은 파괴적 변경에서 제외
+        - 수동 변경(코어/메모리 등) 발생 시, tfvars에 반영하여 drift 최소화
+        """
+        try:
+            from app.services.proxmox_service import ProxmoxService
+            prox = ProxmoxService()
+
+            # 인증 및 VM 목록
+            headers, error = prox.get_proxmox_auth()
+            if error:
+                raise RuntimeError(f"Proxmox 인증 실패: {error}")
+            vms, error = prox.get_proxmox_vms(headers)
+            if error:
+                raise RuntimeError(f"VM 목록 조회 실패: {error}")
+
+            # tfvars 로드
+            tfvars = self.load_tfvars()
+            servers = tfvars.get('servers', {})
+
+            updated = 0
+            protected = []
+
+            # VM 이름 기준으로 매핑
+            vm_by_name = {vm['name']: vm for vm in vms}
+
+            for name, cfg in list(servers.items()):
+                vm = vm_by_name.get(name)
+                if not vm:
+                    # tfvars에는 있는데 실제 VM이 없으면 유지(생성 대상)로 둠
+                    continue
+
+                # 실행 중인 VM은 파괴적 변경 보호를 위해 플래그만 남김
+                if vm.get('status') == 'running':
+                    cfg.setdefault('_protect_running', True)
+                    protected.append(name)
+
+                # 드리프트 최소화: Proxmox의 실제 CPU/메모리 값을 tfvars에 반영
+                try:
+                    # CPU 값 동기화
+                    vm_cpu = vm.get('cpus', 0)
+                    if vm_cpu and vm_cpu != cfg.get('cpu', 0):
+                        print(f"🔄 {name}: CPU {cfg.get('cpu', 0)} → {vm_cpu} (Proxmox 기준으로 동기화)")
+                        cfg['cpu'] = int(vm_cpu)
+                        updated += 1
+                    
+                    # 메모리 값 동기화 (MB 단위)
+                    vm_memory_mb = int((vm.get('maxmem', 0)) / (1024*1024))
+                    if vm_memory_mb and vm_memory_mb != cfg.get('memory', 0):
+                        print(f"🔄 {name}: 메모리 {cfg.get('memory', 0)}MB → {vm_memory_mb}MB (Proxmox 기준으로 동기화)")
+                        cfg['memory'] = int(vm_memory_mb)
+                        updated += 1
+                        
+                except Exception as e:
+                    print(f"⚠️ {name} 리소스 동기화 실패: {e}")
+
+                servers[name] = cfg
+
+            # 저장
+            tfvars['servers'] = servers
+            self.save_tfvars(tfvars)
+
+            return {'updated': updated, 'protected': protected}
+
+        except Exception as e:
+            raise
+
+    def detect_destructive_changes(self) -> str:
+        """실행 중인 VM의 파괴적 변경(destroy/recreate) 감지"""
+        try:
+            from app.services.proxmox_service import ProxmoxService
+            prox = ProxmoxService()
+
+            # Proxmox에서 실행 중인 VM 목록 조회
+            headers, error = prox.get_proxmox_auth()
+            if error:
+                return f"Proxmox 인증 실패: {error}"
+            
+            vms, error = prox.get_proxmox_vms(headers)
+            if error:
+                return f"VM 목록 조회 실패: {error}"
+
+            # tfvars 로드
+            tfvars = self.load_tfvars()
+            servers = tfvars.get('servers', {})
+
+            # 실행 중인 VM만 필터링
+            running_vms = {vm['name']: vm for vm in vms if vm.get('status') == 'running'}
+            
+            destructive_changes = []
+            
+            for name, vm in running_vms.items():
+                if name not in servers:
+                    continue
+                
+                tfvars_config = servers[name]
+                
+                # CPU 변경 감지
+                tfvars_cpu = tfvars_config.get('cpu', 0)
+                vm_cpu = vm.get('cpus', 0)
+                if tfvars_cpu != vm_cpu:
+                    destructive_changes.append(f"- {name}: CPU {vm_cpu} → {tfvars_cpu} (재생성 필요)")
+                
+                # 메모리 변경 감지 (MB 단위로 변환)
+                tfvars_memory = tfvars_config.get('memory', 0)
+                vm_memory_mb = int((vm.get('maxmem', 0)) / (1024*1024))
+                if tfvars_memory != vm_memory_mb:
+                    destructive_changes.append(f"- {name}: 메모리 {vm_memory_mb}MB → {tfvars_memory}MB (재생성 필요)")
+                
+                # 디스크 변경 감지 (크기나 스토리지)
+                # ... 추가 디스크 변경 감지 로직 필요시 여기에 추가
+
+            if destructive_changes:
+                return "\n".join(destructive_changes)
+            
+            return ""
+
+        except Exception as e:
+            return f"파괴적 변경 감지 중 오류: {str(e)}"
     
     def save_tfvars(self, data: Dict[str, Any]) -> bool:
         """terraform.tfvars.json 파일 저장"""
@@ -240,6 +373,13 @@ class TerraformService:
         """인프라 배포"""
         try:
             print("🔧 deploy_infrastructure 시작")
+            
+            # 배포 전 Proxmox 실제 상태와 tfvars 일치화 (수동 변경 대비)
+            try:
+                sync_changed = self.sync_tfvars_with_proxmox()
+                print(f"🧭 프리플라이트 동기화 완료: 변경된 서버 수={sync_changed.get('updated', 0)}")
+            except Exception as pre_err:
+                print(f"⚠️ 프리플라이트 동기화 경고: {pre_err}")
             
             # tfvars 파일 존재 확인
             if not os.path.exists(self.tfvars_file):

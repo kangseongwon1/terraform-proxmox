@@ -120,7 +120,7 @@ $(function() {
    * 실제 갱신 실행
    */
   function executeRefresh() {
-    // 대시보드에서만 리소스 상태 갱신
+    // 대시보드에서만 리소스 상태 갱신 (인스턴스 페이지 제외)
     const currentHash = window.location.hash;
     
     if (currentHash === '#dashboard' || currentHash === '') {
@@ -129,6 +129,9 @@ $(function() {
         checkServerStatusChanges();
       }
     }
+    
+    // 인스턴스 페이지에서는 자동 새로고침 하지 않음
+    // 사용자가 작업을 수행할 때만 상태 업데이트
     
     // 알림은 모든 페이지에서 공통으로 갱신
     if (typeof window.loadNotifications === 'function') {

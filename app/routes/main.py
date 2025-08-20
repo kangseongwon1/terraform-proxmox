@@ -236,3 +236,17 @@ def firewall_group_detail_content():
         print(f"💥 /firewall/group-detail/content 예외 발생: {str(e)}")
         return render_template('partials/firewall_group_detail_content.html', group_name='')
 
+@bp.route('/backups/content')
+@login_required
+def backups_content():
+    """백업관리 콘텐츠"""
+    try:
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        result = proxmox_service.get_node_backups()
+        data = result['data'] if result.get('success') else {'backups': [], 'node_stats': {}, 'total_count': 0, 'total_size_gb': 0}
+        return render_template('partials/backups_content.html', data=data)
+    except Exception as e:
+        print(f"💥 /backups/content 예외 발생: {str(e)}")
+        return render_template('partials/backups_content.html', data={'backups': [], 'node_stats': {}, 'total_count': 0, 'total_size_gb': 0})
+

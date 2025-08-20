@@ -36,9 +36,12 @@ $(function() {
     $('#vm-total-memory').text(stats.vm_total_memory_gb + ' GB');
     $('#vm-used-memory').text(stats.vm_used_memory_gb + ' GB');
     
-    // 원형 그래프 업데이트
-    updateResourceRing('cpu', stats.cpu_usage_percent);
-    updateResourceRing('memory', stats.memory_usage_percent);
+    // 원형 그래프 업데이트 (할당된 리소스 비율로 표시)
+    const cpu_allocation_percent = stats.node_total_cpu > 0 ? Math.round((stats.vm_total_cpu / stats.node_total_cpu) * 100) : 0;
+    const memory_allocation_percent = stats.node_total_memory_gb > 0 ? Math.round((stats.vm_total_memory_gb / stats.node_total_memory_gb) * 100) : 0;
+    
+    updateResourceRing('cpu', cpu_allocation_percent);
+    updateResourceRing('memory', memory_allocation_percent);
   }
   
   function updateResourceRing(type, percentage) {
@@ -48,12 +51,12 @@ $(function() {
     $(`#${type}-progress`).css('stroke-dashoffset', offset);
     $(`#${type}-usage-percent`).text(percentage + '%');
     
-    // 색상 변경 (사용률에 따라)
+    // 색상 변경 (할당 비율에 따라)
     let color = '#28a745'; // 기본 녹색
     if (percentage > 80) {
-      color = '#dc3545'; // 빨간색 (80% 이상)
+      color = '#dc3545'; // 빨간색 (80% 이상 할당)
     } else if (percentage > 60) {
-      color = '#ffc107'; // 노란색 (60% 이상)
+      color = '#ffc107'; // 노란색 (60% 이상 할당)
     }
     
     $(`#${type}-progress`).css('stroke', color);

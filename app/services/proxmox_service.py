@@ -220,6 +220,56 @@ class ProxmoxService:
                     # 역할 정보 우선순위: DB > tfvars > 기본값
                     final_role = db_role if db_role else server_data.get('role', 'unknown')
                     
+                    # 할당된 리소스 정보만 사용 (실시간 사용률 제거)
+                    cpu_usage = 0.0  # 할당된 CPU 코어 수만 표시
+                    memory_usage = 0.0  # 할당된 메모리 크기만 표시
+                    disk_usage = 0.0  # 할당된 디스크 크기만 표시
+                    
+                    # 디스크 정보 조회
+                    disks = []
+                    total_disk_gb = 0
+                    try:
+                        # VM 설정에서 디스크 정보 가져오기
+                        vm_config_url = f"{self.endpoint}/api2/json/nodes/{vm['node']}/qemu/{vm['vmid']}/config"
+                        vm_config_response = self.session.get(vm_config_url, headers=headers, verify=False, timeout=5)
+                        
+                        if vm_config_response.status_code == 200:
+                            vm_config = vm_config_response.json().get('data', {})
+                            
+                            for key, value in vm_config.items():
+                                if key.startswith('scsi') or key.startswith('sata') or key.startswith('virtio'):
+                                    if key == 'scsihw':
+                                        continue
+                                    
+                                    size_gb = 0
+                                    storage = 'unknown'
+                                    
+                                    # 스토리지 추출
+                                    if ':' in value:
+                                        storage = value.split(':')[0]
+                                    
+                                    # 패턴 1: size= 파라미터 (예: size=10G, size=10737418240)
+                                    if 'size=' in value:
+                                        size_match = value.split('size=')[1].split(',')[0]
+                                        try:
+                                            if size_match.endswith('G'):
+                                                size_gb = int(size_match[:-1])
+                                            else:
+                                                size_bytes = int(size_match)
+                                                size_gb = size_bytes // (1024 * 1024 * 1024)
+                                        except ValueError:
+                                            pass
+                                    
+                                    disk_info = {
+                                        'device': key,
+                                        'size_gb': size_gb,
+                                        'storage': storage
+                                    }
+                                    disks.append(disk_info)
+                                    total_disk_gb += size_gb
+                    except Exception as e:
+                        print(f"⚠️ {vm['name']} 디스크 정보 조회 실패: {e}")
+                    
                     status_info = {
                         'name': vm['name'],
                         'status': vm['status'],
@@ -234,7 +284,12 @@ class ProxmoxService:
                         'role': final_role,
                         'firewall_group': firewall_group,
                         'ip_addresses': ip_list,
-                        'vm_cpu': vm_cpu  # tfvars에서 가져온 CPU 코어 수
+                        'vm_cpu': vm_cpu,  # tfvars에서 가져온 CPU 코어 수
+                        'cpu_usage_percent': cpu_usage,
+                        'memory_usage_percent': memory_usage,
+                        'disk_usage_percent': disk_usage,
+                        'total_disk_gb': total_disk_gb,  # 모든 디스크의 총합
+                        'disks': disks  # 개별 디스크 정보
                     }
                     all_servers[vm['name']] = status_info
                     
@@ -509,6 +564,36 @@ class ProxmoxService:
             print(f"❌ VM 정보 조회 실패: {e}")
             return None
 
+    def get_vm_by_name(self, vm_name: str) -> Optional[Dict[str, Any]]:
+        """이름으로 VM 정보 조회"""
+        try:
+            print(f"🔍 VM 정보 조회: {vm_name}")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return None
+            
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                print(f"❌ VM 목록 조회 실패: {error}")
+                return None
+            
+            # 이름으로 VM 찾기
+            for vm in vms:
+                if vm.get('name') == vm_name:
+                    print(f"✅ VM 발견: {vm_name} (ID: {vm.get('vmid')})")
+                    return vm
+            
+            print(f"❌ VM을 찾을 수 없음: {vm_name}")
+            return None
+        except Exception as e:
+            print(f"❌ VM 정보 조회 실패: {e}")
+            return None
+
+
+
+
+
     def get_vm_list(self) -> List[Dict[str, Any]]:
         """VM 목록 조회 (API 호환)"""
         try:
@@ -748,39 +833,43 @@ class ProxmoxService:
                 print(f"❌ 인증 실패: {error}")
                 return {}
             
-            # Security Group 정보 조회 (Rules 포함)
+            # Security Group 정보 조회 (이미 Rules가 포함되어 있음)
             group_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
             response = self.session.get(group_url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 group_data = response.json().get('data', [])
                 
-                # Rules는 이미 group_data에 포함되어 있음
+                # group_data는 이미 Rules 배열임
                 rules = group_data if isinstance(group_data, list) else []
                 
-                # Security Group 기본 정보 조회
+                # Security Group 목록에서 comment 정보 가져오기
                 groups_url = f"{self.endpoint}/api2/json/cluster/firewall/groups"
                 groups_response = self.session.get(groups_url, headers=headers, timeout=10)
                 
-                group_info = {}
+                description = f'{group_name} Security Group'
                 if groups_response.status_code == 200:
-                    groups_data = groups_response.json().get('data', [])
-                    for group in groups_data:
+                    groups = groups_response.json().get('data', [])
+                    for group in groups:
                         if group.get('group') == group_name:
-                            group_info = group
+                            description = group.get('comment', description)
                             break
                 
                 group_detail = {
                     'name': group_name,
-                    'description': group_info.get('comment', f'{group_name} Security Group'),
+                    'description': description,
                     'rules': rules,
-                    'group_info': group_info
+                    'group_info': {
+                        'comment': description,
+                        'rules_count': len(rules)
+                    }
                 }
                 
                 print(f"✅ Datacenter Security Group '{group_name}' 상세 조회 완료: {len(rules)}개 규칙")
                 return group_detail
             else:
                 print(f"❌ Datacenter Security Group '{group_name}' 상세 조회 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
                 return {}
                 
         except Exception as e:
@@ -1006,3 +1095,999 @@ class ProxmoxService:
             logger.error(f"VM 데이터 동기화 실패: {e}")
             db.session.rollback()
             raise 
+
+    def get_server_config(self, server_name: str) -> Dict[str, Any]:
+        """서버 설정 정보 조회"""
+        try:
+            print(f"🔍 서버 설정 조회: {server_name}")
+            
+            # Proxmox 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # VM 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': error}
+            
+            # 해당 서버 찾기
+            target_vm = None
+            for vm in vms:
+                if vm['name'] == server_name:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                return {'success': False, 'message': f'서버 {server_name}을 찾을 수 없습니다.'}
+            
+            # VM 상세 설정 조회
+            vm_config_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/qemu/{target_vm['vmid']}/config"
+            vm_config_response = self.session.get(vm_config_url, headers=headers, verify=False, timeout=10)
+            
+            if vm_config_response.status_code != 200:
+                return {'success': False, 'message': 'VM 설정을 가져올 수 없습니다.'}
+            
+            vm_config = vm_config_response.json().get('data', {})
+            
+            # tfvars에서 서버 정보 가져오기
+            servers = self.read_servers_from_tfvars()
+            server_data = servers.get(server_name, {})
+            
+            # DB에서 역할 및 방화벽 그룹 정보 가져오기
+            firewall_group = None
+            db_role = None
+            try:
+                with self._get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT role, firewall_group FROM servers WHERE name = ?', (server_name,))
+                    db_server = cursor.fetchone()
+                    if db_server:
+                        db_role = db_server['role']
+                        firewall_group = db_server['firewall_group']
+            except Exception as e:
+                print(f"⚠️ DB 조회 실패: {e}")
+            
+            # 설정 정보 구성
+            config = {
+                'name': server_name,
+                'vmid': target_vm['vmid'],
+                'node': target_vm['node'],
+                'status': target_vm['status'],
+                'cpu': {
+                    'cores': int(vm_config.get('cores', server_data.get('cpu', 1))),
+                    'sockets': int(vm_config.get('sockets', 1)),
+                    'type': vm_config.get('cpu', 'host').replace('cputype=', '') if vm_config.get('cpu', '').startswith('cputype=') else vm_config.get('cpu', 'host')
+                },
+                'memory': {
+                    'size_mb': int(vm_config.get('memory', server_data.get('memory', 1024))),
+                    'balloon': int(vm_config.get('balloon', 0))
+                },
+                'disks': [],
+                'network': [],
+                'role': db_role if db_role else server_data.get('role', ''),
+                'firewall_group': firewall_group,
+                'description': vm_config.get('description', ''),
+                'tags': vm_config.get('tags', '')
+            }
+            
+            # 디스크 정보 파싱
+            print(f"🔍 {server_name} VM 설정: {vm_config}")
+            for key, value in vm_config.items():
+                if key.startswith('scsi') or key.startswith('sata') or key.startswith('virtio'):
+                    try:
+                        # 디스크 크기 추출
+                        size_gb = 0
+                        storage = 'unknown'
+                        
+                        print(f"🔍 디스크 파싱: {key} = {value}")
+                        
+                        # scsihw는 하드웨어 타입이므로 제외
+                        if key == 'scsihw':
+                            continue
+                        
+                        # 스토리지 추출 (예: local-lvm:vm-104-disk-0)
+                        if ':' in value:
+                            storage = value.split(':')[0]
+                        
+                        # 크기 정보 추출 - 패턴 1을 우선적으로 사용 (size= 파라미터가 가장 정확)
+                        size_gb = 0
+                        
+                        # 패턴 1: size= 파라미터 (예: size=10G, size=10737418240) - 가장 정확한 방법
+                        if 'size=' in value:
+                            size_match = value.split('size=')[1].split(',')[0]
+                            try:
+                                # GB 단위인지 확인 (예: size=10G)
+                                if size_match.endswith('G'):
+                                    size_gb = int(size_match[:-1])
+                                    print(f"✅ 패턴 1 성공: {size_gb} GB (G 단위)")
+                                else:
+                                    # 바이트 단위인지 확인 (예: size=10737418240)
+                                    size_bytes = int(size_match)
+                                    size_gb = size_bytes // (1024 * 1024 * 1024)
+                                    print(f"✅ 패턴 1 성공: {size_bytes} bytes = {size_gb} GB")
+                            except ValueError:
+                                pass
+                        
+                        # 패턴 2: 파일명에서 크기 추출 (예: vm-104-disk-0) - 백업 방법
+                        if size_gb == 0 and ('disk-' in value or storage != 'unknown'):
+                            try:
+                                # 실제 디스크 파일 크기 조회
+                                disk_file_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/storage/{storage}/content"
+                                disk_response = self.session.get(disk_file_url, headers=headers, verify=False, timeout=10)
+                                
+                                if disk_response.status_code == 200:
+                                    disk_files = disk_response.json().get('data', [])
+                                    for disk_file in disk_files:
+                                        volid = disk_file.get('volid', '')
+                                        # 여러 패턴으로 디스크 파일 매칭
+                                        disk_patterns = [
+                                            f"vm-{target_vm['vmid']}-disk-{key.replace('scsi', '').replace('sata', '').replace('virtio', '')}",
+                                            f"vm-{target_vm['vmid']}-disk-{key}",
+                                            f"vm-{target_vm['vmid']}-disk-{key.replace('scsi', '').replace('sata', '').replace('virtio', '')}.raw",
+                                            f"vm-{target_vm['vmid']}-disk-{key}.raw"
+                                        ]
+                                        
+                                        for pattern in disk_patterns:
+                                            if volid.endswith(pattern):
+                                                size_bytes = disk_file.get('size', 0)
+                                                size_gb = size_bytes // (1024 * 1024 * 1024)
+                                                print(f"✅ 패턴 2 성공: {size_bytes} bytes = {size_gb} GB (매칭: {pattern})")
+                                                break
+                                        if size_gb > 0:
+                                            break
+                            except Exception as e:
+                                print(f"⚠️ 디스크 파일 크기 조회 실패: {e}")
+                        
+                        # 패턴 3: 직접 크기 (예: local-lvm:10) - 최후 수단
+                        if size_gb == 0 and ':' in value:
+                            parts = value.split(':')
+                            if len(parts) >= 2:
+                                try:
+                                    # 마지막 부분이 숫자인지 확인
+                                    last_part = parts[-1]
+                                    if last_part.isdigit():
+                                        size_gb = int(last_part)
+                                        print(f"✅ 패턴 3 성공: {size_gb} GB")
+                                except ValueError:
+                                    pass
+                        
+                        disk_info = {
+                            'device': key,
+                            'size_gb': size_gb,
+                            'storage': storage
+                        }
+                        config['disks'].append(disk_info)
+                        print(f"💾 디스크 정보: {disk_info}")
+                        
+                    except Exception as e:
+                        print(f"⚠️ 디스크 정보 파싱 실패 ({key}): {e}")
+                        if key != 'scsihw':
+                            disk_info = {
+                                'device': key,
+                                'size_gb': 0,
+                                'storage': 'unknown'
+                            }
+                            config['disks'].append(disk_info)
+            
+            # 디스크 총합 계산
+            total_disk_gb = sum(disk['size_gb'] for disk in config['disks'])
+            config['total_disk_gb'] = total_disk_gb
+            print(f"📊 총 디스크 크기: {total_disk_gb} GB")
+            
+            # 네트워크 정보 파싱
+            for key, value in vm_config.items():
+                if key.startswith('net'):
+                    net_info = {
+                        'device': key,
+                        'model': value.split(',')[0] if ',' in value else 'e1000',
+                        'bridge': value.split('bridge=')[1].split(',')[0] if 'bridge=' in value else 'vmbr0'
+                    }
+                    config['network'].append(net_info)
+            
+            return {'success': True, 'data': config}
+            
+        except Exception as e:
+            print(f"❌ 서버 설정 조회 실패: {e}")
+            return {'success': False, 'message': str(e)}
+    
+    def update_server_config(self, server_name: str, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """서버 설정 업데이트"""
+        try:
+            print(f"🔧 서버 설정 업데이트: {server_name}")
+            
+            # Proxmox 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # VM 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': error}
+            
+            # 해당 서버 찾기
+            target_vm = None
+            for vm in vms:
+                if vm['name'] == server_name:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                return {'success': False, 'message': f'서버 {server_name}을 찾을 수 없습니다.'}
+            
+            # 업데이트할 설정 구성
+            update_config = {}
+            
+            # CPU 설정
+            if 'cpu' in config_data:
+                cpu_config = config_data['cpu']
+                if 'cores' in cpu_config:
+                    update_config['cores'] = cpu_config['cores']
+                if 'sockets' in cpu_config:
+                    update_config['sockets'] = cpu_config['sockets']
+                if 'type' in cpu_config:
+                    update_config['cpu'] = cpu_config['type']
+            
+            # 메모리 설정
+            if 'memory' in config_data:
+                memory_config = config_data['memory']
+                if 'size_mb' in memory_config:
+                    update_config['memory'] = memory_config['size_mb']
+                if 'balloon' in memory_config:
+                    update_config['balloon'] = memory_config['balloon']
+            
+            # 설명 설정
+            if 'description' in config_data:
+                update_config['description'] = config_data['description']
+            
+            # 태그 설정
+            if 'tags' in config_data:
+                update_config['tags'] = config_data['tags']
+            
+            # VM 설정 업데이트 API 호출
+            vm_config_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/qemu/{target_vm['vmid']}/config"
+            response = self.session.put(vm_config_url, headers=headers, data=update_config, verify=False, timeout=30)
+            
+            if response.status_code != 200:
+                return {'success': False, 'message': f'설정 업데이트 실패: {response.text}'}
+            
+            # DB 업데이트 (역할, 방화벽 그룹)
+            if 'role' in config_data or 'firewall_group' in config_data:
+                try:
+                    with self._get_db_connection() as conn:
+                        cursor = conn.cursor()
+                        update_fields = []
+                        update_values = []
+                        
+                        if 'role' in config_data:
+                            update_fields.append('role = ?')
+                            update_values.append(config_data['role'])
+                        
+                        if 'firewall_group' in config_data:
+                            update_fields.append('firewall_group = ?')
+                            update_values.append(config_data['firewall_group'])
+                        
+                        if update_fields:
+                            update_values.append(server_name)
+                            query = f"UPDATE servers SET {', '.join(update_fields)} WHERE name = ?"
+                            cursor.execute(query, update_values)
+                            conn.commit()
+                except Exception as e:
+                    print(f"⚠️ DB 업데이트 실패: {e}")
+            
+            return {'success': True, 'data': update_config}
+            
+        except Exception as e:
+            print(f"❌ 서버 설정 업데이트 실패: {e}")
+            return {'success': False, 'message': str(e)}
+    
+    def get_server_logs(self, server_name: str, log_type: str = 'system', lines: int = 100) -> Dict[str, Any]:
+        """서버 로그 조회"""
+        try:
+            print(f"📋 서버 로그 조회: {server_name}, 타입: {log_type}, 라인: {lines}")
+            
+            # Proxmox 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # VM 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': error}
+            
+            # 해당 서버 찾기
+            target_vm = None
+            for vm in vms:
+                if vm['name'] == server_name:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                return {'success': False, 'message': f'서버 {server_name}을 찾을 수 없습니다.'}
+            
+            # 로그 조회 API 호출
+            log_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/qemu/{target_vm['vmid']}/monitor"
+            
+            # QEMU Monitor에서 지원하는 명령어들
+            log_commands = {
+                'system': 'info status',
+                'dmesg': 'info status',
+                'auth': 'info status',
+                'nginx': 'info status',
+                'mysql': 'info status',
+                'custom': 'info status'
+            }
+            
+            command = log_commands.get(log_type, log_commands['system'])
+            
+            # QEMU Monitor 명령 실행
+            monitor_data = {
+                'command': command
+            }
+            
+            response = self.session.post(log_url, headers=headers, json=monitor_data, verify=False, timeout=30)
+            
+            if response.status_code != 200:
+                return {'success': False, 'message': f'로그 조회 실패: {response.text}'}
+            
+            monitor_data = response.json().get('data', '')
+            
+            # VM 상태 정보 추가 조회
+            vm_status_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/qemu/{target_vm['vmid']}/status/current"
+            status_response = self.session.get(vm_status_url, headers=headers, verify=False, timeout=10)
+            
+            status_info = ""
+            if status_response.status_code == 200:
+                status_data = status_response.json().get('data', {})
+                status_info = f"""
+=== VM 상태 정보 ===
+상태: {status_data.get('status', 'unknown')}
+CPU 사용률: {status_data.get('cpu', 0):.2f}%
+메모리 사용률: {status_data.get('memory', 0) / (1024*1024*1024):.2f} GB
+업타임: {status_data.get('uptime', 0)} 초
+네트워크: {status_data.get('netin', 0)} / {status_data.get('netout', 0)} bytes
+디스크: {status_data.get('diskread', 0)} / {status_data.get('diskwrite', 0)} bytes
+"""
+            
+            # 로그 타입에 따른 정보 구성
+            log_content = f"""
+=== {log_type.upper()} 정보 ===
+{monitor_data}
+
+{status_info}
+
+=== 시스템 정보 ===
+서버명: {server_name}
+VM ID: {target_vm['vmid']}
+노드: {target_vm['node']}
+조회 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            return {
+                'success': True,
+                'data': {
+                    'server_name': server_name,
+                    'log_type': log_type,
+                    'lines': lines,
+                    'content': log_content,
+                    'timestamp': datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ 서버 로그 조회 실패: {e}")
+            return {'success': False, 'message': str(e)}
+    
+    def create_server_backup(self, server_name: str, backup_config: Dict[str, Any]) -> Dict[str, Any]:
+        """서버 백업 생성 (vzdump 사용)"""
+        try:
+            print(f"💾 서버 백업 생성 시작: {server_name}")
+            print(f"📋 백업 설정: {backup_config}")
+            
+            # Proxmox 인증
+            print(f"🔐 Proxmox 인증 시도...")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return {'success': False, 'message': error}
+            print(f"✅ 인증 성공")
+            
+            # VM 정보 조회
+            print(f"🔍 VM 정보 조회 시도...")
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                print(f"❌ VM 조회 실패: {error}")
+                return {'success': False, 'message': error}
+            print(f"✅ VM 조회 성공: {len(vms)}개 VM 발견")
+            
+            # 해당 서버 찾기
+            target_vm = None
+            for vm in vms:
+                if vm['name'] == server_name:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                print(f"❌ 서버를 찾을 수 없음: {server_name}")
+                return {'success': False, 'message': f'서버 {server_name}을 찾을 수 없습니다.'}
+            print(f"✅ 타겟 VM 발견: {target_vm}")
+            
+            # vzdump 백업 생성 (올바른 API 경로 사용)
+            vzdump_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/vzdump"
+            
+            # vzdump 설정 (Proxmox API 문서에 따른 파라미터)
+            vzdump_data = {
+                'vmid': target_vm['vmid'],
+                'storage': backup_config.get('storage', 'local'),
+                'compress': backup_config.get('compress', 'zstd'),
+                'mode': backup_config.get('mode', 'snapshot'),
+                'remove': 0,  # 기존 백업 유지
+                'notes-template': f'{server_name}'
+            }
+            
+            # 설명이 있으면 notes-template에 포함
+            if backup_config.get('description'):
+                vzdump_data['notes-template'] = f'{server_name} - {backup_config.get("description")}'
+            
+            print(f"🔧 vzdump 설정: {vzdump_data}")
+            print(f"🔧 vzdump URL: {vzdump_url}")
+            
+            # POST 요청으로 vzdump 실행
+            print(f"🚀 vzdump API 호출 시도...")
+            response = self.session.post(vzdump_url, headers=headers, data=vzdump_data, verify=False, timeout=60)
+            print(f"📊 응답 상태 코드: {response.status_code}")
+            print(f"📊 응답 내용: {response.text}")
+            
+            if response.status_code != 200:
+                error_text = response.text
+                print(f"❌ vzdump API 호출 실패: {error_text}")
+                if "snapshot feature is not available" in error_text:
+                    return {
+                        'success': False, 
+                        'message': f'이 VM에서는 백업 기능이 지원되지 않습니다. VM의 디스크 구성이나 설정을 확인해주세요.'
+                    }
+                else:
+                    return {'success': False, 'message': f'백업 생성 실패: {error_text}'}
+            
+            vzdump_result = response.json()
+            task_id = vzdump_result.get('data', '')
+            
+            print(f"✅ vzdump 백업 시작됨: Task ID {task_id}")
+            
+            return {
+                'success': True,
+                'data': {
+                    'server_name': server_name,
+                    'task_id': task_id,
+                    'description': backup_config.get('description', f'Backup of {server_name}'),
+                    'timestamp': datetime.now().isoformat(),
+                    'message': f'백업 작업이 시작되었습니다. Task ID: {task_id}'
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ 서버 백업 생성 실패: {e}")
+            return {'success': False, 'message': str(e)}
+    
+    def get_server_backups(self, server_name: str) -> Dict[str, Any]:
+        """서버 백업 목록 조회 (vzdump 백업 파일)"""
+        try:
+            print(f"📋 서버 백업 목록 조회: {server_name}")
+            
+            # Proxmox 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # VM 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': error}
+            
+            # 해당 서버 찾기
+            target_vm = None
+            for vm in vms:
+                if vm['name'] == server_name:
+                    target_vm = vm
+                    break
+            
+            if not target_vm:
+                return {'success': False, 'message': f'서버 {server_name}을 찾을 수 없습니다.'}
+            
+            # 스토리지에서 백업 파일 조회
+            backups = []
+            
+            # 여러 스토리지에서 백업 파일 찾기
+            storages = ['local', 'local-lvm', 'ssd']
+            
+            for storage in storages:
+                try:
+                    storage_url = f"{self.endpoint}/api2/json/nodes/{target_vm['node']}/storage/{storage}/content"
+                    storage_response = self.session.get(storage_url, headers=headers, verify=False, timeout=10)
+                    
+                    if storage_response.status_code == 200:
+                        storage_data = storage_response.json().get('data', [])
+                        
+                        for file_info in storage_data:
+                            volid = file_info.get('volid', '')
+                            
+                            # vzdump 백업 파일 패턴 확인 (예: vzdump-qemu-104-2025_08_18-17_30_00.vma.zst)
+                            if 'vzdump-qemu' in volid and str(target_vm['vmid']) in volid:
+                                backup_info = {
+                                    'name': file_info.get('volid', ''),
+                                    'storage': storage,
+                                    'size': file_info.get('size', 0),
+                                    'size_gb': round(file_info.get('size', 0) / (1024 * 1024 * 1024), 2),
+                                    'content': file_info.get('content', ''),
+                                    'format': file_info.get('format', ''),
+                                    'ctime': file_info.get('ctime', 0),
+                                    'timestamp': datetime.fromtimestamp(file_info.get('ctime', 0)).isoformat() if file_info.get('ctime') else None
+                                }
+                                backups.append(backup_info)
+                                print(f"✅ 백업 파일 발견: {backup_info['name']} ({backup_info['size_gb']}GB)")
+                except Exception as e:
+                    print(f"⚠️ 스토리지 {storage} 조회 실패: {e}")
+                    continue
+            
+            # 생성 시간 기준으로 정렬 (최신순)
+            backups.sort(key=lambda x: x.get('ctime', 0), reverse=True)
+            
+            return {
+                'success': True,
+                'data': {
+                    'server_name': server_name,
+                    'backups': backups,
+                    'total_count': len(backups)
+                }
+            }
+            
+        except Exception as e:
+            print(f"❌ 서버 백업 목록 조회 실패: {e}")
+            return {'success': False, 'message': str(e)}
+
+    def add_server_disk(self, server_name: str, disk_data: Dict[str, Any]) -> Dict[str, Any]:
+        """서버에 새 디스크 추가"""
+        try:
+            print(f"💾 디스크 추가: {server_name}")
+            
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': f'인증 실패: {error}'}
+
+            # 서버 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': f'서버 조회 실패: {error}'}
+
+            # 서버 찾기
+            server = None
+            for vm in vms:
+                if vm.get('name') == server_name:
+                    server = vm
+                    break
+
+            if not server:
+                return {'success': False, 'message': f'서버를 찾을 수 없습니다: {server_name}'}
+
+            vmid = server.get('vmid')
+            node = server.get('node')
+
+            # 다음 사용 가능한 디스크 번호 찾기
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_response = self.session.get(config_url, headers=headers, verify=False, timeout=10)
+            
+            if config_response.status_code != 200:
+                return {'success': False, 'message': f'서버 설정 조회 실패: {config_response.text}'}
+
+            config = config_response.json().get('data', {})
+            
+            # 기존 디스크 번호들 찾기
+            existing_disks = []
+            for key, value in config.items():
+                if key.startswith(('scsi', 'sata', 'virtio')) and key != 'scsihw':
+                    existing_disks.append(key)
+
+            # 사용자가 지정한 디스크 번호 사용
+            disk_type = disk_data.get('type', 'scsi')
+            disk_number = disk_data.get('number', 0)
+            disk_size = disk_data.get('size_gb', 10)
+            storage = disk_data.get('storage', 'local')
+            
+            # 디스크 번호 중복 확인
+            target_device = f'{disk_type}{disk_number}'
+            if target_device in existing_disks:
+                return {
+                    'success': False,
+                    'message': f'디스크 {target_device}가 이미 존재합니다. 다른 번호를 선택해주세요.'
+                }
+            
+            disk_config = {
+                target_device: f'{storage}:{disk_size}'
+            }
+
+            # Proxmox API로 디스크 추가
+            update_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            update_data = disk_config
+
+            response = self.session.post(update_url, headers=headers, json=update_data, verify=False, timeout=30)
+            
+            if response.status_code == 200:
+                return {
+                    'success': True,
+                    'message': f'디스크 {target_device}가 추가되었습니다.'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'디스크 추가 실패: {response.text}'
+                }
+
+        except Exception as e:
+            print(f"❌ 디스크 추가 실패: {str(e)}")
+            return {
+                'success': False,
+                'message': f'디스크 추가 실패: {str(e)}'
+            }
+
+    def remove_server_disk(self, server_name: str, device: str) -> Dict[str, Any]:
+        """서버에서 디스크 삭제"""
+        try:
+            print(f"🗑️ 디스크 삭제: {server_name} - {device}")
+            
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': f'인증 실패: {error}'}
+
+            # 서버 정보 조회
+            vms, error = self.get_proxmox_vms(headers)
+            if error:
+                return {'success': False, 'message': f'서버 조회 실패: {error}'}
+
+            # 서버 찾기
+            server = None
+            for vm in vms:
+                if vm.get('name') == server_name:
+                    server = vm
+                    break
+
+            if not server:
+                return {'success': False, 'message': f'서버를 찾을 수 없습니다: {server_name}'}
+
+            vmid = server.get('vmid')
+            node = server.get('node')
+
+            # 디스크 삭제 (delete=1 파라미터로 설정)
+            delete_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            delete_data = {
+                'delete': device
+            }
+
+            response = self.session.post(delete_url, headers=headers, json=delete_data, verify=False, timeout=30)
+            
+            if response.status_code == 200:
+                return {
+                    'success': True,
+                    'message': f'디스크 {device}가 삭제되었습니다.'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'디스크 삭제 실패: {response.text}'
+                }
+
+        except Exception as e:
+            print(f"❌ 디스크 삭제 실패: {str(e)}")
+            return {
+                'success': False,
+                'message': f'디스크 삭제 실패: {str(e)}'
+            }
+
+    def get_node_backups(self, node_name: str = None) -> Dict[str, Any]:
+        """노드별 백업 목록 조회"""
+        try:
+            print(f"🔍 get_node_backups 시작: node_name={node_name}")
+            
+            # 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return {'success': False, 'message': error}
+            
+            print("✅ 인증 성공")
+            
+            # 모든 노드 조회
+            nodes_response = requests.get(f"{self.endpoint}/api2/json/nodes", headers=headers, verify=False)
+            if nodes_response.status_code != 200:
+                print(f"❌ 노드 조회 실패: {nodes_response.status_code}")
+                return {'success': False, 'message': f'노드 조회 실패: {nodes_response.status_code}'}
+            
+            nodes_data = nodes_response.json()
+            nodes = [node['node'] for node in nodes_data.get('data', [])]
+            print(f"🔍 발견된 노드들: {nodes}")
+            
+            # 특정 노드만 필터링
+            if node_name:
+                if node_name not in nodes:
+                    print(f"❌ 노드 {node_name}을 찾을 수 없습니다")
+                    return {'success': False, 'message': f'노드 {node_name}을 찾을 수 없습니다'}
+                nodes = [node_name]
+            
+            all_backups = []
+            node_stats = {}
+            
+            for node in nodes:
+                node_stats[node] = {'backup_count': 0, 'total_size_gb': 0}
+                
+                # local 스토리지만 조회 (백업 파일은 local에만 저장됨)
+                storages = ['local']
+                
+                # 백업 파일들을 먼저 수집
+                backup_files = []
+                
+                for storage in storages:
+                    # 백업 파일만 조회 (성능 최적화)
+                    content_response = requests.get(f"{self.endpoint}/api2/json/nodes/{node}/storage/{storage}/content?content=backup", headers=headers, verify=False)
+                    if content_response.status_code != 200:
+                        continue
+                    
+                    content_data = content_response.json()
+                    content_items = content_data.get('data', [])
+                    
+                    for item in content_items:
+                        content_type = item.get('content')
+                        volid = item.get('volid', '')
+                        
+                        if content_type == 'backup' and 'vzdump-qemu' in volid:
+                            # vzdump-qemu 파일 파싱
+                            filename = item.get('volid', '')
+                            if 'vzdump-qemu' in filename:
+                                # 파일명에서 VM ID와 날짜 추출
+                                filename_parts = filename.split('/')[-1]  # vzdump-qemu-101-2025_08_19-09_48_37.vma.zst
+                                parts = filename_parts.split('-')  # ['vzdump', 'qemu', '101', '2025_08_19', '09_48_37.vma.zst']
+                                
+                                if len(parts) >= 4:
+                                    vm_id = parts[2]  # '101'
+                                    backup_date = parts[3]  # '2025_08_19'
+                                    
+                                    backup_files.append({
+                                        'filename': filename,
+                                        'node': node,
+                                        'storage': storage,
+                                        'vm_id': vm_id,
+                                        'backup_date': backup_date,
+                                        'size': item.get('size', 0),
+                                        'size_gb': round(item.get('size', 0) / (1024**3), 2),
+                                        'content': item.get('content'),
+                                        'format': item.get('format'),
+                                        'ctime': item.get('ctime'),
+                                        'timestamp': item.get('ctime')
+                                    })
+                
+                # DB에서 VM 이름 조회 (성능 최적화)
+                vm_ids = list(set([bf['vm_id'] for bf in backup_files]))
+                vm_names = {}
+                
+                if vm_ids:
+                    try:
+                        conn = sqlite3.connect('instance/proxmox_manager.db')
+                        cursor = conn.cursor()
+                        
+                        # VM ID를 정수로 변환하여 조회
+                        vm_ids_int = []
+                        for vm_id in vm_ids:
+                            try:
+                                vm_ids_int.append(int(vm_id))
+                            except (ValueError, TypeError):
+                                continue
+                        
+                        if vm_ids_int:
+                            # 한 번에 모든 VM ID 조회
+                            placeholders = ','.join(['?' for _ in vm_ids_int])
+                            cursor.execute(f"SELECT vmid, name FROM servers WHERE vmid IN ({placeholders})", vm_ids_int)
+                            results = cursor.fetchall()
+                            
+                            for vm_id, name in results:
+                                vm_names[str(vm_id)] = name  # 문자열 키로 저장
+                        
+                        conn.close()
+                    except Exception as e:
+                        print(f"⚠️ DB 조회 실패: {e}")
+                        pass  # 조용히 실패 처리
+                
+                # DB에서 찾지 못한 VM들은 기본값 사용
+                for vm_id in vm_ids:
+                    if vm_id not in vm_names:
+                        vm_names[vm_id] = f"VM-{vm_id}"
+                
+                # 백업 정보에 VM 이름 추가
+                for backup_file in backup_files:
+                    vm_id = backup_file['vm_id']
+                    backup_info = {
+                        'name': backup_file['filename'],
+                        'filename': backup_file['filename'].split('/')[-1],
+                        'node': backup_file['node'],
+                        'storage': backup_file['storage'],
+                        'vm_id': vm_id,
+                        'vm_name': vm_names.get(vm_id, f"VM-{vm_id}"),
+                        'backup_date': backup_file['backup_date'],
+                        'size': backup_file['size'],
+                        'size_gb': backup_file['size_gb'],
+                        'content': backup_file['content'],
+                        'format': backup_file['format'],
+                        'ctime': backup_file['ctime'],
+                        'timestamp': backup_file['timestamp']
+                    }
+                    
+                    all_backups.append(backup_info)
+                    node_stats[node]['backup_count'] += 1
+                    node_stats[node]['total_size_gb'] += backup_info['size_gb']
+            
+            # 생성 시간 기준으로 정렬 (최신순)
+            all_backups.sort(key=lambda x: x.get('ctime', 0), reverse=True)
+            
+            total_count = len(all_backups)
+            total_size_gb = sum(backup['size_gb'] for backup in all_backups)
+            
+            result = {
+                'success': True,
+                'data': {
+                    'backups': all_backups,
+                    'node_stats': node_stats,
+                    'total_count': total_count,
+                    'total_size_gb': round(total_size_gb, 2)
+                }
+            }
+            
+            return result
+            
+        except Exception as e:
+            print(f"💥 get_node_backups 예외: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': f'백업 목록 조회 실패: {str(e)}'}
+
+    def restore_backup(self, node: str, vm_id: str, filename: str) -> Dict[str, Any]:
+        """백업 복원"""
+        try:
+            print(f"🔄 백업 복원 시작: 노드={node}, VM ID={vm_id}, 파일={filename}")
+            
+            # 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # VM이 실행 중인지 확인하고 중지
+            vm_status_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vm_id}/status/current"
+            status_response = requests.get(vm_status_url, headers=headers, verify=False, timeout=10)
+            
+            if status_response.status_code == 200:
+                vm_status = status_response.json().get('data', {})
+                if vm_status.get('status') == 'running':
+                    print(f"⚠️ VM {vm_id}이 실행 중입니다. 중지 후 복원을 진행합니다.")
+                    
+                    # VM 중지
+                    stop_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vm_id}/status/stop"
+                    stop_response = requests.post(stop_url, headers=headers, verify=False, timeout=30)
+                    
+                    if stop_response.status_code != 200:
+                        return {'success': False, 'message': f'VM 중지 실패: {stop_response.text}'}
+                    
+                    # VM이 완전히 중지될 때까지 대기
+                    import time
+                    for i in range(30):  # 최대 30초 대기
+                        time.sleep(1)
+                        status_response = requests.get(vm_status_url, headers=headers, verify=False, timeout=10)
+                        if status_response.status_code == 200:
+                            vm_status = status_response.json().get('data', {})
+                            if vm_status.get('status') == 'stopped':
+                                break
+                    else:
+                        return {'success': False, 'message': 'VM 중지 대기 시간 초과'}
+            
+            # 기존 VM이 있는지 확인
+            existing_vm = None
+            try:
+                vms, error = self.get_proxmox_vms(headers)
+                if not error:
+                    for vm in vms:
+                        if vm.get('vmid') == int(vm_id):
+                            existing_vm = vm
+                            break
+            except:
+                pass
+            
+            # 백업 복원 API 호출 - /nodes/{node}/qemu 엔드포인트 사용 (force 파라미터로 덮어쓰기)
+            restore_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu"
+            
+            # 백업 복원 파라미터 설정
+            restore_data = {
+                'vmid': vm_id,  # 기존 VM ID 사용
+                'archive': f'local:backup/{filename}',
+                'force': '1'  # 강제 덮어쓰기 플래그
+            }
+            
+            if existing_vm:
+                print(f"⚠️ 기존 VM 발견: {existing_vm.get('name')} (ID: {vm_id}). force 플래그로 덮어쓰기 복원합니다.")
+            else:
+                print(f"✅ 새 VM ID {vm_id}로 복원합니다.")
+            
+            print(f"🔧 백업 복원 API 호출: {restore_url}")
+            print(f"🔧 복원 데이터: {restore_data}")
+            
+            response = requests.post(restore_url, headers=headers, data=restore_data, verify=False, timeout=300)
+            
+            print(f"📊 복원 응답 상태: {response.status_code}")
+            print(f"📊 복원 응답 내용: {response.text}")
+            
+            if response.status_code == 200:
+                return {
+                    'success': True,
+                    'message': f'백업 복원이 완료되었습니다. (VM ID: {vm_id})',
+                    'data': {
+                        'vm_id': vm_id,
+                        'filename': filename,
+                        'node': node,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                }
+            else:
+                error_message = response.text
+                if "already exists" in error_message:
+                    return {
+                        'success': False,
+                        'message': f'VM ID {vm_id}가 이미 존재합니다. 다른 VM ID를 사용하거나 기존 VM을 삭제 후 다시 시도해주세요.'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': f'백업 복원 실패: {error_message}'
+                    }
+                    
+        except Exception as e:
+            print(f"❌ 백업 복원 실패: {e}")
+            return {'success': False, 'message': f'백업 복원 중 오류가 발생했습니다: {str(e)}'}
+
+    def delete_backup(self, node: str, filename: str) -> Dict[str, Any]:
+        """백업 파일 삭제"""
+        try:
+            print(f"🗑️ 백업 삭제 시작: 노드={node}, 파일={filename}")
+            
+            # 인증
+            headers, error = self.get_proxmox_auth()
+            if error:
+                return {'success': False, 'message': error}
+            
+            # 백업 파일 삭제 API 호출 - volid 형식 사용
+            import urllib.parse
+            volid = f"local:backup/{filename}"
+            encoded_volid = urllib.parse.quote(volid)
+            delete_url = f"{self.endpoint}/api2/json/nodes/{node}/storage/local/content/{encoded_volid}"
+            
+            print(f"🔧 백업 삭제 API 호출: {delete_url}")
+            
+            response = requests.delete(delete_url, headers=headers, verify=False, timeout=60)
+            
+            print(f"📊 삭제 응답 상태: {response.status_code}")
+            print(f"📊 삭제 응답 내용: {response.text}")
+            
+            if response.status_code in [200, 204]:
+                return {
+                    'success': True,
+                    'message': f'백업 파일이 삭제되었습니다.',
+                    'data': {
+                        'filename': filename,
+                        'node': node,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'백업 삭제 실패: {response.text}'
+                }
+                
+        except Exception as e:
+            print(f"❌ 백업 삭제 실패: {e}")
+            return {'success': False, 'message': f'백업 삭제 중 오류가 발생했습니다: {str(e)}'}
