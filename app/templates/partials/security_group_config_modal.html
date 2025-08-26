@@ -47,9 +47,36 @@
               </div>
               <div class="card-body">
                 <form id="add-sg-rule-form">
+                  <!-- 매크로 선택 -->
+                  <div class="mb-2">
+                    <label class="form-label">서비스 매크로</label>
+                    <select class="form-select form-select-sm" id="macro-select" name="macro">
+                      <option value="">직접 입력</option>
+                      <option value="SSH">SSH (포트 22)</option>
+                      <option value="HTTP">HTTP (포트 80)</option>
+                      <option value="HTTPS">HTTPS (포트 443)</option>
+                      <option value="FTP">FTP (포트 21)</option>
+                      <option value="FTPS">FTPS (포트 990)</option>
+                      <option value="SFTP">SFTP (포트 22)</option>
+                      <option value="SMTP">SMTP (포트 25)</option>
+                      <option value="POP3">POP3 (포트 110)</option>
+                      <option value="IMAP">IMAP (포트 143)</option>
+                      <option value="DNS">DNS (포트 53)</option>
+                      <option value="DHCP">DHCP (포트 67, 68)</option>
+                      <option value="NTP">NTP (포트 123)</option>
+                      <option value="MySQL">MySQL (포트 3306)</option>
+                      <option value="PostgreSQL">PostgreSQL (포트 5432)</option>
+                      <option value="Redis">Redis (포트 6379)</option>
+                      <option value="MongoDB">MongoDB (포트 27017)</option>
+                      <option value="Elasticsearch">Elasticsearch (포트 9200)</option>
+                      <option value="Kafka">Kafka (포트 9092)</option>
+                      <option value="RabbitMQ">RabbitMQ (포트 5672)</option>
+                    </select>
+                  </div>
+                  
                   <div class="mb-2">
                     <label class="form-label">프로토콜</label>
-                    <select class="form-select form-select-sm" name="protocol" required>
+                    <select class="form-select form-select-sm" name="protocol" id="protocol-select" required>
                       <option value="tcp">TCP</option>
                       <option value="udp">UDP</option>
                       <option value="icmp">ICMP</option>
@@ -59,7 +86,7 @@
                   
                   <div class="mb-2">
                     <label class="form-label">포트</label>
-                    <input type="text" class="form-control form-control-sm" name="port" placeholder="예: 80, 443, 22">
+                    <input type="text" class="form-control form-control-sm" name="port" id="port-input" placeholder="예: 80, 443, 22">
                   </div>
                   
                   <div class="mb-2">

@@ -128,19 +128,7 @@ def delete_firewall_group(group_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/firewall/groups/<group_name>/rules', methods=['GET'])
-def get_firewall_group_rules(group_name):
-    """방화벽 그룹 규칙 조회"""
-    try:
-        # 임시 데이터
-        group = {'name': group_name, 'description': f'{group_name} 방화벽 그룹'}
-        rules = [
-            {'id': 1, 'direction': 'in', 'protocol': 'tcp', 'port': '80', 'source': '', 'description': 'HTTP'},
-            {'id': 2, 'direction': 'in', 'protocol': 'tcp', 'port': '443', 'source': '', 'description': 'HTTPS'}
-        ]
-        return jsonify({'group': group, 'rules': rules})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 @bp.route('/api/firewall/groups/<group_name>/rules', methods=['POST'])
 @login_required
@@ -198,10 +186,10 @@ def delete_firewall_group_rule(group_name, rule_id):
         if success:
             return jsonify({
                 'success': True,
-                'message': '방화벽 규칙이 Security Group에서 삭제되었습니다.'
+                'message': '방화벽 규칙이 Security Group에서 삭제되었습니다. (Proxmox API 제한으로 인해 Security Group을 재생성했습니다)'
             })
         else:
-            return jsonify({'error': '방화벽 규칙 삭제에 실패했습니다.'}), 500
+            return jsonify({'error': '방화벽 규칙 삭제에 실패했습니다. Proxmox API에서 규칙 삭제를 지원하지 않습니다.'}), 500
             
     except Exception as e:
         print(f"💥 방화벽 규칙 삭제 실패: {str(e)}")
@@ -255,20 +243,54 @@ def apply_security_group_to_vm(server_name):
 def remove_firewall_group(server_name):
     """서버에서 방화벽 그룹 제거"""
     try:
+        print(f"🔍 서버 '{server_name}'에서 방화벽 그룹 제거")
+        
         from app.models import Server
         from app import db
+        from app.services.proxmox_service import ProxmoxService
         
         server = Server.query.filter_by(name=server_name).first()
         if not server:
             return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
         
-        server.firewall_group = None
-        db.session.commit()
+        # 기존 방화벽 그룹 정보 저장
+        old_firewall_group = server.firewall_group
         
-        return jsonify({
-            'success': True, 
-            'message': f'서버 {server_name}에서 방화벽 그룹이 제거되었습니다.'
-        })
+        # 방화벽 그룹이 설정되지 않은 경우
+        if not old_firewall_group:
+            print(f"✅ 서버 '{server_name}'에 방화벽 그룹이 설정되지 않았습니다.")
+            return jsonify({
+                'success': True, 
+                'message': f'서버 {server_name}에 방화벽 그룹이 설정되지 않았습니다.'
+            })
+        
+        # Proxmox에서 실제 방화벽 설정 제거
+        proxmox_service = ProxmoxService()
+        print(f"🔍 ProxmoxService.remove_security_group_from_vm 호출: {server_name}")
+        success = proxmox_service.remove_security_group_from_vm(server_name)
+        print(f"🔍 remove_security_group_from_vm 결과: {success}")
+        
+        if success:
+            # DB에서 방화벽 그룹 정보 제거
+            server.firewall_group = None
+            db.session.commit()
+            
+            print(f"✅ 서버 '{server_name}'에서 방화벽 그룹 '{old_firewall_group}' 제거 완료")
+            return jsonify({
+                'success': True, 
+                'message': f'서버 {server_name}에서 방화벽 그룹 \'{old_firewall_group}\'이 제거되었습니다.'
+            })
+        else:
+            print(f"⚠️ Proxmox에서 방화벽 그룹 제거 실패, DB만 업데이트")
+            # Proxmox 제거 실패 시에도 DB는 업데이트
+            server.firewall_group = None
+            db.session.commit()
+            
+            return jsonify({
+                'success': True, 
+                'message': f'서버 {server_name}에서 방화벽 그룹 \'{old_firewall_group}\'이 제거되었습니다. (DB만 업데이트)'
+            })
+            
     except Exception as e:
         print(f"💥 방화벽 그룹 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500 

@@ -160,56 +160,127 @@ $(function() {
   window.openServerConfig = function(serverName) {
     console.log(`[instances.js] 서버 설정 모달 열기: ${serverName}`);
     
-    // 서버 설정 정보 로드
-    $.ajax({
-      url: `/api/server/config/${serverName}`,
-      method: 'GET',
-      success: function(res) {
-        if (res.success) {
-          const config = res.config;
-          
-          // 모달에 데이터 설정
-          $('#server-config-modal .modal-title').text(`서버 설정: ${serverName}`);
-          $('#server-name').val(config.name);
-          $('#server-vmid').val(config.vmid);
-          $('#server-node').val(config.node);
-          $('#server-status').val(config.status);
-          
-          // CPU 설정
-          $('#cpu-cores').val(config.cpu.cores);
-          $('#cpu-cores').attr('data-original', config.cpu.cores);
-          $('#cpu-sockets').val(config.cpu.sockets);
-          $('#cpu-type').val(config.cpu.type);
-          
-          // 메모리 설정
-          $('#memory-size').val(config.memory.size_mb);
-          $('#memory-size').attr('data-original', config.memory.size_mb);
-          $('#memory-balloon').val(config.memory.balloon);
-          
-          // 역할 및 방화벽 그룹
-          $('#server-role').val(config.role);
-          $('#server-firewall-group').val(config.firewall_group);
-          
-          // 설명 및 태그
-          $('#server-description').val(config.description);
-          $('#server-tags').val(config.tags);
-          
-          // 디스크 목록 표시
-          renderDiskList(config.disks);
-          
-          // 사용 가능한 디스크 번호 제안
-          suggestAvailableDiskNumber(config.disks);
-          
-          // 모달 표시
-          $('#server-config-modal').modal('show');
-        } else {
-          alert(`서버 설정 로드 실패: ${res.error}`);
+    // 방화벽 그룹 목록을 먼저 가져오기
+    $.get('/api/firewall/groups', function(fwData) {
+      console.log('[instances.js] 방화벽 그룹 API 응답:', fwData);
+      const firewallGroups = fwData.groups || [];
+      
+      // 방화벽 그룹 드롭다운 옵션 생성
+      let fwGroupOptions = '<option value="">그룹 없음</option>';
+      firewallGroups.forEach(group => {
+        fwGroupOptions += `<option value="${group.name}">${group.name} - ${group.description}</option>`;
+      });
+      $('#server-firewall-group').html(fwGroupOptions);
+      
+      // 서버 설정 정보 로드
+      $.ajax({
+        url: `/api/server/config/${serverName}`,
+        method: 'GET',
+        success: function(res) {
+          if (res.success) {
+            const config = res.config;
+            
+            // 모달에 데이터 설정
+            $('#server-config-modal .modal-title').text(`서버 설정: ${serverName}`);
+            $('#server-name').val(config.name);
+            $('#server-vmid').val(config.vmid);
+            $('#server-node').val(config.node);
+            $('#server-status').val(config.status);
+            
+            // CPU 설정
+            $('#cpu-cores').val(config.cpu.cores);
+            $('#cpu-cores').attr('data-original', config.cpu.cores);
+            $('#cpu-sockets').val(config.cpu.sockets);
+            $('#cpu-type').val(config.cpu.type);
+            
+            // 메모리 설정
+            $('#memory-size').val(config.memory.size_mb);
+            $('#memory-size').attr('data-original', config.memory.size_mb);
+            $('#memory-balloon').val(config.memory.balloon);
+            
+            // 역할 및 방화벽 그룹
+            $('#server-role').val(config.role);
+            $('#server-firewall-group').val(config.firewall_group);
+            $('#server-firewall-group').attr('data-original', config.firewall_group || '');
+            
+            // 설명 및 태그
+            $('#server-description').val(config.description);
+            $('#server-tags').val(config.tags);
+            
+            // 디스크 목록 표시
+            renderDiskList(config.disks);
+            
+            // 사용 가능한 디스크 번호 제안
+            suggestAvailableDiskNumber(config.disks);
+            
+            // 모달 표시
+            $('#server-config-modal').modal('show');
+          } else {
+            alert(`서버 설정 로드 실패: ${res.error}`);
+          }
+        },
+        error: function(xhr) {
+          console.error('[instances.js] 서버 설정 로드 실패:', xhr);
+          alert('서버 설정을 불러올 수 없습니다.');
         }
-      },
-      error: function(xhr) {
-        console.error('[instances.js] 서버 설정 로드 실패:', xhr);
-        alert('서버 설정을 불러올 수 없습니다.');
-      }
+      });
+    }).fail(function(xhr) {
+      console.error('[instances.js] 방화벽 그룹 로드 실패:', xhr);
+      // 방화벽 그룹 로드 실패 시에도 서버 설정은 계속 진행
+      $('#server-firewall-group').html('<option value="">그룹 없음</option>');
+      
+      // 서버 설정 정보 로드 (방화벽 그룹 없이)
+      $.ajax({
+        url: `/api/server/config/${serverName}`,
+        method: 'GET',
+        success: function(res) {
+          if (res.success) {
+            const config = res.config;
+            
+            // 모달에 데이터 설정 (방화벽 그룹 제외)
+            $('#server-config-modal .modal-title').text(`서버 설정: ${serverName}`);
+            $('#server-name').val(config.name);
+            $('#server-vmid').val(config.vmid);
+            $('#server-node').val(config.node);
+            $('#server-status').val(config.status);
+            
+            // CPU 설정
+            $('#cpu-cores').val(config.cpu.cores);
+            $('#cpu-cores').attr('data-original', config.cpu.cores);
+            $('#cpu-sockets').val(config.cpu.sockets);
+            $('#cpu-type').val(config.cpu.type);
+            
+            // 메모리 설정
+            $('#memory-size').val(config.memory.size_mb);
+            $('#memory-size').attr('data-original', config.memory.size_mb);
+            $('#memory-balloon').val(config.memory.balloon);
+            
+            // 역할 (방화벽 그룹은 기본값으로 설정)
+            $('#server-role').val(config.role);
+            $('#server-firewall-group').attr('data-original', config.firewall_group || '');
+            $('#server-firewall-group').val('');
+            
+            // 설명 및 태그
+            $('#server-description').val(config.description);
+            $('#server-tags').val(config.tags);
+            
+            // 디스크 목록 표시
+            renderDiskList(config.disks);
+            
+            // 사용 가능한 디스크 번호 제안
+            suggestAvailableDiskNumber(config.disks);
+            
+            // 모달 표시
+            $('#server-config-modal').modal('show');
+          } else {
+            alert(`서버 설정 로드 실패: ${res.error}`);
+          }
+        },
+        error: function(xhr) {
+          console.error('[instances.js] 서버 설정 로드 실패:', xhr);
+          alert('서버 설정을 불러올 수 없습니다.');
+        }
+      });
     });
   };
   
@@ -390,6 +461,13 @@ $(function() {
     // CPU/메모리 변경 감지
     const needsReboot = (currentCpu !== newCpu) || (currentMemory !== newMemory);
     
+    // 방화벽 그룹 변경 감지
+    const selectedFirewallGroup = $('#server-firewall-group').val();
+    const currentFirewallGroup = $('#server-firewall-group').attr('data-original') || '';
+    const hasFirewallGroupChange = selectedFirewallGroup && selectedFirewallGroup !== '';
+    const isRemovingFirewallGroup = (selectedFirewallGroup === '' || selectedFirewallGroup === '그룹 없음') && currentFirewallGroup !== '';
+    
+    // 1단계: 기본 서버 설정 저장
     $.ajax({
       url: `/api/server/config/${serverName}`,
       method: 'PUT',
@@ -397,53 +475,130 @@ $(function() {
       data: JSON.stringify(configData),
       success: function(res) {
         if (res.success) {
-          $('#server-config-modal').modal('hide');
+          console.log('[instances.js] 기본 서버 설정 저장 성공');
           
-          if (needsReboot) {
-            alert('서버 설정이 성공적으로 저장되었습니다.\n\n⚠️ CPU 또는 메모리 설정이 변경되었습니다.\n변경사항을 적용하기 위해 서버를 중지 후 재시작합니다...');
+          // 2단계: 방화벽 그룹 처리
+          if (isRemovingFirewallGroup) {
+            // 방화벽 그룹 제거 (실제로 설정된 경우에만)
+            console.log('[instances.js] 방화벽 그룹 제거 시작');
             
-            // 중지 → 재시작 실행
             $.ajax({
-              url: `/api/servers/${serverName}/stop`,
+              url: `/api/remove_firewall_group/${serverName}`,
               method: 'POST',
-              success: function(stopRes) {
-                if (stopRes.success) {
-                  alert('서버가 중지되었습니다. 잠시 후 재시작됩니다...');
-                  
-                  // 5초 후 재시작
-                  setTimeout(function() {
-                    $.ajax({
-                      url: `/api/servers/${serverName}/start`,
-                      method: 'POST',
-                      success: function(startRes) {
-                        if (startRes.success) {
-                          alert('서버가 재시작되었습니다. 설정 변경사항이 적용됩니다.');
-                        } else {
-                          alert(`재시작 실패: ${startRes.error}`);
-                        }
-                      },
-                      error: function(xhr) {
-                        console.error('[instances.js] 재시작 실패:', xhr);
-                        alert('서버 재시작에 실패했습니다.');
-                      }
-                    });
-                  }, 5000); // 5초 대기
-                  
+              contentType: 'application/json',
+              success: function(fwRes) {
+                if (fwRes.success) {
+                  console.log('[instances.js] 방화벽 그룹 제거 성공');
+                  alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 방화벽 그룹이 제거되었습니다.`);
                 } else {
-                  alert(`중지 실패: ${stopRes.error}`);
+                  console.error('[instances.js] 방화벽 그룹 제거 실패:', fwRes.error);
+                  alert(`서버 설정은 저장되었지만 방화벽 그룹 제거에 실패했습니다: ${fwRes.error}`);
                 }
+                
+                // 모달 닫기 및 서버 목록 새로고침
+                $('#server-config-modal').modal('hide');
+                loadActiveServers();
               },
               error: function(xhr) {
-                console.error('[instances.js] 중지 실패:', xhr);
-                alert('서버 중지에 실패했습니다.');
+                console.error('[instances.js] 방화벽 그룹 제거 실패:', xhr);
+                let errorMsg = '알 수 없는 오류';
+                if (xhr.responseJSON?.error) {
+                  errorMsg = xhr.responseJSON.error;
+                }
+                alert(`서버 설정은 저장되었지만 방화벽 그룹 제거에 실패했습니다: ${errorMsg}`);
+                
+                // 모달 닫기 및 서버 목록 새로고침
+                $('#server-config-modal').modal('hide');
+                loadActiveServers();
+              }
+            });
+          } else if (hasFirewallGroupChange) {
+            // 방화벽 그룹 적용
+            console.log(`[instances.js] 방화벽 그룹 적용 시작: ${selectedFirewallGroup}`);
+            
+            $.ajax({
+              url: `/api/apply_security_group/${serverName}`,
+              method: 'POST',
+              contentType: 'application/json',
+              data: JSON.stringify({
+                security_group: selectedFirewallGroup
+              }),
+              success: function(fwRes) {
+                if (fwRes.success) {
+                  console.log('[instances.js] 방화벽 그룹 적용 성공');
+                  alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 방화벽 그룹 '${selectedFirewallGroup}'이 적용되었습니다.`);
+                } else {
+                  console.error('[instances.js] 방화벽 그룹 적용 실패:', fwRes.error);
+                  alert(`서버 설정은 저장되었지만 방화벽 그룹 적용에 실패했습니다: ${fwRes.error}`);
+                }
+                
+                // 모달 닫기 및 서버 목록 새로고침
+                $('#server-config-modal').modal('hide');
+                loadActiveServers();
+              },
+              error: function(xhr) {
+                console.error('[instances.js] 방화벽 그룹 적용 실패:', xhr);
+                let errorMsg = '알 수 없는 오류';
+                if (xhr.responseJSON?.error) {
+                  errorMsg = xhr.responseJSON.error;
+                }
+                alert(`서버 설정은 저장되었지만 방화벽 그룹 적용에 실패했습니다: ${errorMsg}`);
+                
+                // 모달 닫기 및 서버 목록 새로고침
+                $('#server-config-modal').modal('hide');
+                loadActiveServers();
               }
             });
           } else {
-            alert('서버 설정이 성공적으로 저장되었습니다.');
+            // 방화벽 그룹이 선택되지 않은 경우
+            $('#server-config-modal').modal('hide');
+            
+            if (needsReboot) {
+              alert('서버 설정이 성공적으로 저장되었습니다.\n\n⚠️ CPU 또는 메모리 설정이 변경되었습니다.\n변경사항을 적용하기 위해 서버를 중지 후 재시작합니다...');
+              
+              // 중지 → 재시작 실행
+              $.ajax({
+                url: `/api/servers/${serverName}/stop`,
+                method: 'POST',
+                success: function(stopRes) {
+                  if (stopRes.success) {
+                    alert('서버가 중지되었습니다. 잠시 후 재시작됩니다...');
+                    
+                    // 5초 후 재시작
+                    setTimeout(function() {
+                      $.ajax({
+                        url: `/api/servers/${serverName}/start`,
+                        method: 'POST',
+                        success: function(startRes) {
+                          if (startRes.success) {
+                            alert('서버가 재시작되었습니다. 설정 변경사항이 적용됩니다.');
+                          } else {
+                            alert(`재시작 실패: ${startRes.error}`);
+                          }
+                        },
+                        error: function(xhr) {
+                          console.error('[instances.js] 재시작 실패:', xhr);
+                          alert('서버 재시작에 실패했습니다.');
+                        }
+                      });
+                    }, 5000); // 5초 대기
+                    
+                  } else {
+                    alert(`중지 실패: ${stopRes.error}`);
+                  }
+                },
+                error: function(xhr) {
+                  console.error('[instances.js] 중지 실패:', xhr);
+                  alert('서버 중지에 실패했습니다.');
+                }
+              });
+            } else {
+              alert('서버 설정이 성공적으로 저장되었습니다.');
+            }
+            
+            // 서버 목록 새로고침
+            loadActiveServers();
           }
-          
-          // 서버 목록 새로고침
-          loadActiveServers();
         } else {
           alert(`서버 설정 저장 실패: ${res.error}`);
         }

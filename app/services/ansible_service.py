@@ -5,11 +5,21 @@ import subprocess
 import yaml
 import os
 import logging
+import tempfile
+import json
 from typing import Dict, List, Any, Optional, Tuple
 from flask import current_app
 from app.models.server import Server
 from app.models.notification import Notification
 from app import db
+
+# ansible-runner import
+try:
+    import ansible_runner
+    ANSIBLE_RUNNER_AVAILABLE = True
+except ImportError:
+    ANSIBLE_RUNNER_AVAILABLE = False
+    print("⚠️ ansible-runner가 설치되지 않았습니다. subprocess를 사용합니다.")
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +30,88 @@ class AnsibleService:
         self.ansible_dir = ansible_dir
         self.inventory_file = os.path.join(ansible_dir, "inventory")
         self.playbook_file = os.path.join(ansible_dir, "role_playbook.yml")
+    
+    def _generate_dynamic_inventory(self, target_servers: List[Dict[str, Any]]) -> str:
+        """동적으로 inventory 파일 생성"""
+        try:
+            print(f"🔧 동적 inventory 생성 시작: {len(target_servers)}개 서버")
+            
+            # 기본 inventory 템플릿
+            inventory_content = """# 동적으로 생성되는 inventory
+# 이 파일은 Python 스크립트에 의해 자동으로 업데이트됩니다
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_user=rocky
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+ansible_host_key_checking=False
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+"""
+            
+            # 서버들을 역할별로 그룹화
+            role_groups = {
+                'web': 'webservers',
+                'db': 'dbservers', 
+                'was': 'was_servers',
+                'monitoring': 'monitoring_servers'
+            }
+            
+            grouped_servers = {}
+            
+            for server in target_servers:
+                role = server.get('role', 'web')
+                group_name = role_groups.get(role, 'webservers')
+                
+                if group_name not in grouped_servers:
+                    grouped_servers[group_name] = []
+                
+                # 서버 IP 주소 가져오기
+                server_ip = self._get_server_ip(server)
+                if server_ip:
+                    grouped_servers[group_name].append({
+                        'name': server.get('name', 'unknown'),
+                        'ip': server_ip,
+                        'role': role
+                    })
+            
+            # 각 그룹별로 inventory에 추가
+            for group_name, servers in grouped_servers.items():
+                inventory_content += f"\n[{group_name}]\n"
+                for server in servers:
+                    inventory_content += f"{server['ip']} ansible_host={server['ip']} server_name={server['name']} role={server['role']}\n"
+            
+            # inventory 파일에 저장
+            with open(self.inventory_file, 'w', encoding='utf-8') as f:
+                f.write(inventory_content)
+            
+            print(f"✅ 동적 inventory 생성 완료: {self.inventory_file}")
+            print(f"📋 생성된 inventory 내용:\n{inventory_content}")
+            
+            return self.inventory_file
+            
+        except Exception as e:
+            print(f"❌ 동적 inventory 생성 실패: {e}")
+            return None
+    
+    def _get_server_ip(self, server: Dict[str, Any]) -> str:
+        """서버 정보에서 IP 주소 추출"""
+        try:
+            # networks 배열에서 첫 번째 네트워크의 IP 사용
+            networks = server.get('networks', [])
+            if networks and len(networks) > 0:
+                return networks[0].get('ip', '')
+            
+            # 직접 IP 필드가 있는 경우
+            if 'ip' in server:
+                return server['ip']
+            
+            print(f"⚠️ 서버 '{server.get('name', 'unknown')}'에서 IP 주소를 찾을 수 없습니다")
+            return None
+            
+        except Exception as e:
+            print(f"❌ 서버 IP 추출 실패: {e}")
+            return None
     
     def _run_ansible_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
         """Ansible 명령어 실행"""
@@ -134,8 +226,78 @@ class AnsibleService:
             return False
     
     def run_playbook(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
-        """Ansible 플레이북 실행"""
+        """Ansible 플레이북 실행 (ansible-runner 사용)"""
         try:
+            print(f"🔧 Ansible 플레이북 실행 시작: {role}")
+            
+            if ANSIBLE_RUNNER_AVAILABLE:
+                return self._run_playbook_with_runner(role, extra_vars)
+            else:
+                return self._run_playbook_with_subprocess(role, extra_vars)
+                
+        except Exception as e:
+            logger.error(f"Ansible 플레이북 실행 실패: {e}")
+            return False, str(e)
+    
+    def _run_playbook_with_runner(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+        """ansible-runner를 사용한 플레이북 실행"""
+        try:
+            print(f"🔧 ansible-runner를 사용한 플레이북 실행: {role}")
+            
+            # 임시 디렉토리 생성
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # 플레이북 파일 생성
+                playbook_path = os.path.join(temp_dir, 'playbook.yml')
+                playbook_content = [{
+                    'hosts': 'all',
+                    'become': True,
+                    'roles': [role]
+                }]
+                
+                if extra_vars:
+                    playbook_content[0]['vars'] = extra_vars
+                
+                with open(playbook_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(playbook_content, f, default_flow_style=False, allow_unicode=True)
+                
+                # inventory 파일 복사
+                inventory_path = os.path.join(temp_dir, 'inventory')
+                with open(self.inventory_file, 'r', encoding='utf-8') as src:
+                    with open(inventory_path, 'w', encoding='utf-8') as dst:
+                        dst.write(src.read())
+                
+                # ansible-runner 실행
+                print(f"🔧 ansible-runner 실행: {playbook_path}")
+                result = ansible_runner.run(
+                    private_data_dir=temp_dir,
+                    playbook='playbook.yml',
+                    inventory=inventory_path,
+                    quiet=False,
+                    json_mode=False
+                )
+                
+                print(f"🔧 ansible-runner 결과: returncode={result.rc}")
+                print(f"🔧 ansible-runner 상태: {result.status}")
+                
+                if result.rc == 0:
+                    success_msg = f"Ansible 플레이북 실행 성공 (role: {role})"
+                    print(f"✅ {success_msg}")
+                    return True, success_msg
+                else:
+                    error_msg = f"Ansible 플레이북 실행 실패 (role: {role}, returncode: {result.rc})"
+                    print(f"❌ {error_msg}")
+                    return False, error_msg
+                    
+        except Exception as e:
+            error_msg = f"ansible-runner 실행 중 오류: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+    
+    def _run_playbook_with_subprocess(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+        """subprocess를 사용한 플레이북 실행 (기존 방식)"""
+        try:
+            print(f"🔧 subprocess를 사용한 플레이북 실행: {role}")
+            
             # 플레이북 파일 생성
             playbook_content = {
                 'hosts': 'all',
@@ -168,22 +330,117 @@ class AnsibleService:
                 return False, error_msg
                 
         except Exception as e:
-            logger.error(f"Ansible 플레이북 실행 실패: {e}")
+            logger.error(f"subprocess Ansible 플레이북 실행 실패: {e}")
+            return False, str(e)
+    
+    def assign_role_to_server(self, server_name: str, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+        """서버에 역할 할당 (DB 기반)"""
+        try:
+            print(f"🔧 서버 역할 할당 시작: {server_name} - {role}")
+            
+            # 1. DB에서 서버 정보 조회
+            server = Server.get_by_name(server_name)
+            if not server:
+                return False, f"서버 {server_name}을 DB에서 찾을 수 없습니다"
+            
+            # 2. 현재 역할 확인
+            current_role = server.role
+            print(f"🔧 현재 역할: {current_role}")
+            
+            # 3. 역할이 변경되지 않은 경우
+            if current_role == role:
+                return True, f"서버 {server_name}은 이미 {role} 역할이 설정되어 있습니다"
+            
+            # 4. 서버 IP 주소 확인
+            if not server.ip_address:
+                return False, f"서버 {server_name}의 IP 주소가 설정되지 않았습니다"
+            
+            # 5. 서버 데이터 준비
+            server_data = {
+                'name': server.name,
+                'role': role,
+                'networks': [{'ip': server.ip_address}]
+            }
+            print(f"🔧 서버 데이터: {server_data}")
+            
+            # 6. 동적 inventory 생성
+            if not self._generate_dynamic_inventory([server_data]):
+                return False, "동적 inventory 파일 생성 실패"
+            
+            # 7. 역할별 추가 변수 설정
+            role_vars = extra_vars or {}
+            
+            # 역할별 기본 설정
+            if role == 'web':
+                role_vars.update({
+                    'nginx_user': 'www-data',
+                    'nginx_port': 80
+                })
+            elif role == 'db':
+                role_vars.update({
+                    'mysql_root_password': 'dmc1234!',
+                    'mysql_port': 3306
+                })
+            elif role == 'was':
+                role_vars.update({
+                    'java_version': '11',
+                    'tomcat_port': 8080
+                })
+            elif role == 'java':
+                role_vars.update({
+                    'java_version': '11',
+                    'spring_profile': 'production'
+                })
+            elif role == 'search':
+                role_vars.update({
+                    'elasticsearch_port': 9200,
+                    'kibana_port': 5601
+                })
+            elif role == 'ftp':
+                role_vars.update({
+                    'ftp_port': 21,
+                    'ftp_user': 'ftpuser'
+                })
+            
+            print(f"🔧 역할 변수 설정: {role_vars}")
+            
+            # 8. Ansible 플레이북 실행
+            ansible_success, ansible_message = self.run_playbook(role, role_vars)
+            
+            # 9. Ansible 실행 결과에 따라 DB 업데이트
+            if ansible_success:
+                # DB에 역할 업데이트
+                server.role = role
+                db.session.commit()
+                print(f"✅ DB에 역할 업데이트 완료: {server_name} - {role}")
+                
+                return True, f"서버 {server_name}에 {role} 역할이 성공적으로 할당되었습니다"
+            else:
+                # Ansible 실패 시 DB는 업데이트하지 않음
+                print(f"❌ Ansible 실행 실패, DB 업데이트하지 않음: {ansible_message}")
+                return False, f"Ansible 실행 실패: {ansible_message}"
+            
+        except Exception as e:
+            logger.error(f"서버 {server_name}에 대한 역할 {role} 할당 실패: {e}")
             return False, str(e)
     
     def run_role_for_server(self, server_name: str, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
-        """특정 서버에 대해 역할 실행"""
+        """특정 서버에 대해 역할 실행 (기존 호환성 유지)"""
         try:
             print(f"🔧 Ansible 역할 실행 시작: {server_name} - {role}")
             
             # 서버 정보 조회 (DB 또는 Proxmox에서)
-            server_ip = None
+            server_data = None
             
             # 1. DB에서 서버 정보 조회
             server = Server.get_by_name(server_name)
-            if server and server.ip_address:
-                server_ip = server.ip_address
-                print(f"🔧 DB에서 IP 주소 조회: {server_ip}")
+            if server:
+                server_data = {
+                    'name': server.name,
+                    'role': server.role or role,
+                    'networks': [{'ip': server.ip_address}] if server.ip_address else []
+                }
+                print(f"🔧 DB에서 서버 정보 조회: {server_data}")
             else:
                 # 2. Proxmox에서 서버 정보 조회
                 from app.services.proxmox_service import ProxmoxService
@@ -196,17 +453,20 @@ class AnsibleService:
                         if s_data.get('name') == server_name:
                             ip_addresses = s_data.get('ip_addresses', [])
                             if ip_addresses:
-                                server_ip = ip_addresses[0]
-                                print(f"🔧 Proxmox에서 IP 주소 조회: {server_ip}")
+                                server_data = {
+                                    'name': server_name,
+                                    'role': role,
+                                    'networks': [{'ip': ip_addresses[0]}]
+                                }
+                                print(f"🔧 Proxmox에서 서버 정보 조회: {server_data}")
                                 break
             
-            if not server_ip:
-                return False, f"서버 {server_name}의 IP 주소를 찾을 수 없습니다"
+            if not server_data:
+                return False, f"서버 {server_name}의 정보를 찾을 수 없습니다"
             
-            # 인벤토리 생성
-            servers_data = [{'ip_address': server_ip}]
-            if not self.create_inventory(servers_data):
-                return False, "인벤토리 파일 생성 실패"
+            # 동적 inventory 생성
+            if not self._generate_dynamic_inventory([server_data]):
+                return False, "동적 inventory 파일 생성 실패"
             
             # 역할별 추가 변수 설정
             role_vars = extra_vars or {}
@@ -331,6 +591,10 @@ class AnsibleService:
     def check_ansible_installation(self) -> Tuple[bool, str]:
         """Ansible 설치 상태 확인"""
         try:
+            # ansible-runner가 있으면 사용 가능
+            if ANSIBLE_RUNNER_AVAILABLE:
+                return True, "ansible-runner를 사용하여 Ansible 실행 가능"
+            
             if os.name == 'nt':  # Windows 환경
                 # Windows에서 Ansible 설치 확인
                 possible_commands = [

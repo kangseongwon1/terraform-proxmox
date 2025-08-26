@@ -226,9 +226,80 @@ function renderSecurityGroupRules(rules) {
     });
   }
 
+// 서비스 매크로 정의
+const SERVICE_MACROS = {
+    'SSH': { protocol: 'tcp', port: '22' },
+    'HTTP': { protocol: 'tcp', port: '80' },
+    'HTTPS': { protocol: 'tcp', port: '443' },
+    'FTP': { protocol: 'tcp', port: '21' },
+    'FTPS': { protocol: 'tcp', port: '990' },
+    'SFTP': { protocol: 'tcp', port: '22' },
+    'SMTP': { protocol: 'tcp', port: '25' },
+    'POP3': { protocol: 'tcp', port: '110' },
+    'IMAP': { protocol: 'tcp', port: '143' },
+    'DNS': { protocol: 'udp', port: '53' },
+    'DHCP': { protocol: 'udp', port: '67,68' },
+    'NTP': { protocol: 'udp', port: '123' },
+    'MySQL': { protocol: 'tcp', port: '3306' },
+    'PostgreSQL': { protocol: 'tcp', port: '5432' },
+    'Redis': { protocol: 'tcp', port: '6379' },
+    'MongoDB': { protocol: 'tcp', port: '27017' },
+    'Elasticsearch': { protocol: 'tcp', port: '9200' },
+    'Kafka': { protocol: 'tcp', port: '9092' },
+    'RabbitMQ': { protocol: 'tcp', port: '5672' }
+};
+
+// 매크로 선택 시 자동 설정 함수
+function handleMacroSelection() {
+    const selectedMacro = $('#macro-select').val();
+    const $protocolSelect = $('#protocol-select');
+    const $portInput = $('#port-input');
+    
+    if (selectedMacro && SERVICE_MACROS[selectedMacro]) {
+        const macro = SERVICE_MACROS[selectedMacro];
+        
+        // 프로토콜과 포트 자동 설정
+        $protocolSelect.val(macro.protocol);
+        $portInput.val(macro.port);
+        
+        // 필드 비활성화
+        $protocolSelect.prop('disabled', true);
+        $portInput.prop('disabled', true);
+        
+        // 비활성화된 필드에 시각적 표시
+        $protocolSelect.addClass('bg-light');
+        $portInput.addClass('bg-light');
+        
+        console.log(`[firewall.js] 매크로 선택: ${selectedMacro} (${macro.protocol}:${macro.port})`);
+    } else {
+        // 매크로가 선택되지 않았거나 직접 입력인 경우
+        $protocolSelect.prop('disabled', false);
+        $portInput.prop('disabled', false);
+        
+        // 비활성화 표시 제거
+        $protocolSelect.removeClass('bg-light');
+        $portInput.removeClass('bg-light');
+        
+        console.log('[firewall.js] 직접 입력 모드');
+    }
+}
+
 // 이벤트 리스너들
 $(function() {
     console.log('[firewall.js] Datacenter Security Group 관리 시스템 초기화');
+    
+    // 매크로 선택 이벤트
+    $(document).on('change', '#macro-select', function() {
+        handleMacroSelection();
+    });
+    
+    // Security Group 설정 모달이 열릴 때 매크로 선택 초기화
+    $(document).on('shown.bs.modal', '#security-group-config-modal', function() {
+        // 매크로 선택 초기화
+        $('#macro-select').val('');
+        $('#protocol-select').prop('disabled', false).removeClass('bg-light');
+        $('#port-input').prop('disabled', false).removeClass('bg-light');
+    });
     
     // 페이지 로드 시 자동으로 Security Group 데이터 로드
     if (window.location.hash === '#firewall-groups' || window.location.pathname.includes('firewall')) {
@@ -346,8 +417,8 @@ $(function() {
     });
   });
 
-    // Security Group 규칙 추가 폼 제출
-    $(document).on('submit', '#add-sg-rule-form', function(e) {
+    // Security Group 규칙 추가 폼 제출 (중복 방지)
+    $(document).off('submit', '#add-sg-rule-form').on('submit', '#add-sg-rule-form', function(e) {
         e.preventDefault();
         
         const groupName = $('#security-group-config-modal').data('group-name');
@@ -366,7 +437,8 @@ $(function() {
             source_ip: formData.get('source_ip'),
             dest_ip: formData.get('dest_ip'),
             action: formData.get('action'),
-            description: formData.get('description')
+            description: formData.get('description'),
+            macro: formData.get('macro')  // 매크로 정보 추가
         };
         
         console.log('[firewall.js] Security Group 규칙 추가:', groupName, ruleData);
@@ -387,19 +459,19 @@ $(function() {
                     loadSecurityGroupDetail(groupName);
                     
                     alert('Security Group 규칙이 추가되었습니다.');
-      } else {
+                } else {
                     alert(data.error || 'Security Group 규칙 추가에 실패했습니다.');
                 }
             },
             error: function(xhr) {
                 console.error('[firewall.js] Security Group 규칙 추가 실패:', xhr);
                 alert('Security Group 규칙 추가에 실패했습니다.');
-      }
+            }
+        });
     });
-  });
   
-    // Security Group 규칙 삭제 버튼 클릭
-    $(document).on('click', '.delete-sg-rule-btn', function() {
+    // Security Group 규칙 삭제 버튼 클릭 (중복 방지)
+    $(document).off('click', '.delete-sg-rule-btn').on('click', '.delete-sg-rule-btn', function() {
         if (!confirm('정말 이 규칙을 삭제하시겠습니까?')) return;
         
         const groupName = $('#security-group-config-modal').data('group-name');

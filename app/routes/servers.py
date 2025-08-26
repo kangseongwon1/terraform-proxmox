@@ -229,14 +229,34 @@ def create_server():
                     # DB에 서버 정보 저장
                     new_server = Server(
                         name=server_name,
+                        ip_address=ip_address,  # IP 주소 추가
+                        role=role,  # 역할 정보 추가
+                        status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
-                        memory=memory,
-                        status='stopped'  # 초기 상태는 중지됨
+                        memory=memory
                     )
                     db.session.add(new_server)
                     db.session.commit()
                     
-                    update_task(task_id, 'completed', f'서버 {server_name} 생성 완료')
+                    # Ansible을 통한 역할별 소프트웨어 설치
+                    if role and role != 'none':
+                        print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
+                        try:
+                            ansible_service = AnsibleService()
+                            ansible_success, ansible_message = ansible_service.assign_role_to_server(server_name, role)
+                            
+                            if ansible_success:
+                                print(f"✅ Ansible 역할 할당 성공: {server_name} - {role}")
+                                update_task(task_id, 'completed', f'서버 {server_name} 생성 및 {role} 역할 할당 완료')
+                            else:
+                                print(f"⚠️ Ansible 역할 할당 실패: {server_name} - {role}, 메시지: {ansible_message}")
+                                update_task(task_id, 'completed', f'서버 {server_name} 생성 완료 (Ansible 실패: {ansible_message})')
+                        except Exception as ansible_error:
+                            print(f"⚠️ Ansible 실행 중 오류: {str(ansible_error)}")
+                            update_task(task_id, 'completed', f'서버 {server_name} 생성 완료 (Ansible 오류: {str(ansible_error)})')
+                    else:
+                        update_task(task_id, 'completed', f'서버 {server_name} 생성 완료')
+                    
                     print(f"✅ 서버 생성 완료: {server_name}")
                     
             except Exception as e:
@@ -1002,12 +1022,28 @@ def create():
                     # DB에 서버 정보 저장
                     new_server = Server(
                         name=server_name,
+                        ip_address=ip_address,  # IP 주소 추가
+                        role=role,  # 역할 정보 추가
+                        status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
-                        memory=memory,
-                        status='stopped'  # 초기 상태는 중지됨
+                        memory=memory
                     )
                     db.session.add(new_server)
                     db.session.commit()
+                    
+                    # Ansible을 통한 역할별 소프트웨어 설치
+                    if role and role != 'none':
+                        print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
+                        try:
+                            ansible_service = AnsibleService()
+                            ansible_success, ansible_message = ansible_service.assign_role_to_server(server_name, role)
+                            
+                            if ansible_success:
+                                print(f"✅ Ansible 역할 할당 성공: {server_name} - {role}")
+                            else:
+                                print(f"⚠️ Ansible 역할 할당 실패: {server_name} - {role}, 메시지: {ansible_message}")
+                        except Exception as ansible_error:
+                            print(f"⚠️ Ansible 실행 중 오류: {str(ansible_error)}")
                     
                     update_task(task_id, 'completed', f'서버 {server_name} 생성 완료')
                     print(f"✅ 서버 생성 완료: {server_name}")
@@ -1046,10 +1082,60 @@ def status():
     return jsonify([server.to_dict() for server in servers]) 
 
 
+@bp.route('/api/ansible/status', methods=['GET'])
+@login_required
+def check_ansible_status():
+    """Ansible 설치 상태 확인"""
+    try:
+        ansible_service = AnsibleService()
+        is_installed, message = ansible_service.check_ansible_installation()
+        
+        return jsonify({
+            'success': True,
+            'installed': is_installed,
+            'message': message
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'installed': False,
+            'message': f'Ansible 상태 확인 실패: {str(e)}'
+        }), 500
+
+@bp.route('/api/assign_role/<server_name>', methods=['POST'])
+@login_required
+@permission_required('assign_roles')
+def assign_role_to_server(server_name):
+    """서버에 역할 할당"""
+    try:
+        data = request.get_json()
+        role = data.get('role')
+        
+        if not role:
+            return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
+        
+        print(f"🔧 서버 '{server_name}'에 역할 '{role}' 할당 요청")
+        
+        # AnsibleService를 통해 역할 할당
+        ansible_service = AnsibleService()
+        success, message = ansible_service.assign_role_to_server(server_name, role)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({'error': message}), 500
+            
+    except Exception as e:
+        print(f"💥 역할 할당 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/assign_role/<server_name>', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role(server_name):
-    """서버 역할 할당 (통합 데이터 소스 사용)"""
+    """서버 역할 할당 (DB 기반 + Ansible 실행)"""
     try:
         print(f"🔧 역할 할당 요청: {server_name}")
         
@@ -1057,68 +1143,21 @@ def assign_role(server_name):
         role = data.get('role')
         print(f"🔧 할당할 역할: {role}")
         
-        # 1. 먼저 서버 목록 API와 같은 방식으로 서버 존재 확인
-        from app.services.proxmox_service import ProxmoxService
-        proxmox_service = ProxmoxService()
+        if not role:
+            return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
         
-        # get_all_vms로 현재 활성 서버 목록 조회
-        result = proxmox_service.get_all_vms()
-        server_exists = False
+        # AnsibleService를 통해 역할 할당 (DB 업데이트 + Ansible 실행)
+        ansible_service = AnsibleService()
+        success, message = ansible_service.assign_role_to_server(server_name, role)
         
-        if result['success']:
-            servers = result['data']['servers']
-            print(f"🔧 Proxmox에서 조회한 서버 목록: {list(servers.keys())}")
-            
-            # 서버 존재 확인 (서버 목록 API와 동일한 방식)
-            for vm_key, server_data in servers.items():
-                if server_data.get('name') == server_name:
-                    server_exists = True
-                    print(f"✅ 서버 발견: {server_name} (키: {vm_key})")
-                    break
-        
-        if not server_exists:
-            print(f"❌ 서버를 찾을 수 없음: {server_name}")
-            print(f"🔧 사용 가능한 서버: {list(servers.keys()) if result['success'] else '조회 실패'}")
-            return jsonify({'error': f'서버 "{server_name}"를 찾을 수 없습니다. 서버 목록을 새로고침하고 다시 시도해주세요.'}), 404
-        
-        # 2. DB에서 서버 조회 (없으면 생성)
-        from app import db
-        server = Server.query.filter_by(name=server_name).first()
-        if not server:
-            print(f"🔧 DB에 서버가 없음, 새로 생성: {server_name}")
-            # Proxmox 데이터를 기반으로 DB 서버 생성
-            server = Server(
-                name=server_name,
-                status='unknown',  # 실제 상태는 다음 동기화에서 업데이트
-                role=role
-            )
-            db.session.add(server)
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
         else:
-            print(f"🔧 기존 서버 업데이트: {server_name} (기존 역할: {server.role})")
-            server.role = role
-        
-        db.session.commit()
-        
-        # 3. tfvars.json에도 역할 정보 업데이트 (UI 동기화)
-        try:
-            from app.services.terraform_service import TerraformService
-            terraform_service = TerraformService()
-            tfvars = terraform_service.load_tfvars()
+            return jsonify({'error': message}), 500
             
-            # 서버가 tfvars에 있으면 역할 업데이트
-            if 'servers' in tfvars and server_name in tfvars['servers']:
-                tfvars['servers'][server_name]['role'] = role
-                terraform_service.save_tfvars(tfvars)
-                print(f"✅ tfvars.json 역할 업데이트 완료: {server_name} - {role}")
-            else:
-                print(f"⚠️ tfvars.json에서 서버를 찾을 수 없음: {server_name}")
-        except Exception as e:
-            print(f"⚠️ tfvars.json 업데이트 실패: {str(e)} (DB는 정상 업데이트됨)")
-            # tfvars 업데이트 실패해도 DB는 이미 업데이트되었으므로 성공으로 처리
-        
-        print(f"✅ 역할 할당 완료: {server_name} - {role}")
-        return jsonify({'success': True, 'message': f'서버 {server_name}에 역할 {role}이 할당되었습니다.'})
-        
     except Exception as e:
         print(f"💥 역할 할당 실패: {str(e)}")
         import traceback

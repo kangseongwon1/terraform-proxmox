@@ -1,4 +1,7 @@
 - become: true
   hosts: all
   roles:
-  - web
+  - db
+  vars:
+    mysql_port: 3306
+    mysql_root_password: dmc1234!

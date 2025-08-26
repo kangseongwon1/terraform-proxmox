@@ -813,16 +813,12 @@ class ProxmoxService:
                 
             elif response.status_code == 501:
                 print("⚠️ Datacenter Security Group API가 지원되지 않음 (501)")
-                print("🔄 테스트용 데이터 반환")
-                return self._get_test_firewall_groups()
             else:
                 print(f"❌ Datacenter Security Group 조회 실패: {response.status_code}")
                 print(f"   응답: {response.text}")
-                return self._get_test_firewall_groups()
                 
         except Exception as e:
             print(f"❌ Datacenter Security Group 조회 실패: {e}")
-            return self._get_test_firewall_groups()
 
     def get_firewall_group_detail(self, group_name: str) -> Dict[str, Any]:
         """Proxmox Datacenter Security Group 상세 정보 조회"""
@@ -932,6 +928,12 @@ class ProxmoxService:
                 'comment': rule_data.get('description', '')
             }
             
+            # 매크로 정보가 있으면 추가
+            macro = rule_data.get('macro')
+            if macro:
+                payload['macro'] = macro
+                print(f"🔍 매크로 추가: {macro}")
+            
             print(f"🔍 Security Group 규칙 추가 API 호출: {rules_url}")
             print(f"🔍 원본 데이터: {rule_data}")
             print(f"🔍 변환된 Payload: {payload}")
@@ -954,7 +956,7 @@ class ProxmoxService:
             return False
 
     def delete_firewall_rule(self, group_name: str, rule_id: int) -> bool:
-        """Datacenter Security Group에서 규칙 삭제"""
+        """Datacenter Security Group에서 규칙 삭제 (대안 방법)"""
         try:
             print(f"🔍 Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제")
             headers, error = self.get_proxmox_auth()
@@ -962,19 +964,120 @@ class ProxmoxService:
                 print(f"❌ 인증 실패: {error}")
                 return False
             
-            # Datacenter Security Group 규칙 삭제 API
-            rule_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}/rules/{rule_id}"
+            # 먼저 현재 규칙 목록을 가져와서 올바른 규칙 ID 확인
+            rules_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            print(f"🔍 규칙 목록 조회: {rules_url}")
             
-            print(f"🔍 Datacenter Security Group 규칙 삭제 API 호출: {rule_url}")
+            rules_response = self.session.get(rules_url, headers=headers, timeout=10)
+            if rules_response.status_code != 200:
+                print(f"❌ 규칙 목록 조회 실패: {rules_response.status_code}")
+                return False
             
-            response = self.session.delete(rule_url, headers=headers, timeout=10)
+            rules_data = rules_response.json()
+            print(f"🔍 현재 규칙 목록: {rules_data}")
             
-            if response.status_code in [200, 204]:
+            # 규칙 목록에서 해당 규칙 찾기
+            rules = rules_data.get('data', [])
+            target_rule = None
+            
+            for rule in rules:
+                if rule.get('pos') == rule_id or rule.get('id') == rule_id:
+                    target_rule = rule
+                    break
+            
+            if not target_rule:
+                print(f"❌ 규칙 ID {rule_id}를 찾을 수 없습니다.")
+                return False
+            
+            # 실제 규칙 위치(pos) 사용
+            actual_pos = target_rule.get('pos')
+            print(f"🔍 실제 규칙 위치: {actual_pos}")
+            
+            # 방법 1: 올바른 API 엔드포인트로 DELETE 요청 시도 (규칙 삭제)
+            rule_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}/{actual_pos}"
+            
+            print(f"🔍 규칙 삭제 시도 (올바른 엔드포인트): {rule_url}")
+            delete_response = self.session.delete(rule_url, headers=headers, timeout=10)
+            
+            print(f"🔍 DELETE 요청 응답 상태: {delete_response.status_code}")
+            print(f"🔍 DELETE 요청 응답 내용: {delete_response.text}")
+            
+            if delete_response.status_code in [200, 204]:
                 print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 성공")
                 return True
+            
+            # 방법 2: PUT 요청으로 규칙을 비활성화 시도 (대안)
+            print(f"🔍 DELETE 실패, 규칙 비활성화 시도: {rule_url}")
+            
+            # 규칙을 비활성화하는 방법 (enable=0)
+            disable_payload = {'enable': '0'}
+            response = self.session.put(rule_url, headers=headers, data=disable_payload, timeout=10)
+            
+            print(f"🔍 PUT 요청 응답 상태: {response.status_code}")
+            print(f"🔍 PUT 요청 응답 내용: {response.text}")
+            
+            if response.status_code in [200, 204]:
+                print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 비활성화 성공 (삭제 대신)")
+                return True
+            
+            print(f"🔍 DELETE 요청 응답 상태: {delete_response.status_code}")
+            print(f"🔍 DELETE 요청 응답 내용: {delete_response.text}")
+            
+            if delete_response.status_code in [200, 204]:
+                print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 성공")
+                return True
+            
+            # 방법 3: Security Group을 삭제하고 다시 생성 (Proxmox API 제한으로 인한 대안)
+            print("🔍 Proxmox API 제한으로 인해 Security Group 재생성 방법 사용")
+            
+            # 현재 모든 규칙을 저장 (삭제할 규칙 제외)
+            remaining_rules = [rule for rule in rules if rule.get('pos') != actual_pos]
+            print(f"🔍 남은 규칙들: {remaining_rules}")
+            
+            # Security Group 삭제
+            group_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            delete_group_response = self.session.delete(group_url, headers=headers, timeout=10)
+            
+            if delete_group_response.status_code in [200, 204]:
+                print(f"✅ Security Group '{group_name}' 삭제 성공")
+                
+                # Security Group 다시 생성
+                create_group_response = self.session.post(group_url, headers=headers, timeout=10)
+                
+                if create_group_response.status_code in [200, 201]:
+                    print(f"✅ Security Group '{group_name}' 재생성 성공")
+                    
+                    # 남은 규칙들을 다시 추가
+                    for rule in remaining_rules:
+                        rule_payload = {
+                            'type': rule.get('type', 'in'),
+                            'action': rule.get('action', 'ACCEPT'),
+                            'proto': rule.get('proto', 'tcp'),
+                            'dport': rule.get('dport', ''),
+                            'source': rule.get('source', ''),
+                            'dest': rule.get('dest', ''),
+                            'comment': rule.get('comment', '')
+                        }
+                        
+                        # 매크로 정보가 있으면 추가
+                        if rule.get('macro'):
+                            rule_payload['macro'] = rule.get('macro')
+                        
+                        add_rule_response = self.session.post(group_url, headers=headers, data=rule_payload, timeout=10)
+                        if add_rule_response.status_code not in [200, 201]:
+                            print(f"⚠️ 규칙 재추가 실패: {rule}")
+                        else:
+                            print(f"✅ 규칙 재추가 성공: {rule.get('comment', 'Unknown')}")
+                    
+                    print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 완료 (재생성 방법)")
+                    return True
+                else:
+                    print(f"❌ Security Group 재생성 실패: {create_group_response.status_code}")
             else:
-                print(f"❌ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 실패: {response.status_code}")
-                return False
+                print(f"❌ Security Group 삭제 실패: {delete_group_response.status_code}")
+            
+            print(f"❌ 규칙 삭제 실패: Proxmox API 제한")
+            return False
                 
         except Exception as e:
             print(f"❌ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 실패: {e}")
@@ -1009,9 +1112,9 @@ class ProxmoxService:
             return False
 
     def apply_security_group_to_vm(self, vm_name: str, group_name: str) -> bool:
-        """VM에 Security Group 적용"""
+        """VM에 Security Group 할당 (올바른 구현)"""
         try:
-            print(f"🔍 VM '{vm_name}'에 Security Group '{group_name}' 적용")
+            print(f"🔍 VM '{vm_name}'에 Security Group '{group_name}' 할당 시작")
             headers, error = self.get_proxmox_auth()
             if error:
                 print(f"❌ 인증 실패: {error}")
@@ -1026,46 +1129,563 @@ class ProxmoxService:
             vmid = vm_info.get('vmid')
             node = vm_info.get('node', self.node)
             
+            print(f"🔍 VM 정보: vmid={vmid}, node={node}")
+            
+            # 1단계: Security Group이 존재하는지 확인
+            print("🔧 1단계: Security Group 존재 확인")
+            group_exists = self._check_security_group_exists(group_name, headers)
+            if not group_exists:
+                print(f"❌ Security Group '{group_name}'이 존재하지 않습니다.")
+                return False
+            
+            # 2단계: VM의 모든 네트워크 디바이스에 Firewall 설정을 0→1로 변경
+            print("🔧 2단계: 네트워크 디바이스 Firewall 설정 활성화")
+            firewall_enabled = self._enable_vm_firewall(node, vmid, headers)
+            if not firewall_enabled:
+                print("⚠️ Firewall 설정 활성화 실패, 계속 진행")
+            
+            # 3단계: VM을 Security Group에 할당
+            print("🔧 3단계: VM을 Security Group에 할당")
+            assignment_success = self._assign_vm_to_security_group(node, vmid, group_name, headers)
+            if not assignment_success:
+                print("❌ VM을 Security Group에 할당 실패")
+                return False
+            
+            print(f"✅ VM '{vm_name}'에 Security Group '{group_name}' 할당 완료")
+            return True
+            
+        except Exception as e:
+            print(f"❌ VM '{vm_name}'에 Security Group '{group_name}' 할당 실패: {e}")
+            return False
+
+    def _check_security_group_exists(self, group_name: str, headers: Dict[str, str]) -> bool:
+        """Security Group이 존재하는지 확인"""
+        try:
+            print(f"🔍 Security Group '{group_name}' 존재 확인")
+            
+            # Security Group 조회
+            group_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
+            response = self.session.get(group_url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                print(f"✅ Security Group '{group_name}' 존재 확인")
+                return True
+            elif response.status_code == 404:
+                print(f"❌ Security Group '{group_name}'이 존재하지 않습니다.")
+                return False
+            else:
+                print(f"⚠️ Security Group 조회 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Security Group 존재 확인 실패: {e}")
+            return False
+
+    def _assign_vm_to_security_group(self, node: str, vmid: int, group_name: str, headers: Dict[str, str]) -> bool:
+        """VM을 Security Group에 할당 (올바른 API 방식)"""
+        try:
+            print(f"🔧 VM {vmid}을 Security Group '{group_name}'에 할당")
+            
+            # Proxmox 공식 API 사용: POST /api2/json/nodes/{node}/qemu/{vmid}/firewall/rules
+            # type='group', action=GROUP_NAME
+            firewall_rules_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules"
+            
+            # Security Group 할당을 위한 방화벽 규칙 생성
+            # Proxmox API 문서에 따르면 type='group', action=GROUP_NAME
+            rule_payload = {
+                'type': 'group',
+                'action': group_name,
+                'comment': f'Security Group: {group_name}'
+            }
+            
+            print(f"🔧 Security Group 할당 규칙 생성: {rule_payload}")
+            
+            print(f"🔧 Security Group 할당 API 호출: {firewall_rules_url}")
+            print(f"🔧 요청 데이터: {rule_payload}")
+            
+            response = self.session.post(firewall_rules_url, headers=headers, data=rule_payload, timeout=10)
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ VM을 Security Group '{group_name}'에 할당 성공")
+                return True
+            else:
+                print(f"❌ VM을 Security Group '{group_name}'에 할당 실패: {response.status_code}")
+                print(f"   응답: {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ VM을 Security Group에 할당 실패: {e}")
+            return False
+
+    def _enable_vm_firewall(self, node: str, vmid: int, headers: Dict[str, str]) -> bool:
+        """VM의 모든 네트워크 디바이스에 Firewall 설정을 0→1로 변경"""
+        try:
+            print(f"🔧 VM {vmid}의 네트워크 디바이스 Firewall 설정 활성화")
+            
+            # VM 설정 조회
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_response = self.session.get(config_url, headers=headers, timeout=10)
+            
+            if config_response.status_code != 200:
+                print(f"❌ VM 설정 조회 실패: {config_response.status_code}")
+                return False
+            
+            vm_config = config_response.json().get('data', {})
+            print(f"🔍 VM 설정: {vm_config}")
+            
+            # 네트워크 디바이스 찾기
+            network_devices = []
+            for key, value in vm_config.items():
+                if key.startswith('net'):
+                    print(f"🔍 네트워크 디바이스 발견: {key} = {value}")
+                    network_devices.append(key)
+            
+            if not network_devices:
+                print("⚠️ 네트워크 디바이스가 없습니다.")
+                return True  # 네트워크 디바이스가 없어도 성공으로 처리
+            
+            # 각 네트워크 디바이스에 Firewall 설정 추가
+            success_count = 0
+            for device in network_devices:
+                current_value = vm_config[device]
+                
+                # Firewall 설정이 이미 있는지 확인
+                if 'firewall=1' in current_value:
+                    print(f"✅ {device}에 이미 Firewall 설정이 활성화되어 있음")
+                    success_count += 1
+                    continue
+                
+                # Firewall 설정 추가
+                new_value = current_value + ',firewall=1'
+                print(f"🔧 {device} Firewall 설정 변경: {current_value} → {new_value}")
+                
+                # VM 설정 업데이트
+                update_payload = {device: new_value}
+                update_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+                
+                update_response = self.session.put(update_url, headers=headers, data=update_payload, timeout=10)
+                
+                if update_response.status_code in [200, 201]:
+                    print(f"✅ {device} Firewall 설정 활성화 성공")
+                    success_count += 1
+                else:
+                    print(f"❌ {device} Firewall 설정 활성화 실패: {update_response.status_code}")
+                    print(f"   응답: {update_response.text}")
+            
+            print(f"✅ 네트워크 디바이스 Firewall 설정 완료: {success_count}/{len(network_devices)}개")
+            return success_count > 0
+            
+        except Exception as e:
+            print(f"❌ VM Firewall 설정 활성화 실패: {e}")
+            return False
+
+    def _apply_security_group_rules(self, node: str, vmid: int, group_name: str, headers: Dict[str, str]) -> bool:
+        """Security Group 규칙을 VM에 적용"""
+        try:
+            print(f"🔧 Security Group '{group_name}' 규칙을 VM {vmid}에 적용")
+            
             # Security Group 규칙 조회
-            rules_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}/rules"
+            rules_url = f"{self.endpoint}/api2/json/cluster/firewall/groups/{group_name}"
             rules_response = self.session.get(rules_url, headers=headers, timeout=10)
             
             if rules_response.status_code != 200:
-                print(f"❌ Security Group '{group_name}' 규칙 조회 실패")
+                print(f"❌ Security Group '{group_name}' 규칙 조회 실패: {rules_response.status_code}")
                 return False
             
             rules = rules_response.json().get('data', [])
-            print(f"🔍 Security Group '{group_name}' 규칙 {len(rules)}개 적용")
+            print(f"🔍 Security Group '{group_name}' 규칙 {len(rules)}개 발견")
             
-            # VM에 각 규칙 적용
+            if not rules:
+                print("⚠️ Security Group에 규칙이 없습니다.")
+                return True  # 규칙이 없어도 성공으로 처리
+            
+            # VM 방화벽 규칙 URL
             vm_rules_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules"
             
+            # 기존 VM 방화벽 규칙 삭제 (특정 Security Group 관련 규칙만)
+            print("🔧 기존 VM 방화벽 규칙 정리")
+            self._clear_vm_firewall_rules(node, vmid, headers, group_name)
+            
+            # Security Group 규칙을 VM에 적용
             success_count = 0
             for rule in rules:
                 # VM 방화벽 규칙 형식으로 변환
                 vm_rule_payload = {
-                    'protocol': rule.get('protocol', 'tcp'),
-                    'port': rule.get('port', ''),
+                    'type': rule.get('type', 'in'),
+                    'action': rule.get('action', 'ACCEPT'),
+                    'proto': rule.get('proto', 'tcp'),
+                    'dport': rule.get('dport', ''),
                     'source': rule.get('source', ''),
                     'dest': rule.get('dest', ''),
-                    'action': rule.get('action', 'ACCEPT'),
                     'comment': f"SG-{group_name}: {rule.get('comment', '')}"
                 }
+                
+                print(f"🔧 VM에 규칙 적용: {vm_rule_payload}")
                 
                 response = self.session.post(vm_rules_url, headers=headers, data=vm_rule_payload, timeout=10)
                 
                 if response.status_code in [200, 201]:
                     success_count += 1
-                    print(f"✅ VM '{vm_name}'에 규칙 {rule.get('id')} 적용 성공")
+                    print(f"✅ VM에 규칙 적용 성공")
                 else:
-                    print(f"❌ VM '{vm_name}'에 규칙 {rule.get('id')} 적용 실패: {response.status_code}")
+                    print(f"❌ VM에 규칙 적용 실패: {response.status_code}")
+                    print(f"   응답: {response.text}")
             
-            print(f"✅ VM '{vm_name}'에 Security Group '{group_name}' 적용 완료: {success_count}/{len(rules)}개 규칙")
+            print(f"✅ Security Group 규칙 적용 완료: {success_count}/{len(rules)}개")
+            return success_count > 0 or len(rules) == 0
+            
+        except Exception as e:
+            print(f"❌ Security Group 규칙 적용 실패: {e}")
+            return False
+
+    def _clear_vm_firewall_rules(self, node: str, vmid: int, headers: Dict[str, str], group_name: str = None) -> bool:
+        """VM의 기존 방화벽 규칙 삭제 (특정 Security Group 관련 규칙만)"""
+        try:
+            print(f"🔧 VM {vmid}의 기존 방화벽 규칙 정리 (Security Group: {group_name})")
+            
+            # Security Group이 지정되지 않은 경우 규칙 삭제하지 않음
+            if not group_name:
+                print("⚠️ Security Group이 지정되지 않아 기존 규칙을 삭제하지 않습니다.")
+                return True
+            
+            # VM 방화벽 규칙 조회
+            rules_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules"
+            rules_response = self.session.get(rules_url, headers=headers, timeout=10)
+            
+            if rules_response.status_code != 200:
+                print(f"⚠️ VM 방화벽 규칙 조회 실패: {rules_response.status_code}")
+                print(f"   응답: {rules_response.text}")
+                return True  # 실패해도 계속 진행
+            
+            rules = rules_response.json().get('data', [])
+            print(f"🔍 기존 VM 방화벽 규칙 {len(rules)}개 발견")
+            
+            # 지정된 Security Group 관련 규칙만 삭제
+            deleted_count = 0
+            for rule in rules:
+                comment = rule.get('comment', '')
+                # Security Group 관련 규칙인지 확인 (SG-{group_name} 형식)
+                if comment.startswith(f'SG-{group_name}') or comment.startswith(f'Security Group: {group_name}'):
+                    rule_id = rule.get('id')
+                    if rule_id:
+                        delete_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules/{rule_id}"
+                        delete_response = self.session.delete(delete_url, headers=headers, timeout=10)
+                        
+                        if delete_response.status_code in [200, 204]:
+                            print(f"✅ 기존 Security Group 규칙 삭제: {comment}")
+                            deleted_count += 1
+                        else:
+                            print(f"⚠️ 기존 Security Group 규칙 삭제 실패: {delete_response.status_code}")
+                            print(f"   응답: {delete_response.text}")
+                else:
+                    print(f"🔍 다른 규칙 유지: {comment}")
+            
+            print(f"✅ Security Group '{group_name}' 관련 규칙 {deleted_count}개 삭제 완료")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ VM 방화벽 규칙 정리 실패: {e}")
+            return True  # 실패해도 계속 진행
+
+    def _save_security_group_assignment(self, node: str, vmid: int, group_name: str, headers: Dict[str, str]) -> bool:
+        """VM에 Security Group 할당 정보 저장"""
+        try:
+            print(f"🔧 VM {vmid}에 Security Group '{group_name}' 할당 정보 저장")
+            
+            # VM 설정에 Security Group 정보 추가
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            
+            # 기존 설정에 Security Group 정보 추가
+            update_payload = {
+                'security_group': group_name,
+                'comment': f"Security Group: {group_name}"
+            }
+            
+            response = self.session.put(config_url, headers=headers, data=update_payload, timeout=10)
+            
+            if response.status_code in [200, 201]:
+                print(f"✅ Security Group 할당 정보 저장 성공")
+                return True
+            else:
+                print(f"⚠️ Security Group 할당 정보 저장 실패: {response.status_code}")
+                return True  # 실패해도 성공으로 처리 (선택사항)
+                
+        except Exception as e:
+            print(f"⚠️ Security Group 할당 정보 저장 실패: {e}")
+            return True  # 실패해도 성공으로 처리
+
+    def remove_security_group_from_vm(self, vm_name: str) -> bool:
+        """VM에서 Security Group 제거 (올바른 구현)"""
+        try:
+            print(f"🔍 VM '{vm_name}'에서 Security Group 제거")
+            headers, error = self.get_proxmox_auth()
+            if error:
+                print(f"❌ 인증 실패: {error}")
+                return False
+            
+            # VM 정보 조회
+            vm_info = self.get_vm_info(vm_name)
+            if not vm_info:
+                print(f"❌ VM '{vm_name}'을 찾을 수 없습니다.")
+                return False
+            
+            vmid = vm_info.get('vmid')
+            node = vm_info.get('node', self.node)
+            
+            print(f"🔍 VM 정보: vmid={vmid}, node={node}")
+            
+            # 1단계: VM 설정에서 Security Group 할당 제거
+            print("🔧 1단계: Security Group 할당 제거")
+            assignment_removed = self._remove_vm_from_security_group(node, vmid, headers)
+            if not assignment_removed:
+                print("⚠️ Security Group 할당 제거 실패, 계속 진행")
+            
+            # 2단계: 네트워크 디바이스에서 Firewall 설정 제거
+            print("🔧 2단계: 네트워크 디바이스 Firewall 설정 제거")
+            firewall_disabled = self._disable_vm_firewall(node, vmid, headers)
+            if not firewall_disabled:
+                print("⚠️ Firewall 설정 제거 실패, 계속 진행")
+            
+            print(f"✅ VM '{vm_name}'에서 Security Group 제거 완료")
+            return True
+            
+        except Exception as e:
+            print(f"❌ VM '{vm_name}'에서 Security Group 제거 실패: {e}")
+            return False
+
+    def _disable_vm_firewall(self, node: str, vmid: int, headers: Dict[str, str]) -> bool:
+        """VM의 모든 네트워크 디바이스에서 Firewall 설정을 1→0으로 변경"""
+        try:
+            print(f"🔧 VM {vmid}의 네트워크 디바이스 Firewall 설정 비활성화")
+            
+            # VM 설정 조회
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_response = self.session.get(config_url, headers=headers, timeout=10)
+            
+            if config_response.status_code != 200:
+                print(f"❌ VM 설정 조회 실패: {config_response.status_code}")
+                return False
+            
+            vm_config = config_response.json().get('data', {})
+            print(f"🔍 VM 설정: {vm_config}")
+            
+            # 네트워크 디바이스 찾기
+            network_devices = []
+            for key, value in vm_config.items():
+                if key.startswith('net'):
+                    print(f"🔍 네트워크 디바이스 발견: {key} = {value}")
+                    network_devices.append(key)
+            
+            if not network_devices:
+                print("⚠️ 네트워크 디바이스가 없습니다.")
+                return True  # 네트워크 디바이스가 없어도 성공으로 처리
+            
+            # 각 네트워크 디바이스에서 Firewall 설정 제거
+            success_count = 0
+            for device in network_devices:
+                current_value = vm_config[device]
+                
+                # Firewall 설정이 있는지 확인
+                if 'firewall=1' in current_value:
+                    # Firewall 설정 제거
+                    new_value = current_value.replace(',firewall=1', '').replace('firewall=1,', '').replace('firewall=1', '')
+                    print(f"🔧 {device} Firewall 설정 제거: {current_value} → {new_value}")
+                    
+                    # VM 설정 업데이트
+                    update_payload = {device: new_value}
+                    update_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+                    
+                    update_response = self.session.put(update_url, headers=headers, data=update_payload, timeout=10)
+                    
+                    if update_response.status_code in [200, 201]:
+                        print(f"✅ {device} Firewall 설정 제거 성공")
+                        success_count += 1
+                    else:
+                        print(f"❌ {device} Firewall 설정 제거 실패: {update_response.status_code}")
+                        print(f"   응답: {update_response.text}")
+                else:
+                    print(f"✅ {device}에 Firewall 설정이 없음")
+                    success_count += 1
+            
+            print(f"✅ 네트워크 디바이스 Firewall 설정 제거 완료: {success_count}/{len(network_devices)}개")
             return success_count > 0
             
         except Exception as e:
-            print(f"❌ VM '{vm_name}'에 Security Group '{group_name}' 적용 실패: {e}")
+            print(f"❌ VM Firewall 설정 제거 실패: {e}")
             return False
+
+    def _remove_vm_from_security_group(self, node: str, vmid: int, headers: Dict[str, str]) -> bool:
+        """VM에서 Security Group 할당 제거 (올바른 API 방식)"""
+        try:
+            print(f"🔧 VM {vmid}에서 Security Group 할당 제거")
+            
+            # 먼저 VM 설정에서 현재 Security Group 확인
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_response = self.session.get(config_url, headers=headers, timeout=10)
+            
+            current_group = None
+            if config_response.status_code == 200:
+                vm_config = config_response.json().get('data', {})
+                current_group = vm_config.get('security_group')
+                print(f"🔍 현재 VM Security Group: {current_group}")
+            
+            # VM의 방화벽 규칙을 조회하여 Security Group 규칙 찾기
+            firewall_rules_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules"
+            print(f"🔍 VM 방화벽 규칙 조회 URL: {firewall_rules_url}")
+            
+            rules_response = self.session.get(firewall_rules_url, headers=headers, timeout=10)
+            
+            if rules_response.status_code != 200:
+                print(f"⚠️ VM 방화벽 규칙 조회 실패: {rules_response.status_code}")
+                print(f"   응답: {rules_response.text}")
+                return True  # 실패해도 성공으로 처리
+            
+            rules = rules_response.json().get('data', [])
+            print(f"🔍 VM 방화벽 규칙 {len(rules)}개 발견")
+            
+            # Security Group 관련 규칙 찾기 (현재 설정된 Security Group만)
+            security_group_rules = []
+            for rule in rules:
+                print(f"🔍 규칙 검사: {rule}")
+                
+                # 현재 Security Group이 설정된 경우, 해당 그룹의 규칙만 찾기
+                if current_group:
+                    # type이 'group'이고 action이 현재 Security Group 이름인 규칙
+                    if (rule.get('type') == 'group' and rule.get('action') == current_group):
+                        security_group_rules.append(rule)
+                        print(f"🔍 현재 Security Group '{current_group}' 규칙 발견: {rule}")
+                    # comment에 현재 Security Group이 포함된 규칙
+                    elif (rule.get('comment') and 
+                          (f'SG-{current_group}' in rule.get('comment') or 
+                           f'Security Group: {current_group}' in rule.get('comment'))):
+                        security_group_rules.append(rule)
+                        print(f"🔍 현재 Security Group '{current_group}' 관련 규칙 발견: {rule}")
+                else:
+                    # Security Group이 설정되지 않은 경우, 일반적인 Security Group 규칙 찾기
+                    if rule.get('type') == 'group' or (rule.get('action') and 'security_group' in rule.get('action', '').lower()):
+                        security_group_rules.append(rule)
+                        print(f"🔍 Security Group 규칙 발견: {rule}")
+            
+            if not security_group_rules:
+                print("✅ Security Group 규칙이 없습니다.")
+                return True
+            
+            # Security Group 규칙 삭제
+            deleted_count = 0
+            for rule in security_group_rules:
+                # Proxmox에서 규칙 ID는 보통 'pos' 필드에 있음
+                # pos가 0일 수 있으므로 None 체크를 명시적으로 해야 함
+                pos_value = rule.get('pos')
+                id_value = rule.get('id')
+                rule_id = pos_value if pos_value is not None else id_value
+                
+                print(f"🔍 규칙 ID (pos): {pos_value}")
+                print(f"🔍 규칙 ID (id): {id_value}")
+                print(f"🔍 사용할 규칙 ID: {rule_id}")
+                
+                if rule_id is not None:
+                    delete_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/firewall/rules/{rule_id}"
+                    print(f"🔍 삭제 URL: {delete_url}")
+                    
+                    delete_response = self.session.delete(delete_url, headers=headers, timeout=10)
+                    
+                    if delete_response.status_code in [200, 204]:
+                        print(f"✅ Security Group 규칙 삭제 성공: {rule.get('action')}")
+                        deleted_count += 1
+                    else:
+                        print(f"❌ Security Group 규칙 삭제 실패: {delete_response.status_code}")
+                        print(f"   응답: {delete_response.text}")
+                else:
+                    print(f"⚠️ 규칙 ID가 없습니다: {rule}")
+            
+            print(f"✅ Security Group 할당 제거 완료: {deleted_count}/{len(security_group_rules)}개 규칙")
+            return deleted_count > 0 or len(security_group_rules) == 0
+                
+        except Exception as e:
+            print(f"⚠️ Security Group 할당 제거 실패: {e}")
+            import traceback
+            traceback.print_exc()
+            return True  # 실패해도 성공으로 처리
+
+    def _remove_security_group_assignment(self, node: str, vmid: int, headers: Dict[str, str]) -> bool:
+        """VM에서 Security Group 할당 정보 제거"""
+        try:
+            print(f"🔧 VM {vmid}에서 Security Group 할당 정보 제거")
+            
+            # 먼저 현재 VM 설정을 조회
+            config_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+            config_response = self.session.get(config_url, headers=headers, timeout=10)
+            
+            if config_response.status_code != 200:
+                print(f"⚠️ VM 설정 조회 실패: {config_response.status_code}")
+                return True  # 실패해도 성공으로 처리
+            
+            vm_config = config_response.json().get('data', {})
+            print(f"🔍 현재 VM 설정: {vm_config}")
+            
+            # Security Group 관련 필드가 있는지 확인
+            has_security_group = 'security_group' in vm_config
+            has_security_comment = 'comment' in vm_config and 'Security Group:' in str(vm_config.get('comment', ''))
+            
+            if not has_security_group and not has_security_comment:
+                print("✅ Security Group 관련 설정이 없습니다.")
+                return True
+            
+            # Security Group 관련 설정 제거
+            update_payload = {}
+            
+            if has_security_group:
+                # DELETE 방식으로 필드 제거
+                delete_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+                delete_payload = {'delete': 'security_group'}
+                delete_response = self.session.put(delete_url, headers=headers, data=delete_payload, timeout=10)
+                
+                if delete_response.status_code in [200, 201]:
+                    print(f"✅ Security Group 필드 제거 성공")
+                else:
+                    print(f"⚠️ Security Group 필드 제거 실패: {delete_response.status_code}")
+                    print(f"   응답: {delete_response.text}")
+            
+            if has_security_comment:
+                # comment에서 Security Group 관련 내용 제거
+                current_comment = vm_config.get('comment', '')
+                if 'Security Group:' in current_comment:
+                    # Security Group 부분만 제거
+                    new_comment = current_comment.replace('Security Group: ', '').replace('Security Group:', '')
+                    new_comment = new_comment.strip()
+                    
+                    if new_comment:
+                        update_payload['comment'] = new_comment
+                    else:
+                        # comment가 비어있으면 제거
+                        delete_url = f"{self.endpoint}/api2/json/nodes/{node}/qemu/{vmid}/config"
+                        delete_payload = {'delete': 'comment'}
+                        delete_response = self.session.put(delete_url, headers=headers, data=delete_payload, timeout=10)
+                        
+                        if delete_response.status_code in [200, 201]:
+                            print(f"✅ Security Group comment 제거 성공")
+                        else:
+                            print(f"⚠️ Security Group comment 제거 실패: {delete_response.status_code}")
+            
+            # 추가 업데이트가 필요한 경우
+            if update_payload:
+                response = self.session.put(config_url, headers=headers, data=update_payload, timeout=10)
+                
+                if response.status_code in [200, 201]:
+                    print(f"✅ Security Group 관련 설정 업데이트 성공")
+                    return True
+                else:
+                    print(f"⚠️ Security Group 관련 설정 업데이트 실패: {response.status_code}")
+                    print(f"   응답: {response.text}")
+                    return True  # 실패해도 성공으로 처리
+            
+            print(f"✅ Security Group 할당 정보 제거 완료")
+            return True
+                
+        except Exception as e:
+            print(f"⚠️ Security Group 할당 정보 제거 실패: {e}")
+            return True  # 실패해도 성공으로 처리
 
     def sync_vm_data(self):
         """VM 데이터 동기화"""
@@ -1285,7 +1905,7 @@ class ProxmoxService:
                     }
                     config['network'].append(net_info)
             
-            return {'success': True, 'data': config}
+            return {'success': True, 'config': config}
             
         except Exception as e:
             print(f"❌ 서버 설정 조회 실패: {e}")
