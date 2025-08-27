@@ -422,7 +422,31 @@ class AnsibleService:
                 ansible_success = True
                 ansible_message = "Windows 환경에서 Ansible 실행 건너뜀"
             else:
-                ansible_success, ansible_message = self.run_playbook(role, role_vars, server.ip_address)
+                # 개별 서버 플레이북 직접 실행
+                print(f"🔧 개별 서버 플레이북 직접 실행: {server.ip_address}")
+                
+                # extra_vars에 target_server 추가
+                role_vars['target_server'] = server.ip_address
+                role_vars['role'] = role
+                
+                # 개별 서버 플레이북 실행
+                command = [
+                    'ansible-playbook',
+                    '-i', f'python {self.dynamic_inventory_script} {server.ip_address}',
+                    self.single_server_playbook,
+                    '--extra-vars', json.dumps(role_vars),
+                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                ]
+                
+                print(f"🔧 Ansible 명령어: {' '.join(command)}")
+                returncode, stdout, stderr = self._run_ansible_command(command)
+                
+                if returncode == 0:
+                    ansible_success = True
+                    ansible_message = f"Ansible 플레이북 실행 성공 (role: {role})"
+                else:
+                    ansible_success = False
+                    ansible_message = stderr or stdout or f"Ansible 플레이북 실행 실패 (role: {role})"
             
             # 9. Ansible 실행 결과에 따라 DB 업데이트
             if ansible_success:
