@@ -1150,8 +1150,14 @@ $(function() {
           statusBadge = '<span class="status-badge status-unknown">' + s.status + '</span>';
       }
       
-      // 역할 상태 표시
-      const roleDisplay = s.role ? (window.dashboardRoleMap[s.role] || s.role) : '<span class="text-muted">(설정 안 함)</span>';
+      // 역할 상태 표시 (개선된 버전)
+      const roleDisplay = (() => {
+        if (!s.role || s.role === '' || s.role === null || s.role === undefined) {
+          return '<span class="text-muted">(설정 안 함)</span>';
+        } else {
+          return window.dashboardRoleMap[s.role] || s.role;
+        }
+      })();   
       
       // Security Group 상태 표시
       const securityGroupDisplay = s.firewall_group ? s.firewall_group : '<span class="text-muted">(설정 안 함)</span>';
