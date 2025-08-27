@@ -1253,7 +1253,7 @@ def remove_server_disk(server_name, device):
         print(f"💥 디스크 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500    
 
-@bp.route('/api/roles/assign_role_bulk', methods=['POST'])
+@bp.route('/api/roles/assign_bulk', methods=['POST'])
 @permission_required('assign_roles')
 def assign_role_bulk():
     """다중 서버에 역할 할당"""
