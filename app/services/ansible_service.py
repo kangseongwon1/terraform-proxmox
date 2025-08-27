@@ -27,9 +27,25 @@ class AnsibleService:
     """Ansible 서비스"""
     
     def __init__(self, ansible_dir: str = "ansible"):
-        self.ansible_dir = ansible_dir
-        self.inventory_file = os.path.join(ansible_dir, "inventory")
-        self.playbook_file = os.path.join(ansible_dir, "role_playbook.yml")
+        # 프로젝트 루트 디렉토리 찾기 (리팩토링에 강건한 방식)
+        current_file = os.path.abspath(__file__)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+        
+        # Ansible 디렉토리 설정
+        self.ansible_dir = os.path.join(project_root, ansible_dir)
+        self.inventory_file = os.path.join(self.ansible_dir, "inventory")
+        self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
+        
+        print(f"🔧 프로젝트 루트: {project_root}")
+        print(f"🔧 Ansible 디렉토리: {self.ansible_dir}")
+        print(f"🔧 Inventory 파일: {self.inventory_file}")
+        print(f"🔧 Playbook 파일: {self.playbook_file}")
+        
+        # 파일 존재 확인
+        if not os.path.exists(self.playbook_file):
+            print(f"⚠️ 플레이북 파일이 존재하지 않습니다: {self.playbook_file}")
+        else:
+            print(f"✅ 플레이북 파일 확인됨: {self.playbook_file}")
     
     def _generate_dynamic_inventory(self, target_servers: List[Dict[str, Any]]) -> str:
         """동적으로 inventory 파일 생성"""
@@ -117,6 +133,9 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
         """Ansible 명령어 실행"""
         if cwd is None:
             cwd = self.ansible_dir
+        
+        print(f"🔧 작업 디렉토리: {cwd}")
+        print(f"🔧 현재 작업 디렉토리: {os.getcwd()}")
         
         try:
             # SSH 설정 환경 변수 추가
@@ -311,13 +330,17 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
             with open(self.playbook_file, 'w', encoding='utf-8') as f:
                 yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
             
-            # Ansible 플레이북 실행
+            # Ansible 플레이북 실행 (절대 경로 사용)
             command = [
                 'ansible-playbook',
                 '-i', self.inventory_file,
                 self.playbook_file,
                 '--ssh-common-args="-o StrictHostKeyChecking=no"'
             ]
+            
+            print(f"🔧 Ansible 명령어: {' '.join(command)}")
+            print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
+            print(f"🔧 Inventory 파일 존재 확인: {os.path.exists(self.inventory_file)}")
             
             returncode, stdout, stderr = self._run_ansible_command(command)
             
