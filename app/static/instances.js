@@ -571,7 +571,13 @@ $(function() {
                 success: function(roleRes) {
                   if (roleRes.success) {
                     console.log('[instances.js] 역할 할당 성공');
-                    alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 역할이 '${currentRole}'에서 '${selectedRole}'로 변경되었습니다.`);
+                    
+                    // 역할 제거인지 확인
+                    if (!selectedRole || selectedRole === '') {
+                      alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 역할이 '${currentRole}'에서 제거되었습니다.`);
+                    } else {
+                      alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 역할이 '${currentRole}'에서 '${selectedRole}'로 변경되었습니다.`);
+                    }
                   } else {
                     console.error('[instances.js] 역할 할당 실패:', roleRes.error);
                     alert(`서버 설정은 저장되었지만 역할 할당에 실패했습니다: ${roleRes.error}`);
