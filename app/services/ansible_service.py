@@ -304,6 +304,14 @@ class AnsibleService:
                 # 역할이 같아도 Ansible 실행 (강제 적용)
                 print(f"🔧 강제 Ansible 실행 진행")
             
+            elif role in [None, "", "none", "역할 없음"]:
+                # 역할 제거 요청
+                print(f"�� 역할 제거 요청: {current_role} → 없음")
+                server.role = None
+                db.session.commit()
+                print(f"✅ DB에서 역할 제거 완료: {server_name}")
+                return True, f"서버 {server_name}에서 역할이 제거되었습니다"
+            
             # 4. 서버 IP 주소 확인
             if not server.ip_address:
                 return False, f"서버 {server_name}의 IP 주소가 설정되지 않았습니다"
