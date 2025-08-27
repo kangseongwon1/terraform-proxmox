@@ -499,5 +499,16 @@ def refresh_session_compat():
         print(f"💥 세션 갱신 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 
 
+@bp.route('/api/assign_role_bulk', methods=['POST'])
+@login_required
+def assign_role_bulk_compat():
+    """다중 서버 역할 할당 (호환성)"""
+    try:
+        from app.routes.servers import assign_role_bulk
+        return assign_role_bulk()
+    except Exception as e:
+        print(f"💥 다중 서버 역할 할당 호환성 엔드포인트 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500 
+
         
  
