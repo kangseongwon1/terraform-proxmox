@@ -200,6 +200,7 @@ $(function() {
             
             // 역할 및 방화벽 그룹
             $('#server-role').val(config.role);
+            $('#server-role').attr('data-original', config.role || '');
             $('#server-firewall-group').val(config.firewall_group);
             $('#server-firewall-group').attr('data-original', config.firewall_group || '');
             
@@ -467,6 +468,11 @@ $(function() {
     const hasFirewallGroupChange = selectedFirewallGroup && selectedFirewallGroup !== '';
     const isRemovingFirewallGroup = (selectedFirewallGroup === '' || selectedFirewallGroup === '그룹 없음') && currentFirewallGroup !== '';
     
+    // 역할 변경 감지
+    const selectedRole = $('#server-role').val();
+    const currentRole = $('#server-role').attr('data-original') || '';
+    const hasRoleChange = selectedRole && selectedRole !== currentRole;
+    
     // 1단계: 기본 서버 설정 저장
     $.ajax({
       url: `/api/server/config/${serverName}`,
@@ -551,50 +557,89 @@ $(function() {
             });
           } else {
             // 방화벽 그룹이 선택되지 않은 경우
-            $('#server-config-modal').modal('hide');
-            
-            if (needsReboot) {
-              alert('서버 설정이 성공적으로 저장되었습니다.\n\n⚠️ CPU 또는 메모리 설정이 변경되었습니다.\n변경사항을 적용하기 위해 서버를 중지 후 재시작합니다...');
+            if (hasRoleChange) {
+              // 역할 변경 시 Ansible API 호출
+              console.log(`[instances.js] 역할 변경 감지: ${currentRole} → ${selectedRole}`);
               
-              // 중지 → 재시작 실행
               $.ajax({
-                url: `/api/servers/${serverName}/stop`,
+                url: `/api/assign_role/${serverName}`,
                 method: 'POST',
-                success: function(stopRes) {
-                  if (stopRes.success) {
-                    alert('서버가 중지되었습니다. 잠시 후 재시작됩니다...');
-                    
-                    // 5초 후 재시작
-                    setTimeout(function() {
-                      $.ajax({
-                        url: `/api/servers/${serverName}/start`,
-                        method: 'POST',
-                        success: function(startRes) {
-                          if (startRes.success) {
-                            alert('서버가 재시작되었습니다. 설정 변경사항이 적용됩니다.');
-                          } else {
-                            alert(`재시작 실패: ${startRes.error}`);
-                          }
-                        },
-                        error: function(xhr) {
-                          console.error('[instances.js] 재시작 실패:', xhr);
-                          alert('서버 재시작에 실패했습니다.');
-                        }
-                      });
-                    }, 5000); // 5초 대기
-                    
+                contentType: 'application/json',
+                data: JSON.stringify({
+                  role: selectedRole
+                }),
+                success: function(roleRes) {
+                  if (roleRes.success) {
+                    console.log('[instances.js] 역할 할당 성공');
+                    alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 역할이 '${currentRole}'에서 '${selectedRole}'로 변경되었습니다.`);
                   } else {
-                    alert(`중지 실패: ${stopRes.error}`);
+                    console.error('[instances.js] 역할 할당 실패:', roleRes.error);
+                    alert(`서버 설정은 저장되었지만 역할 할당에 실패했습니다: ${roleRes.error}`);
                   }
+                  
+                  // 모달 닫기 및 서버 목록 새로고침
+                  $('#server-config-modal').modal('hide');
+                  loadActiveServers();
                 },
                 error: function(xhr) {
-                  console.error('[instances.js] 중지 실패:', xhr);
-                  alert('서버 중지에 실패했습니다.');
+                  console.error('[instances.js] 역할 할당 실패:', xhr);
+                  let errorMsg = '알 수 없는 오류';
+                  if (xhr.responseJSON?.error) {
+                    errorMsg = xhr.responseJSON.error;
+                  }
+                  alert(`서버 설정은 저장되었지만 역할 할당에 실패했습니다: ${errorMsg}`);
+                  
+                  // 모달 닫기 및 서버 목록 새로고침
+                  $('#server-config-modal').modal('hide');
+                  loadActiveServers();
                 }
               });
             } else {
-              alert('서버 설정이 성공적으로 저장되었습니다.');
-            }
+              // 역할 변경이 없는 경우
+              $('#server-config-modal').modal('hide');
+              
+              if (needsReboot) {
+                alert('서버 설정이 성공적으로 저장되었습니다.\n\n⚠️ CPU 또는 메모리 설정이 변경되었습니다.\n변경사항을 적용하기 위해 서버를 중지 후 재시작합니다...');
+              
+                // 중지 → 재시작 실행
+                $.ajax({
+                  url: `/api/servers/${serverName}/stop`,
+                  method: 'POST',
+                  success: function(stopRes) {
+                    if (stopRes.success) {
+                      alert('서버가 중지되었습니다. 잠시 후 재시작됩니다...');
+                      
+                      // 5초 후 재시작
+                      setTimeout(function() {
+                        $.ajax({
+                          url: `/api/servers/${serverName}/start`,
+                          method: 'POST',
+                          success: function(startRes) {
+                            if (startRes.success) {
+                              alert('서버가 재시작되었습니다. 설정 변경사항이 적용됩니다.');
+                            } else {
+                              alert(`재시작 실패: ${startRes.error}`);
+                            }
+                          },
+                          error: function(xhr) {
+                            console.error('[instances.js] 재시작 실패:', xhr);
+                            alert('서버 재시작에 실패했습니다.');
+                          }
+                        });
+                      }, 5000); // 5초 대기
+                      
+                    } else {
+                      alert(`중지 실패: ${stopRes.error}`);
+                    }
+                  },
+                  error: function(xhr) {
+                    console.error('[instances.js] 중지 실패:', xhr);
+                    alert('서버 중지에 실패했습니다.');
+                  }
+                });
+              } else {
+                alert('서버 설정이 성공적으로 저장되었습니다.');
+              }
             
             // 서버 목록 새로고침
             loadActiveServers();
