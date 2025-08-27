@@ -61,7 +61,7 @@ class AnsibleService:
     
 
     
-    def _run_ansible_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
+    def _run_ansible_command(self, command: List[str], cwd: str = None, env: Dict[str, str] = None) -> Tuple[int, str, str]:
         """Ansible 명령어 실행"""
         if cwd is None:
             cwd = self.ansible_dir
@@ -70,8 +70,15 @@ class AnsibleService:
         print(f"🔧 현재 작업 디렉토리: {os.getcwd()}")
         
         try:
+            # 환경 변수 설정
+            if env is None:
+                env = os.environ.copy()
+            else:
+                base_env = os.environ.copy()
+                base_env.update(env)
+                env = base_env
+            
             # SSH 설정 환경 변수 추가
-            env = os.environ.copy()
             ssh_user = current_app.config.get('SSH_USER', 'rocky')
             ssh_private_key = current_app.config.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
             
@@ -429,17 +436,20 @@ class AnsibleService:
                 role_vars['target_server'] = server.ip_address
                 role_vars['role'] = role
                 
-                # 개별 서버 플레이북 실행
+                # 개별 서버 플레이북 실행 (환경 변수 사용)
+                env = os.environ.copy()
+                env['TARGET_SERVER_IP'] = server.ip_address
+                
                 command = [
                     'ansible-playbook',
-                    '-i', f'python {self.dynamic_inventory_script} {server.ip_address}',
+                    '-i', self.dynamic_inventory_script,
                     self.single_server_playbook,
                     '--extra-vars', json.dumps(role_vars),
                     '--ssh-common-args="-o StrictHostKeyChecking=no"'
                 ]
                 
                 print(f"🔧 Ansible 명령어: {' '.join(command)}")
-                returncode, stdout, stderr = self._run_ansible_command(command)
+                returncode, stdout, stderr = self._run_ansible_command(command, env=env)
                 
                 if returncode == 0:
                     ansible_success = True
