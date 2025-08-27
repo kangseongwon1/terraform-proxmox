@@ -290,7 +290,7 @@ class AnsibleService:
                 # Ansible 플레이북 실행 (Dynamic Inventory 사용)
             command = [
                 'ansible-playbook',
-                    '-i', f'python {self.dynamic_inventory_script}',
+                '-i', f'python {self.dynamic_inventory_script} --list',
                 self.playbook_file,
                 '--ssh-common-args="-o StrictHostKeyChecking=no"'
             ]
