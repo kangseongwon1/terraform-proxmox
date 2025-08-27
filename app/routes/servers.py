@@ -1114,7 +1114,8 @@ def assign_role_to_server(server_name):
         role = data.get('role')
         print(f"🔧 할당할 역할: {role}")
         
-        if not role:
+        # 빈 문자열도 허용 (역할 제거)
+        if role is None:
             return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
         
         # AnsibleService를 통해 역할 할당 (DB 업데이트 + Ansible 실행)

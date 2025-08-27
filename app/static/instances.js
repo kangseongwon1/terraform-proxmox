@@ -471,7 +471,7 @@ $(function() {
     // 역할 변경 감지
     const selectedRole = $('#server-role').val();
     const currentRole = $('#server-role').attr('data-original') || '';
-    const hasRoleChange = selectedRole && selectedRole !== currentRole;
+    const hasRoleChange = selectedRole !== currentRole;
     
     // 1단계: 기본 서버 설정 저장
     $.ajax({
@@ -1154,9 +1154,9 @@ $(function() {
       const roleDisplay = (() => {
         if (!s.role || s.role === '' || s.role === null || s.role === undefined) {
           return '<span class="text-muted">(설정 안 함)</span>';
-        } else {
+      } else {
           return window.dashboardRoleMap[s.role] || s.role;
-        }
+      }
       })();   
       
       // Security Group 상태 표시

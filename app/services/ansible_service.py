@@ -306,10 +306,30 @@ class AnsibleService:
             
             elif role in [None, "", "none", "역할 없음"]:
                 # 역할 제거 요청
-                print(f"�� 역할 제거 요청: {current_role} → 없음")
+                print(f"🔧 역할 제거 요청: {current_role} → 없음")
+                
+                # 1. DB에서 역할 제거
                 server.role = None
                 db.session.commit()
                 print(f"✅ DB에서 역할 제거 완료: {server_name}")
+                
+                # 2. tfvars에서 역할 제거
+                try:
+                    from app.services.terraform_service import TerraformService
+                    terraform_service = TerraformService()
+                    
+                    # tfvars 로드
+                    tfvars = terraform_service.load_tfvars()
+                    if 'servers' in tfvars and server_name in tfvars['servers']:
+                        # 역할 제거 (빈 문자열로 설정)
+                        tfvars['servers'][server_name]['role'] = ""
+                        terraform_service.save_tfvars(tfvars)
+                        print(f"✅ tfvars에서 역할 제거 완료: {server_name}")
+                    else:
+                        print(f"⚠️ tfvars에서 서버를 찾을 수 없음: {server_name}")
+                except Exception as e:
+                    print(f"⚠️ tfvars 업데이트 실패: {e}")
+                
                 return True, f"서버 {server_name}에서 역할이 제거되었습니다"
             
             # 4. 서버 IP 주소 확인
