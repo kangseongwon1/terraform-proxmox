@@ -274,26 +274,26 @@ class AnsibleService:
                 # 기존 방식 (전체 서버 대상)
                 print(f"🔧 전체 서버 플레이북 사용")
                 
-            # 플레이북 파일 생성
-            playbook_content = {
-                'hosts': 'all',
-                'become': True,
-                'roles': [role]
-            }
-            
-            if extra_vars:
-                playbook_content['vars'] = extra_vars
-            
-            with open(self.playbook_file, 'w', encoding='utf-8') as f:
-                yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
-            
+                # 플레이북 파일 생성
+                playbook_content = {
+                    'hosts': 'all',
+                    'become': True,
+                    'roles': [role]
+                }
+                
+                if extra_vars:
+                    playbook_content['vars'] = extra_vars
+                
+                with open(self.playbook_file, 'w', encoding='utf-8') as f:
+                    yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
+                
                 # Ansible 플레이북 실행 (Dynamic Inventory 사용)
-            command = [
-                'ansible-playbook',
-                '-i', f'python {self.dynamic_inventory_script} --list',
-                self.playbook_file,
-                '--ssh-common-args="-o StrictHostKeyChecking=no"'
-            ]
+                command = [
+                    'ansible-playbook',
+                    '-i', f'python {self.dynamic_inventory_script} --list',
+                    self.playbook_file,
+                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                ]
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
