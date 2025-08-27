@@ -213,12 +213,13 @@ class ProxmoxService:
                             if db_server:
                                 db_role = db_server['role']
                                 firewall_group = db_server['firewall_group']
-                                print(f"🔍 DB에서 {vm['name']} 역할 조회: {db_role}")
+                                print(f"🔍 DB에서 {vm['name']} 역할 조회: {db_role} (타입: {type(db_role)})")
                     except Exception as e:
                         print(f"⚠️ DB 조회 실패: {e}")
                     
                     # 역할 정보 우선순위: DB > tfvars > 기본값
-                    final_role = db_role if db_role else server_data.get('role', 'unknown')
+                    # DB에서 None이면 빈 문자열로 처리 (역할 없음)
+                    final_role = db_role if db_role is not None else server_data.get('role', '')
                     
                     # 할당된 리소스 정보만 사용 (실시간 사용률 제거)
                     cpu_usage = 0.0  # 할당된 CPU 코어 수만 표시
