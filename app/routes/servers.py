@@ -1106,36 +1106,7 @@ def check_ansible_status():
 @login_required
 @permission_required('assign_roles')
 def assign_role_to_server(server_name):
-    """서버에 역할 할당"""
-    try:
-        data = request.get_json()
-        role = data.get('role')
-        
-        if not role:
-            return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
-        
-        print(f"🔧 서버 '{server_name}'에 역할 '{role}' 할당 요청")
-        
-        # AnsibleService를 통해 역할 할당
-        ansible_service = AnsibleService()
-        success, message = ansible_service.assign_role_to_server(server_name, role)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': message
-            })
-        else:
-            return jsonify({'error': message}), 500
-            
-    except Exception as e:
-        print(f"💥 역할 할당 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@bp.route('/api/assign_role/<server_name>', methods=['POST'])
-@permission_required('assign_roles')
-def assign_role(server_name):
-    """서버 역할 할당 (DB 기반 + Ansible 실행)"""
+    """서버에 역할 할당 (DB 기반 + Ansible 실행)"""
     try:
         print(f"🔧 역할 할당 요청: {server_name}")
         

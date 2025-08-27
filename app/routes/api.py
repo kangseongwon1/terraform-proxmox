@@ -303,8 +303,8 @@ def delete_server_compat(server_name):
 def assign_role_compat(server_name):
     """역할 할당 (호환성)"""
     try:
-        from app.routes.servers import assign_role
-        return assign_role(server_name)
+        from app.routes.servers import assign_role_to_server
+        return assign_role_to_server(server_name)
     except Exception as e:
         print(f"💥 역할 할당 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500

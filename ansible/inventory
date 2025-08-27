@@ -9,5 +9,5 @@ ansible_host_key_checking=False
 ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 
 
-[dbservers]
-192.168.0.10 ansible_host=192.168.0.10 server_name=test role=db
+[webservers]
+192.168.0.10 ansible_host=192.168.0.10 server_name=test role=web
