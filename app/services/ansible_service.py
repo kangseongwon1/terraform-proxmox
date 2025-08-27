@@ -33,12 +33,12 @@ class AnsibleService:
         
         # Ansible 디렉토리 설정
         self.ansible_dir = os.path.join(project_root, ansible_dir)
-        self.inventory_file = os.path.join(self.ansible_dir, "inventory")
+        self.dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
         self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
         
         print(f"🔧 프로젝트 루트: {project_root}")
         print(f"🔧 Ansible 디렉토리: {self.ansible_dir}")
-        print(f"🔧 Inventory 파일: {self.inventory_file}")
+        print(f"🔧 Dynamic Inventory 스크립트: {self.dynamic_inventory_script}")
         print(f"🔧 Playbook 파일: {self.playbook_file}")
         
         # 파일 존재 확인
@@ -46,88 +46,13 @@ class AnsibleService:
             print(f"⚠️ 플레이북 파일이 존재하지 않습니다: {self.playbook_file}")
         else:
             print(f"✅ 플레이북 파일 확인됨: {self.playbook_file}")
+        
+        if not os.path.exists(self.dynamic_inventory_script):
+            print(f"⚠️ Dynamic Inventory 스크립트가 존재하지 않습니다: {self.dynamic_inventory_script}")
+        else:
+            print(f"✅ Dynamic Inventory 스크립트 확인됨: {self.dynamic_inventory_script}")
     
-    def _generate_dynamic_inventory(self, target_servers: List[Dict[str, Any]]) -> str:
-        """동적으로 inventory 파일 생성"""
-        try:
-            print(f"🔧 동적 inventory 생성 시작: {len(target_servers)}개 서버")
-            
-            # 기본 inventory 템플릿
-            inventory_content = """# 동적으로 생성되는 inventory
-# 이 파일은 Python 스크립트에 의해 자동으로 업데이트됩니다
 
-[all:vars]
-ansible_python_interpreter=/usr/bin/python3.12
-ansible_user=rocky
-ansible_ssh_private_key_file=~/.ssh/id_rsa
-ansible_host_key_checking=False
-ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-
-"""
-            
-            # 서버들을 역할별로 그룹화
-            role_groups = {
-                'web': 'webservers',
-                'db': 'dbservers', 
-                'was': 'was_servers',
-                'monitoring': 'monitoring_servers'
-            }
-            
-            grouped_servers = {}
-            
-            for server in target_servers:
-                role = server.get('role', 'web')
-                group_name = role_groups.get(role, 'webservers')
-                
-                if group_name not in grouped_servers:
-                    grouped_servers[group_name] = []
-                
-                # 서버 IP 주소 가져오기
-                server_ip = self._get_server_ip(server)
-                if server_ip:
-                    grouped_servers[group_name].append({
-                        'name': server.get('name', 'unknown'),
-                        'ip': server_ip,
-                        'role': role
-                    })
-            
-            # 각 그룹별로 inventory에 추가
-            for group_name, servers in grouped_servers.items():
-                inventory_content += f"\n[{group_name}]\n"
-                for server in servers:
-                    inventory_content += f"{server['ip']} ansible_host={server['ip']} server_name={server['name']} role={server['role']}\n"
-            
-            # inventory 파일에 저장
-            with open(self.inventory_file, 'w', encoding='utf-8') as f:
-                f.write(inventory_content)
-            
-            print(f"✅ 동적 inventory 생성 완료: {self.inventory_file}")
-            print(f"📋 생성된 inventory 내용:\n{inventory_content}")
-            
-            return self.inventory_file
-            
-        except Exception as e:
-            print(f"❌ 동적 inventory 생성 실패: {e}")
-            return None
-    
-    def _get_server_ip(self, server: Dict[str, Any]) -> str:
-        """서버 정보에서 IP 주소 추출"""
-        try:
-            # networks 배열에서 첫 번째 네트워크의 IP 사용
-            networks = server.get('networks', [])
-            if networks and len(networks) > 0:
-                return networks[0].get('ip', '')
-            
-            # 직접 IP 필드가 있는 경우
-            if 'ip' in server:
-                return server['ip']
-            
-            print(f"⚠️ 서버 '{server.get('name', 'unknown')}'에서 IP 주소를 찾을 수 없습니다")
-            return None
-            
-        except Exception as e:
-            print(f"❌ 서버 IP 추출 실패: {e}")
-            return None
     
     def _run_ansible_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
         """Ansible 명령어 실행"""
@@ -330,17 +255,17 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
             with open(self.playbook_file, 'w', encoding='utf-8') as f:
                 yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
             
-            # Ansible 플레이북 실행 (절대 경로 사용)
+            # Ansible 플레이북 실행 (Dynamic Inventory 사용)
             command = [
                 'ansible-playbook',
-                '-i', self.inventory_file,
+                '-i', self.dynamic_inventory_script,
                 self.playbook_file,
                 '--ssh-common-args="-o StrictHostKeyChecking=no"'
             ]
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
-            print(f"🔧 Inventory 파일 존재 확인: {os.path.exists(self.inventory_file)}")
+            print(f"🔧 Dynamic Inventory 스크립트 존재 확인: {os.path.exists(self.dynamic_inventory_script)}")
             
             returncode, stdout, stderr = self._run_ansible_command(command)
             
@@ -383,17 +308,14 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
             if not server.ip_address:
                 return False, f"서버 {server_name}의 IP 주소가 설정되지 않았습니다"
             
-            # 5. 서버 데이터 준비
+            # 5. 서버 데이터 준비 (로그용)
             server_data = {
                 'name': server.name,
                 'role': role,
-                'networks': [{'ip': server.ip_address}]
+                'ip_address': server.ip_address
             }
             print(f"🔧 서버 데이터: {server_data}")
-            
-            # 6. 동적 inventory 생성
-            if not self._generate_dynamic_inventory([server_data]):
-                return False, "동적 inventory 파일 생성 실패"
+            print(f"🔧 Dynamic Inventory 스크립트 사용: {self.dynamic_inventory_script}")
             
             # 7. 역할별 추가 변수 설정
             role_vars = extra_vars or {}

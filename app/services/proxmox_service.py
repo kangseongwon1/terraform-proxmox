@@ -1066,7 +1066,7 @@ class ProxmoxService:
                         add_rule_response = self.session.post(group_url, headers=headers, data=rule_payload, timeout=10)
                         if add_rule_response.status_code not in [200, 201]:
                             print(f"⚠️ 규칙 재추가 실패: {rule}")
-                        else:
+            else:
                             print(f"✅ 규칙 재추가 성공: {rule.get('comment', 'Unknown')}")
                     
                     print(f"✅ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 완료 (재생성 방법)")
@@ -1077,7 +1077,7 @@ class ProxmoxService:
                 print(f"❌ Security Group 삭제 실패: {delete_group_response.status_code}")
             
             print(f"❌ 규칙 삭제 실패: Proxmox API 제한")
-            return False
+                return False
                 
         except Exception as e:
             print(f"❌ Datacenter Security Group '{group_name}'에서 규칙 {rule_id} 삭제 실패: {e}")
