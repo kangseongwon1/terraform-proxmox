@@ -52,13 +52,13 @@ class DynamicInventory:
         # 특정 서버만 필터링 (명령행 인자 또는 환경 변수에서)
         if target_server_ip:
             servers = [s for s in servers if s['ip_address'] == target_server_ip]
-            print(f"🔧 특정 서버만 대상으로 함: {target_server_ip}", file=sys.stderr)
+            print(f"[INFO] 특정 서버만 대상으로 함: {target_server_ip}", file=sys.stdout)
         else:
             # 환경 변수에서 특정 서버 IP 확인
             env_target = os.environ.get('TARGET_SERVER_IP')
             if env_target:
                 servers = [s for s in servers if s['ip_address'] == env_target]
-                print(f"🔧 환경 변수에서 특정 서버 대상: {env_target}", file=sys.stderr)
+                print(f"[INFO] 환경 변수에서 특정 서버 대상: {env_target}", file=sys.stdout)
         
         # 기본 그룹 설정
         inventory = {
