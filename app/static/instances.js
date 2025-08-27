@@ -640,9 +640,10 @@ $(function() {
               } else {
                 alert('서버 설정이 성공적으로 저장되었습니다.');
               }
-            
-            // 서버 목록 새로고침
-            loadActiveServers();
+              
+              // 서버 목록 새로고침
+              loadActiveServers();
+            }
           }
         } else {
           alert(`서버 설정 저장 실패: ${res.error}`);
