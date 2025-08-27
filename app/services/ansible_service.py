@@ -337,14 +337,9 @@ class AnsibleService:
             print(f"🔧 현재 역할: {current_role}")
             print(f"🔧 요청된 역할: {role}")
             
-            # 3. 역할 변경 감지 (선택적)
-            if current_role == role:
-                print(f"🔧 역할 변경 없음: {current_role} → {role}")
-                # 역할이 같아도 Ansible 실행 (강제 적용)
-                print(f"🔧 강제 Ansible 실행 진행")
-            
-            # 빈 문자열이나 None인 경우 역할 제거로 처리
-            elif role is None or role.strip() == "" or role.lower() in ["none", "역할 없음", "no role"]:
+            # 3. 역할 변경 감지 및 제거 처리
+            # 빈 문자열이나 None인 경우 역할 제거로 처리 (먼저 체크)
+            if role is None or role.strip() == "" or role.lower() in ["none", "역할 없음", "no role"]:
                 # 역할 제거 요청
                 print(f"🔧 역할 제거 요청: {current_role} → 없음")
                 
@@ -372,6 +367,11 @@ class AnsibleService:
                 
                 print(f"✅ 역할 제거 시 Ansible 실행 생략 (불필요)")
                 return True, f"서버 {server_name}에서 역할이 제거되었습니다"
+            
+            elif current_role == role:
+                print(f"🔧 역할 변경 없음: {current_role} → {role}")
+                # 역할이 같아도 Ansible 실행 (강제 적용)
+                print(f"🔧 강제 Ansible 실행 진행")
             
             # 4. 서버 IP 주소 확인
             if not server.ip_address:
