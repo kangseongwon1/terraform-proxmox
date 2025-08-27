@@ -343,7 +343,8 @@ class AnsibleService:
                 # 역할이 같아도 Ansible 실행 (강제 적용)
                 print(f"🔧 강제 Ansible 실행 진행")
             
-            elif role in [None, "", "none", "역할 없음"]:
+            # 빈 문자열이나 None인 경우 역할 제거로 처리
+            elif role is None or role.strip() == "" or role.lower() in ["none", "역할 없음", "no role"]:
                 # 역할 제거 요청
                 print(f"🔧 역할 제거 요청: {current_role} → 없음")
                 
@@ -369,6 +370,7 @@ class AnsibleService:
                 except Exception as e:
                     print(f"⚠️ tfvars 업데이트 실패: {e}")
                 
+                print(f"✅ 역할 제거 시 Ansible 실행 생략 (불필요)")
                 return True, f"서버 {server_name}에서 역할이 제거되었습니다"
             
             # 4. 서버 IP 주소 확인
