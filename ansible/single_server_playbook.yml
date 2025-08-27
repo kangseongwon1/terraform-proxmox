@@ -1,27 +1,120 @@
 - become: true
   hosts: "{{ target_server }}"
-  roles:
-  - "{{ role }}"
-  vars:
-    # 웹서버 변수
-    nginx_port: "{{ nginx_port | default(80) }}"
-    nginx_user: "{{ nginx_user | default('www-data') }}"
-    
-    # DB 변수
-    mysql_root_password: "{{ mysql_root_password | default('dmc1234!') }}"
-    mysql_port: "{{ mysql_port | default(3306) }}"
-    
-    # WAS 변수
-    java_version: "{{ java_version | default('11') }}"
-    tomcat_port: "{{ tomcat_port | default(8080) }}"
-    
-    # Java 변수
-    spring_profile: "{{ spring_profile | default('production') }}"
-    
-    # 검색 엔진 변수
-    elasticsearch_port: "{{ elasticsearch_port | default(9200) }}"
-    kibana_port: "{{ kibana_port | default(5601) }}"
-    
-    # FTP 변수
-    ftp_port: "{{ ftp_port | default(21) }}"
-    ftp_user: "{{ ftp_user | default('ftpuser') }}"
+  gather_facts: false  # Python이 없을 수 있으므로 facts 수집 비활성화
+  tasks:
+    - name: Update package cache
+      raw: dnf update -y
+      changed_when: false
+
+    - name: Install Python3
+      raw: dnf install -y python3 python3-pip
+      changed_when: false
+
+    - name: Gather facts after Python installation
+      setup:
+
+    - name: Install required packages based on role
+      package:
+        name:
+          - "{{ item }}"
+        state: present
+      loop:
+        - "{{ 'nginx' if role == 'web' else omit }}"
+        - "{{ 'mysql-server' if role == 'db' else omit }}"
+        - "{{ 'java-11-openjdk' if role in ['was', 'java'] else omit }}"
+        - "{{ 'tomcat' if role == 'was' else omit }}"
+        - "{{ 'elasticsearch' if role == 'search' else omit }}"
+        - "{{ 'vsftpd' if role == 'ftp' else omit }}"
+      when: item is not omit
+
+    - name: Configure web server (nginx)
+      block:
+        - name: Configure nginx port
+          lineinfile:
+            path: /etc/nginx/nginx.conf
+            regexp: 'listen\s+\d+'
+            line: "    listen {{ nginx_port }};"
+            state: present
+          when: nginx_port is defined
+
+        - name: Start and enable nginx
+          service:
+            name: nginx
+            state: started
+            enabled: yes
+      when: role == 'web'
+
+    - name: Configure database server (MySQL)
+      block:
+        - name: Start and enable MySQL
+          service:
+            name: mysqld
+            state: started
+            enabled: yes
+
+        - name: Set MySQL root password
+          mysql_user:
+            name: root
+            host: localhost
+            password: "{{ mysql_root_password }}"
+            login_unix_socket: /var/lib/mysql/mysql.sock
+          when: mysql_root_password is defined
+      when: role == 'db'
+
+    - name: Configure WAS server (Tomcat)
+      block:
+        - name: Configure Tomcat port
+          lineinfile:
+            path: /etc/tomcat/server.xml
+            regexp: 'port="8080"'
+            line: '        <Connector port="{{ tomcat_port }}" protocol="HTTP/1.1"'
+            state: present
+          when: tomcat_port is defined
+
+        - name: Start and enable Tomcat
+          service:
+            name: tomcat
+            state: started
+            enabled: yes
+      when: role == 'was'
+
+    - name: Configure search server (Elasticsearch)
+      block:
+        - name: Start and enable Elasticsearch
+          service:
+            name: elasticsearch
+            state: started
+            enabled: yes
+      when: role == 'search'
+
+    - name: Configure FTP server
+      block:
+        - name: Start and enable vsftpd
+          service:
+            name: vsftpd
+            state: started
+            enabled: yes
+      when: role == 'ftp'
+
+    - name: Display role configuration summary
+      debug:
+        msg: |
+          Role '{{ role }}' has been configured on {{ inventory_hostname }}
+          {% if role == 'web' %}
+          - Nginx port: {{ nginx_port | default(80) }}
+          - Nginx user: {{ nginx_user | default('www-data') }}
+          {% elif role == 'db' %}
+          - MySQL port: {{ mysql_port | default(3306) }}
+          {% elif role == 'was' %}
+          - Java version: {{ java_version | default('11') }}
+          - Tomcat port: {{ tomcat_port | default(8080) }}
+          {% elif role == 'java' %}
+          - Java version: {{ java_version | default('11') }}
+          - Spring profile: {{ spring_profile | default('production') }}
+          {% elif role == 'search' %}
+          - Elasticsearch port: {{ elasticsearch_port | default(9200) }}
+          - Kibana port: {{ kibana_port | default(5601) }}
+          {% elif role == 'ftp' %}
+          - FTP port: {{ ftp_port | default(21) }}
+          - FTP user: {{ ftp_user | default('ftpuser') }}
+          {% endif %}

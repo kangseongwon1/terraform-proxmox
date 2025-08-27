@@ -108,8 +108,7 @@ class DynamicInventory:
                 'server_status': server['status'],
                 'ansible_user': 'rocky',
                 'ansible_ssh_private_key_file': '~/.ssh/id_rsa',
-                'ansible_host_key_checking': False,
-                'ansible_python_interpreter': '/usr/bin/python3'
+                'ansible_host_key_checking': False
             }
         
         return inventory
@@ -127,8 +126,7 @@ class DynamicInventory:
                     'server_status': server['status'],
                     'ansible_user': 'rocky',
                     'ansible_ssh_private_key_file': '~/.ssh/id_rsa',
-                    'ansible_host_key_checking': False,
-                    'ansible_python_interpreter': '/usr/bin/python3'
+                    'ansible_host_key_checking': False
                 }
         
         return {}
