@@ -337,6 +337,8 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
         """서버에 역할 할당 (DB 기반)"""
         try:
             print(f"🔧 서버 역할 할당 시작: {server_name} - {role}")
+            print(f"🔧 호출 스택: {__name__}.assign_role_to_server")
+            print(f"🔧 매개변수: server_name={server_name}, role={role}, extra_vars={extra_vars}")
             
             # 1. DB에서 서버 정보 조회
             server = Server.get_by_name(server_name)

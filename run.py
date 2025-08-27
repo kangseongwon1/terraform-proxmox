@@ -15,6 +15,7 @@ from app.main import app, db
 from app.models import User, Server, Notification, Project
 from flask_login import login_required
 from flask import render_template
+import logging
 
 if __name__ == '__main__':
     # 데이터베이스 테이블 생성
@@ -50,6 +51,12 @@ if __name__ == '__main__':
             print("사용자명: admin")
             print("비밀번호: admin123!")
             print("⚠️  보안을 위해 비밀번호를 변경하세요!")
+    
+    # 로깅 설정
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     # 개발 서버 실행
     print("🚀 Proxmox Manager 시작 중...")
