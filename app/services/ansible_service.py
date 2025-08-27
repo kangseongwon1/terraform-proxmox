@@ -35,17 +35,24 @@ class AnsibleService:
         self.ansible_dir = os.path.join(project_root, ansible_dir)
         self.dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
         self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
+        self.single_server_playbook = os.path.join(self.ansible_dir, "single_server_playbook.yml")
         
         print(f"🔧 프로젝트 루트: {project_root}")
         print(f"🔧 Ansible 디렉토리: {self.ansible_dir}")
         print(f"🔧 Dynamic Inventory 스크립트: {self.dynamic_inventory_script}")
         print(f"🔧 Playbook 파일: {self.playbook_file}")
+        print(f"🔧 Single Server Playbook 파일: {self.single_server_playbook}")
         
         # 파일 존재 확인
         if not os.path.exists(self.playbook_file):
             print(f"⚠️ 플레이북 파일이 존재하지 않습니다: {self.playbook_file}")
         else:
             print(f"✅ 플레이북 파일 확인됨: {self.playbook_file}")
+        
+        if not os.path.exists(self.single_server_playbook):
+            print(f"⚠️ Single Server 플레이북 파일이 존재하지 않습니다: {self.single_server_playbook}")
+        else:
+            print(f"✅ Single Server 플레이북 파일 확인됨: {self.single_server_playbook}")
         
         if not os.path.exists(self.dynamic_inventory_script):
             print(f"⚠️ Dynamic Inventory 스크립트가 존재하지 않습니다: {self.dynamic_inventory_script}")
@@ -169,15 +176,17 @@ class AnsibleService:
             logger.error(f"Ansible 인벤토리 파일 생성 실패: {e}")
             return False
     
-    def run_playbook(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+    def run_playbook(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
         """Ansible 플레이북 실행 (ansible-runner 사용)"""
         try:
             print(f"🔧 Ansible 플레이북 실행 시작: {role}")
+            if target_server:
+                print(f"🔧 대상 서버: {target_server}")
             
             if ANSIBLE_RUNNER_AVAILABLE:
-                return self._run_playbook_with_runner(role, extra_vars)
+                return self._run_playbook_with_runner(role, extra_vars, target_server)
             else:
-                return self._run_playbook_with_subprocess(role, extra_vars)
+                return self._run_playbook_with_subprocess(role, extra_vars, target_server)
                 
         except Exception as e:
             logger.error(f"Ansible 플레이북 실행 실패: {e}")
@@ -237,31 +246,54 @@ class AnsibleService:
             print(f"❌ {error_msg}")
             return False, error_msg
     
-    def _run_playbook_with_subprocess(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+    def _run_playbook_with_subprocess(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
         """subprocess를 사용한 플레이북 실행 (기존 방식)"""
         try:
             print(f"🔧 subprocess를 사용한 플레이북 실행: {role}")
             
-            # 플레이북 파일 생성
-            playbook_content = {
-                'hosts': 'all',
-                'become': True,
-                'roles': [role]
-            }
-            
-            if extra_vars:
-                playbook_content['vars'] = extra_vars
-            
-            with open(self.playbook_file, 'w', encoding='utf-8') as f:
-                yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
-            
-            # Ansible 플레이북 실행 (Dynamic Inventory 사용)
-            command = [
-                'ansible-playbook',
-                '-i', self.dynamic_inventory_script,
-                self.playbook_file,
-                '--ssh-common-args="-o StrictHostKeyChecking=no"'
-            ]
+            # 대상 서버가 지정된 경우 개별 서버 플레이북 사용
+            if target_server:
+                print(f"🔧 개별 서버 플레이북 사용: {target_server}")
+                
+                # 개별 서버 플레이북에 extra_vars 추가
+                extra_vars = extra_vars or {}
+                extra_vars.update({
+                    'target_server': target_server,
+                    'role': role
+                })
+                
+                # Ansible 플레이북 실행 (개별 서버 플레이북 사용)
+                command = [
+                    'ansible-playbook',
+                    '-i', f'python {self.dynamic_inventory_script} {target_server}',
+                    self.single_server_playbook,
+                    '--extra-vars', json.dumps(extra_vars),
+                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                ]
+            else:
+                # 기존 방식 (전체 서버 대상)
+                print(f"🔧 전체 서버 플레이북 사용")
+                
+                # 플레이북 파일 생성
+                playbook_content = {
+                    'hosts': 'all',
+                    'become': True,
+                    'roles': [role]
+                }
+                
+                if extra_vars:
+                    playbook_content['vars'] = extra_vars
+                
+                with open(self.playbook_file, 'w', encoding='utf-8') as f:
+                    yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
+                
+                # Ansible 플레이북 실행 (Dynamic Inventory 사용)
+                command = [
+                    'ansible-playbook',
+                    '-i', f'python {self.dynamic_inventory_script}',
+                    self.playbook_file,
+                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                ]
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
@@ -382,8 +414,8 @@ class AnsibleService:
             
             print(f"🔧 역할 변수 설정: {role_vars}")
             
-            # 8. Ansible 플레이북 실행
-            ansible_success, ansible_message = self.run_playbook(role, role_vars)
+            # 8. Ansible 플레이북 실행 (개별 서버 대상)
+            ansible_success, ansible_message = self.run_playbook(role, role_vars, server.ip_address)
             
             # 9. Ansible 실행 결과에 따라 DB 업데이트
             if ansible_success:

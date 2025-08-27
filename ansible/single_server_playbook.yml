@@ -1,0 +1,7 @@
+- become: true
+  hosts: "{{ target_server }}"
+  roles:
+  - "{{ role }}"
+  vars:
+    nginx_port: 80
+    nginx_user: www-data

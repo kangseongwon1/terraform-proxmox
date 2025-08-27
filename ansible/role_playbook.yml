@@ -1,7 +1,4 @@
 - become: true
   hosts: all
   roles:
-  - web
-  vars:
-    nginx_port: 80
-    nginx_user: www-data
+  - ''

@@ -45,9 +45,14 @@ class DynamicInventory:
             print(f"DB 조회 오류: {e}", file=sys.stderr)
             return []
     
-    def generate_inventory(self) -> Dict[str, Any]:
+    def generate_inventory(self, target_server_ip: str = None) -> Dict[str, Any]:
         """전체 inventory 생성 (--list)"""
         servers = self.get_servers_from_db()
+        
+        # 특정 서버만 필터링
+        if target_server_ip:
+            servers = [s for s in servers if s['ip_address'] == target_server_ip]
+            print(f"🔧 특정 서버만 대상으로 함: {target_server_ip}", file=sys.stderr)
         
         # 기본 그룹 설정
         inventory = {
@@ -132,6 +137,12 @@ def main():
         result = inventory.generate_inventory()
         print(json.dumps(result, indent=2))
     
+    elif len(sys.argv) == 3 and sys.argv[1] == '--list':
+        # 특정 서버만 대상으로 하는 inventory 반환
+        target_server_ip = sys.argv[2]
+        result = inventory.generate_inventory(target_server_ip)
+        print(json.dumps(result, indent=2))
+    
     elif len(sys.argv) == 3 and sys.argv[1] == '--host':
         # 특정 호스트 변수 반환
         hostname = sys.argv[2]
@@ -140,6 +151,7 @@ def main():
     
     else:
         print("Usage: python dynamic_inventory.py --list")
+        print("       python dynamic_inventory.py --list <target_server_ip>")
         print("       python dynamic_inventory.py --host <hostname>")
         sys.exit(1)
 
