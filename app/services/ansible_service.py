@@ -345,13 +345,16 @@ ansible_ssh_common_args='-o StrictHostKeyChecking=no'
             if not server:
                 return False, f"서버 {server_name}을 DB에서 찾을 수 없습니다"
             
-            # 2. 현재 역할 확인
+            # 2. 현재 역할 확인 (로그용)
             current_role = server.role
             print(f"🔧 현재 역할: {current_role}")
+            print(f"🔧 요청된 역할: {role}")
             
-            # 3. 역할이 변경되지 않은 경우
+            # 3. 역할 변경 감지 (선택적)
             if current_role == role:
-                return True, f"서버 {server_name}은 이미 {role} 역할이 설정되어 있습니다"
+                print(f"🔧 역할 변경 없음: {current_role} → {role}")
+                # 역할이 같아도 Ansible 실행 (강제 적용)
+                print(f"🔧 강제 Ansible 실행 진행")
             
             # 4. 서버 IP 주소 확인
             if not server.ip_address:
