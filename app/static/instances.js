@@ -2655,6 +2655,102 @@ function initializeServerForm() {
       $refreshBtn.prop('title', '서버 목록 새로고침');
     }
   }
+
+  // 다중 서버 역할 할당 기능
+  $(document).off('click', '.bulk-role-apply').on('click', '.bulk-role-apply', function() {
+    const selectedServers = getSelectedServers();
+    const selectedRole = $('#bulk-role-select').val();
+    
+    if (selectedServers.length === 0) {
+      alert('역할을 할당할 서버를 선택해주세요.');
+      return;
+    }
+    
+    if (!selectedRole) {
+      alert('할당할 역할을 선택해주세요.');
+      return;
+    }
+    
+    const confirmMessage = `선택된 ${selectedServers.length}개 서버에 '${selectedRole}' 역할을 할당하시겠습니까?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    console.log(`[instances.js] 다중 서버 역할 할당 시작: ${selectedServers.join(', ')} → ${selectedRole}`);
+    
+    // 일괄 작업 플래그 설정
+    isBulkOperationInProgress = true;
+    updateRefreshButtonState();
+    
+    $.ajax({
+      url: '/api/assign_role_bulk',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        server_names: selectedServers,
+        role: selectedRole
+      }),
+      success: function(response) {
+        if (response.success) {
+          console.log('[instances.js] 다중 서버 역할 할당 성공:', response);
+          
+          // 결과 요약 표시
+          const summary = response.summary;
+          let resultMessage = `다중 서버 역할 할당 완료!\n\n`;
+          resultMessage += `총 ${summary.total}개 서버 중 ${summary.success}개 성공, ${summary.failed}개 실패\n\n`;
+          
+          // 실패한 서버들 표시
+          if (summary.failed > 0) {
+            const failedServers = response.results.filter(r => !r.success);
+            resultMessage += `실패한 서버들:\n`;
+            failedServers.forEach(r => {
+              resultMessage += `- ${r.server_name}: ${r.message}\n`;
+            });
+          }
+          
+          alert(resultMessage);
+          
+          // 서버 목록 새로고침
+          loadActiveServers();
+        } else {
+          console.error('[instances.js] 다중 서버 역할 할당 실패:', response.error);
+          alert(`다중 서버 역할 할당 실패: ${response.error}`);
+        }
+      },
+      error: function(xhr) {
+        console.error('[instances.js] 다중 서버 역할 할당 오류:', xhr);
+        let errorMsg = '알 수 없는 오류';
+        if (xhr.responseJSON?.error) {
+          errorMsg = xhr.responseJSON.error;
+        }
+        alert(`다중 서버 역할 할당 실패: ${errorMsg}`);
+      },
+      complete: function() {
+        // 일괄 작업 플래그 해제
+        isBulkOperationInProgress = false;
+        updateRefreshButtonState();
+      }
+    });
+  });
+  
+  // 선택된 서버 목록 가져오기
+  function getSelectedServers() {
+    const selectedServers = [];
+    $('.server-checkbox:checked').each(function() {
+      selectedServers.push($(this).val());
+    });
+    return selectedServers;
+  }
+  
+  // 새로고침 버튼 상태 업데이트
+  function updateRefreshButtonState() {
+    const $refreshBtn = $('.refresh-btn');
+    if (isBulkOperationInProgress) {
+      $refreshBtn.prop('disabled', false).text('강제 새로고침');
+    } else {
+      $refreshBtn.prop('disabled', false).text('새로고침');
+    }
+  }
 });
 
 // =========================

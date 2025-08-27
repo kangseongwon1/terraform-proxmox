@@ -1252,3 +1252,65 @@ def remove_server_disk(server_name, device):
     except Exception as e:
         print(f"💥 디스크 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500    
+
+@bp.route('/api/assign_role_bulk', methods=['POST'])
+@permission_required('assign_roles')
+def assign_role_bulk():
+    """다중 서버에 역할 할당"""
+    try:
+        print(f"🔧 다중 서버 역할 할당 요청")
+        
+        data = request.get_json()
+        server_names = data.get('server_names', [])
+        role = data.get('role')
+        
+        print(f"🔧 대상 서버들: {server_names}")
+        print(f"🔧 할당할 역할: {role}")
+        
+        if not server_names:
+            return jsonify({'error': '서버 목록을 지정해야 합니다.'}), 400
+        
+        if not role:
+            return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
+        
+        # AnsibleService를 통해 각 서버에 역할 할당
+        ansible_service = AnsibleService()
+        results = []
+        
+        for server_name in server_names:
+            try:
+                success, message = ansible_service.assign_role_to_server(server_name, role)
+                results.append({
+                    'server_name': server_name,
+                    'success': success,
+                    'message': message
+                })
+                print(f"🔧 {server_name}: {'성공' if success else '실패'} - {message}")
+            except Exception as e:
+                results.append({
+                    'server_name': server_name,
+                    'success': False,
+                    'message': str(e)
+                })
+                print(f"❌ {server_name}: 오류 - {e}")
+        
+        # 결과 요약
+        success_count = sum(1 for r in results if r['success'])
+        total_count = len(results)
+        
+        return jsonify({
+            'success': True,
+            'message': f'{success_count}/{total_count}개 서버에 역할 할당 완료',
+            'results': results,
+            'summary': {
+                'total': total_count,
+                'success': success_count,
+                'failed': total_count - success_count
+            }
+        })
+        
+    except Exception as e:
+        print(f"💥 다중 서버 역할 할당 실패: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500 

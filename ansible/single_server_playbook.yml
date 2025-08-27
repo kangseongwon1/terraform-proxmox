@@ -3,5 +3,25 @@
   roles:
   - "{{ role }}"
   vars:
-    nginx_port: 80
-    nginx_user: www-data
+    # 웹서버 변수
+    nginx_port: "{{ nginx_port | default(80) }}"
+    nginx_user: "{{ nginx_user | default('www-data') }}"
+    
+    # DB 변수
+    mysql_root_password: "{{ mysql_root_password | default('dmc1234!') }}"
+    mysql_port: "{{ mysql_port | default(3306) }}"
+    
+    # WAS 변수
+    java_version: "{{ java_version | default('11') }}"
+    tomcat_port: "{{ tomcat_port | default(8080) }}"
+    
+    # Java 변수
+    spring_profile: "{{ spring_profile | default('production') }}"
+    
+    # 검색 엔진 변수
+    elasticsearch_port: "{{ elasticsearch_port | default(9200) }}"
+    kibana_port: "{{ kibana_port | default(5601) }}"
+    
+    # FTP 변수
+    ftp_port: "{{ ftp_port | default(21) }}"
+    ftp_user: "{{ ftp_user | default('ftpuser') }}"

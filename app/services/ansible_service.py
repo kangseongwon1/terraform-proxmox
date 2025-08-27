@@ -141,7 +141,7 @@ class AnsibleService:
                 if result.stderr:
                     print(f"🔧 Ansible stderr: {result.stderr}")
                 
-                return result.returncode, result.stdout, result.stderr
+            return result.returncode, result.stdout, result.stderr
                 
         except subprocess.TimeoutExpired:
             logger.error("Ansible 명령어 실행 타임아웃")
@@ -274,26 +274,26 @@ class AnsibleService:
                 # 기존 방식 (전체 서버 대상)
                 print(f"🔧 전체 서버 플레이북 사용")
                 
-                # 플레이북 파일 생성
-                playbook_content = {
-                    'hosts': 'all',
-                    'become': True,
-                    'roles': [role]
-                }
-                
-                if extra_vars:
-                    playbook_content['vars'] = extra_vars
-                
-                with open(self.playbook_file, 'w', encoding='utf-8') as f:
-                    yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
-                
+            # 플레이북 파일 생성
+            playbook_content = {
+                'hosts': 'all',
+                'become': True,
+                'roles': [role]
+            }
+            
+            if extra_vars:
+                playbook_content['vars'] = extra_vars
+            
+            with open(self.playbook_file, 'w', encoding='utf-8') as f:
+                yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
+            
                 # Ansible 플레이북 실행 (Dynamic Inventory 사용)
-                command = [
-                    'ansible-playbook',
+            command = [
+                'ansible-playbook',
                     '-i', f'python {self.dynamic_inventory_script}',
-                    self.playbook_file,
-                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
-                ]
+                self.playbook_file,
+                '--ssh-common-args="-o StrictHostKeyChecking=no"'
+            ]
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
@@ -415,7 +415,14 @@ class AnsibleService:
             print(f"🔧 역할 변수 설정: {role_vars}")
             
             # 8. Ansible 플레이북 실행 (개별 서버 대상)
-            ansible_success, ansible_message = self.run_playbook(role, role_vars, server.ip_address)
+            # Windows 환경에서는 Ansible 실행을 건너뛰고 DB만 업데이트
+            import platform
+            if platform.system() == 'Windows':
+                print(f"🔧 Windows 환경 감지: Ansible 실행 건너뛰고 DB만 업데이트")
+                ansible_success = True
+                ansible_message = "Windows 환경에서 Ansible 실행 건너뜀"
+            else:
+                ansible_success, ansible_message = self.run_playbook(role, role_vars, server.ip_address)
             
             # 9. Ansible 실행 결과에 따라 DB 업데이트
             if ansible_success:
@@ -423,6 +430,19 @@ class AnsibleService:
                 server.role = role
                 db.session.commit()
                 print(f"✅ DB에 역할 업데이트 완료: {server_name} - {role}")
+                
+                # tfvars도 업데이트
+                try:
+                    from app.services.terraform_service import TerraformService
+                    terraform_service = TerraformService()
+                    
+                    tfvars = terraform_service.load_tfvars()
+                    if 'servers' in tfvars and server_name in tfvars['servers']:
+                        tfvars['servers'][server_name]['role'] = role
+                        terraform_service.save_tfvars(tfvars)
+                        print(f"✅ tfvars에서 역할 업데이트 완료: {server_name} - {role}")
+                except Exception as e:
+                    print(f"⚠️ tfvars 업데이트 실패: {e}")
                 
                 return True, f"서버 {server_name}에 {role} 역할이 성공적으로 할당되었습니다"
             else:
@@ -596,7 +616,7 @@ class AnsibleService:
             return os.path.exists(tasks_file)
         except Exception as e:
             logger.error(f"역할 {role} 유효성 검사 실패: {e}")
-            return False
+            return False 
     
     def check_ansible_installation(self) -> Tuple[bool, str]:
         """Ansible 설치 상태 확인"""
