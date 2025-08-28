@@ -700,12 +700,21 @@ class AnsibleService:
                     role_vars = extra_vars or {}
                     role_vars['target_server'] = server.ip_address
                     role_vars['role'] = role
+                    role_vars['nginx_user'] = 'www-data'
+                    role_vars['nginx_port'] = 80
+                    role_vars['mysql_root_password'] = 'root1234'
+                    role_vars['mysql_database'] = 'app_db'
+                    role_vars['java_version'] = '11'
+                    role_vars['tomcat_port'] = 8080
+                    role_vars['elasticsearch_port'] = 9200
+                    role_vars['ftp_user'] = 'ftpuser'
+                    role_vars['ftp_password'] = 'ftppass123'
                     
                     # Ansible 명령어 구성
                     command = [
                         'ansible-playbook',
                         '-i', self.dynamic_inventory_script,
-                        self.minimal_test_playbook,
+                        self.single_server_playbook,
                         '--extra-vars', json.dumps(role_vars),
                         '--ssh-common-args=-o StrictHostKeyChecking=no',
                         '-vv'  # 상세한 로그 출력

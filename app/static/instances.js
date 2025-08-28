@@ -2816,17 +2816,12 @@ window.loadNotifications = function() {
     window.systemNotifications.forEach(function(noti){
       const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
       
-      // details가 있으면 확장 가능한 형태로 표시
+      // details가 있으면 모달로 표시
       const detailsHtml = noti.details ? `
         <div class="mt-2">
-          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details-${noti.time.replace(/[^a-zA-Z0-9]/g, '')}" aria-expanded="false">
+          <button class="btn btn-sm btn-outline-primary" type="button" onclick="showLogModal('${noti.title}', \`${noti.details.replace(/`/g, '\\`')}\`)">
             <i class="fas fa-terminal me-1"></i>상세 로그 보기
           </button>
-          <div class="collapse mt-2" id="details-${noti.time.replace(/[^a-zA-Z0-9]/g, '')}">
-            <div class="card card-body bg-light" style="font-family: 'Courier New', monospace; font-size: 11px; max-height: 200px; overflow-y: auto;">
-              <pre style="margin: 0; white-space: pre-wrap;">${noti.details}</pre>
-            </div>
-          </div>
         </div>
       ` : '';
       
@@ -2877,6 +2872,75 @@ window.loadNotifications = function() {
     window.addSystemNotification();
     
     console.log('[instances.js] 개별 알림 삭제 완료');
+  };
+  
+  // 로그 모달 표시 함수
+  window.showLogModal = function(title, logContent) {
+    console.log('[instances.js] 로그 모달 표시:', title);
+    
+    // 기존 모달 제거
+    $('#logModal').remove();
+    
+    // 새 모달 생성
+    const modalHtml = `
+      <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="logModalLabel">
+                <i class="fas fa-terminal me-2"></i>${title}
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="bg-dark text-light p-3 rounded" style="font-family: 'Courier New', monospace; font-size: 13px; max-height: 70vh; overflow-y: auto;">
+                <pre style="margin: 0; white-space: pre-wrap; color: #00ff00;">${logContent}</pre>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+              <button type="button" class="btn btn-primary" onclick="copyLogToClipboard()">
+                <i class="fas fa-copy me-1"></i>클립보드에 복사
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // 모달 추가 및 표시
+    $('body').append(modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('logModal'));
+    modal.show();
+  };
+  
+  // 로그 클립보드 복사 함수
+  window.copyLogToClipboard = function() {
+    const logContent = document.querySelector('#logModal pre').textContent;
+    navigator.clipboard.writeText(logContent).then(function() {
+      // 복사 성공 알림
+      const toast = `
+        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">
+              <i class="fas fa-check me-1"></i>로그가 클립보드에 복사되었습니다.
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>
+      `;
+      
+      // 토스트 컨테이너가 없으면 생성
+      if (!$('#toastContainer').length) {
+        $('body').append('<div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>');
+      }
+      
+      $('#toastContainer').append(toast);
+      const toastElement = new bootstrap.Toast($('#toastContainer .toast').last()[0]);
+      toastElement.show();
+    }).catch(function(err) {
+      console.error('클립보드 복사 실패:', err);
+    });
   };
 })();
 
