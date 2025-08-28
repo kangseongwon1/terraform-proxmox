@@ -717,19 +717,41 @@ class AnsibleService:
                         db.session.commit()
                         self._update_tfvars_role(server_name, role)
                         
+                        # 성공 로그 구성
+                        success_log = f"""✅ Ansible 실행 성공
+서버: {server_name}
+역할: {role}
+명령어: {' '.join(command)}
+
+출력:
+{stdout}"""
+                        
                         self._create_notification(
                             f"서버 {server_name} 역할 할당 완료",
                             f"역할 '{role}'이 성공적으로 적용되었습니다.",
-                            "success"
+                            "success",
+                            success_log
                         )
                         print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
                     else:
-                        # 실패 시 알림
-                        error_msg = stderr if stderr else "알 수 없는 오류가 발생했습니다."
+                        # 실패 시 알림 (상세 로그 포함)
+                        error_log = f"""❌ Ansible 실행 실패
+서버: {server_name}
+역할: {role}
+명령어: {' '.join(command)}
+Return Code: {returncode}
+
+표준 출력:
+{stdout}
+
+오류 출력:
+{stderr}"""
+                        
                         self._create_notification(
                             f"서버 {server_name} 역할 할당 실패",
-                            f"Ansible 실행 중 오류가 발생했습니다: {error_msg}",
-                            "error"
+                            f"Ansible 실행 중 오류가 발생했습니다. (Return Code: {returncode})",
+                            "error",
+                            error_log
                         )
                         print(f"❌ 비동기 Ansible 실행 실패: {server_name} - {role}")
                         
@@ -748,6 +770,26 @@ class AnsibleService:
                 except:
                     print(f"❌ 알림 생성 실패: {e}")
                 print(f"❌ 비동기 Ansible 실행 중 예외 발생: {str(e)}")
+                
+                # 예외 발생 시에도 로그 포함하여 알림 생성
+                try:
+                    from app import create_app
+                    app = create_app()
+                    with app.app_context():
+                        error_log = f"""❌ Ansible 실행 중 예외 발생
+서버: {server_name}
+역할: {role}
+예외: {str(e)}
+타입: {type(e).__name__}"""
+                        
+                        self._create_notification(
+                            f"서버 {server_name} 역할 할당 실패",
+                            f"Ansible 실행 중 예외가 발생했습니다: {type(e).__name__}",
+                            "error",
+                            error_log
+                        )
+                except:
+                    pass
         
         # 백그라운드 스레드에서 실행
         thread = threading.Thread(target=run_ansible)
@@ -756,7 +798,7 @@ class AnsibleService:
         
         return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
 
-    def _create_notification(self, title: str, message: str, severity: str = "info"):
+    def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""
         try:
             notification = Notification(
@@ -764,6 +806,7 @@ class AnsibleService:
                 title=title,
                 message=message,
                 severity=severity,
+                details=details,
                 created_at=datetime.now()
             )
             db.session.add(notification)

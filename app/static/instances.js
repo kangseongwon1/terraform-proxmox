@@ -2759,7 +2759,7 @@ function initializeServerForm() {
 (function(){
   // 알림 목록 관리
   window.systemNotifications = window.systemNotifications || [];
-  window.addSystemNotification = function(type, title, message) {
+  window.addSystemNotification = function(type, title, message, details) {
     if (typeof type === 'undefined' && typeof title === 'undefined' && typeof message === 'undefined') {
       // 알림 추가 없이 드롭다운만 갱신
       const $list = $('#notification-list');
@@ -2775,13 +2775,28 @@ function initializeServerForm() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('ko-KR', {hour12:false});
     // 알림 객체 추가 (최대 10개 유지)
-    window.systemNotifications.unshift({type, title, message, time: timeStr});
+    window.systemNotifications.unshift({type, title, message, details, time: timeStr});
     if (window.systemNotifications.length > 10) window.systemNotifications.length = 10;
     // 드롭다운 렌더링 (상단 네비게이션)
     const $list = $('#notification-list');
     let html = '';
     window.systemNotifications.forEach(function(noti){
       const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
+      
+      // details가 있으면 확장 가능한 형태로 표시
+      const detailsHtml = noti.details ? `
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#details-${noti.time.replace(/[^a-zA-Z0-9]/g, '')}" aria-expanded="false">
+            <i class="fas fa-terminal me-1"></i>상세 로그 보기
+          </button>
+          <div class="collapse mt-2" id="details-${noti.time.replace(/[^a-zA-Z0-9]/g, '')}">
+            <div class="card card-body bg-light" style="font-family: 'Courier New', monospace; font-size: 11px; max-height: 200px; overflow-y: auto;">
+              <pre style="margin: 0; white-space: pre-wrap;">${noti.details}</pre>
+            </div>
+          </div>
+        </div>
+      ` : '';
+      
       html += `
         <li>
           <div class="dropdown-item d-flex align-items-start small" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
@@ -2789,6 +2804,7 @@ function initializeServerForm() {
             <div class="flex-grow-1">
               <div class="fw-bold mb-1">${noti.title}</div>
               <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
+              ${detailsHtml}
               <div class="text-muted small">${noti.time}</div>
             </div>
           </div>

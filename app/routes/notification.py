@@ -25,6 +25,7 @@ def get_notifications():
                 'id': notification.id,
                 'title': notification.title,
                 'message': notification.message,
+                'details': notification.details,
                 'severity': notification.severity,
                 'is_read': notification.is_read,
                 'created_at': notification.created_at.isoformat() if notification.created_at else None
