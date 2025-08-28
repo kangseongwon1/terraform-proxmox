@@ -718,6 +718,12 @@ class AnsibleService:
                     print(f"🔧 Ansible stdout 길이: {len(stdout) if stdout else 0}")
                     print(f"🔧 Ansible stderr 길이: {len(stderr) if stderr else 0}")
                     
+                    # 상세 로그 출력
+                    if stdout:
+                        print(f"🔧 Ansible stdout (처음 1000자): {stdout[:1000]}")
+                    if stderr:
+                        print(f"🔧 Ansible stderr (처음 1000자): {stderr[:1000]}")
+                    
                     if returncode == 0:
                         # 성공 시 DB 업데이트
                         server.role = role
@@ -733,6 +739,7 @@ class AnsibleService:
 출력:
 {stdout}"""
                         
+                        print(f"🔧 알림 생성 시작: 성공 알림")
                         self._create_notification(
                             f"서버 {server_name} 역할 할당 완료",
                             f"역할 '{role}'이 성공적으로 적용되었습니다.",
@@ -740,6 +747,7 @@ class AnsibleService:
                             success_log
                         )
                         print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
+                        print(f"✅ 알림 생성 완료: 성공 알림")
                     else:
                         # 실패 시 알림 (상세 로그 포함)
                         error_log = f"""❌ Ansible 실행 실패
@@ -808,6 +816,7 @@ Return Code: {returncode}
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""
         try:
+            print(f"🔧 알림 생성 시작: {title}")
             notification = Notification(
                 type="ansible_role",
                 title=title,
@@ -818,6 +827,8 @@ Return Code: {returncode}
             )
             db.session.add(notification)
             db.session.commit()
-            print(f"✅ 알림 생성: {title}")
+            print(f"✅ 알림 생성 완료: {title} (ID: {notification.id})")
         except Exception as e:
-            print(f"⚠️ 알림 생성 실패: {e}") 
+            print(f"❌ 알림 생성 실패: {e}")
+            import traceback
+            traceback.print_exc() 

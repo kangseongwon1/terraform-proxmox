@@ -17,7 +17,10 @@ bp = Blueprint('notification', __name__, url_prefix='/api')
 def get_notifications():
     """알림 목록 조회"""
     try:
-        notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
+        # user_id가 None인 알림도 포함 (시스템 알림)
+        notifications = Notification.query.filter(
+            (Notification.user_id == current_user.id) | (Notification.user_id.is_(None))
+        ).order_by(Notification.created_at.desc()).all()
         
         notification_data = []
         for notification in notifications:
