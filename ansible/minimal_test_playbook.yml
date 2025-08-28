@@ -1,0 +1,9 @@
+- hosts: "{{ target_server }}"
+  gather_facts: false
+  tasks:
+    - name: Test connection
+      ping:
+      
+    - name: Show hostname
+      debug:
+        msg: "Connected to {{ inventory_hostname }}"
