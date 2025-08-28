@@ -1,16 +1,16 @@
 ---
+- name: Install nginx (RedHat/Rocky/CentOS)
+  ansible.builtin.package:
+    name: nginx
+    state: present
+  when: ansible_os_family == "RedHat"
+
 - name: Install nginx (Debian/Ubuntu)
   ansible.builtin.apt:
     name: nginx
     state: present
     update_cache: yes
   when: ansible_os_family == "Debian"
-
-- name: Install nginx (RedHat/Rocky/CentOS)
-  ansible.builtin.package:
-    name: nginx
-    state: present
-  when: ansible_os_family == "RedHat"
 
 - name: Create basic nginx configuration
   ansible.builtin.template:
