@@ -718,7 +718,7 @@ class AnsibleService:
                     print(f"🔧 Ansible stdout 길이: {len(stdout) if stdout else 0}")
                     print(f"🔧 Ansible stderr 길이: {len(stderr) if stderr else 0}")
                     
-                    # 상세 로그 출력
+                    # 상세 로그 출력 (전체)
                     if stdout:
                         print(f"🔧 Ansible stdout (전체):")
                         print(stdout)
@@ -808,10 +808,12 @@ Return Code: {returncode}
                 except:
                     pass
         
-        # 동기 실행으로 변경 (디버깅용)
-        run_ansible()
+        # 백그라운드 스레드에서 실행
+        thread = threading.Thread(target=run_ansible)
+        thread.daemon = True
+        thread.start()
         
-        return f"Ansible 실행이 완료되었습니다. 알림을 확인하세요."
+        return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
 
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""

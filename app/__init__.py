@@ -47,6 +47,14 @@ def create_app(config_name='development'):
 
 def setup_logging(app):
     """로깅 설정"""
+    # 콘솔 핸들러 설정 (항상 활성화)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s'
+    ))
+    console_handler.setLevel(logging.INFO)
+    app.logger.addHandler(console_handler)
+    
     if not app.debug and not app.testing:
         # 로그 디렉토리 생성
         if not os.path.exists('logs'):
@@ -63,9 +71,9 @@ def setup_logging(app):
         ))
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
-        
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Proxmox Manager startup')
+    
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('Proxmox Manager startup')
 
 def register_blueprints(app):
     """블루프린트 등록"""

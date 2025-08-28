@@ -61,9 +61,11 @@ def test_ansible_connection():
         print(f"stderr 길이: {len(result.stderr)}")
         
         if result.stdout:
-            print(f"stdout (처음 500자): {result.stdout[:500]}")
+            print(f"stdout (전체):")
+            print(result.stdout)
         if result.stderr:
-            print(f"stderr (처음 500자): {result.stderr[:500]}")
+            print(f"stderr (전체):")
+            print(result.stderr)
             
     except Exception as e:
         print(f"❌ 플레이북 테스트 오류: {e}")
