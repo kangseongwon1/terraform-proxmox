@@ -19,7 +19,7 @@ def test_ansible_connection():
     print("\n1. Dynamic Inventory 테스트:")
     try:
         result = subprocess.run([
-            'python', 'ansible/dynamic_inventory.py', '--list'
+            'python3', 'ansible/dynamic_inventory.py', '--list'
         ], capture_output=True, text=True, timeout=30)
         
         print(f"Return Code: {result.returncode}")
@@ -51,7 +51,7 @@ def test_ansible_connection():
         result = subprocess.run([
             'ansible-playbook',
             '-i', 'ansible/dynamic_inventory.py',
-            'ansible/simple_test_playbook.yml',
+            'ansible/minimal_test_playbook.yml',
             '--extra-vars', json.dumps({'target_server': '192.168.0.10', 'role': 'web'}),
             '--ssh-common-args=-o StrictHostKeyChecking=no'
         ], capture_output=True, text=True, timeout=300)

@@ -720,9 +720,11 @@ class AnsibleService:
                     
                     # 상세 로그 출력
                     if stdout:
-                        print(f"🔧 Ansible stdout (처음 1000자): {stdout[:1000]}")
+                        print(f"🔧 Ansible stdout (전체):")
+                        print(stdout)
                     if stderr:
-                        print(f"🔧 Ansible stderr (처음 1000자): {stderr[:1000]}")
+                        print(f"🔧 Ansible stderr (전체):")
+                        print(stderr)
                     
                     if returncode == 0:
                         # 성공 시 DB 업데이트

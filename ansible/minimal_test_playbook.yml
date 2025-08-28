@@ -7,3 +7,11 @@
     - name: Show hostname
       debug:
         msg: "Connected to {{ inventory_hostname }}"
+        
+    - name: Show target server info
+      debug:
+        msg: "Target server: {{ target_server }}, Role: {{ role }}"
+        
+    - name: Test successful completion
+      debug:
+        msg: "Minimal test completed successfully!"
