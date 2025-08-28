@@ -2767,6 +2767,9 @@ window.loadNotifications = function() {
     .done(function(response) {
       console.log('[instances.js] 알림 로드 성공:', response);
       if (response.notifications && response.notifications.length > 0) {
+        // 기존 알림 초기화
+        window.systemNotifications = [];
+        
         // 서버 알림을 클라이언트 알림으로 변환
         response.notifications.forEach(function(noti) {
           window.addSystemNotification(
@@ -2776,6 +2779,10 @@ window.loadNotifications = function() {
             noti.details
           );
         });
+      } else {
+        // 알림이 없으면 초기화
+        window.systemNotifications = [];
+        window.addSystemNotification(); // 드롭다운만 갱신
       }
     })
     .fail(function(xhr, status, error) {
@@ -2826,12 +2833,19 @@ window.loadNotifications = function() {
       html += `
         <li>
           <div class="dropdown-item d-flex align-items-start small" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
-            <i class="fas ${icon} me-2 mt-1"></i>
-            <div class="flex-grow-1">
-              <div class="fw-bold mb-1">${noti.title}</div>
-              <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
-              ${detailsHtml}
-              <div class="text-muted small">${noti.time}</div>
+            <div class="d-flex justify-content-between align-items-start w-100">
+              <div class="d-flex align-items-start flex-grow-1">
+                <i class="fas ${icon} me-2 mt-1"></i>
+                <div class="flex-grow-1">
+                  <div class="fw-bold mb-1">${noti.title}</div>
+                  <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
+                  ${detailsHtml}
+                  <div class="text-muted small">${noti.time}</div>
+                </div>
+              </div>
+              <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteNotification('${noti.time.replace(/[^a-zA-Z0-9]/g, '')}')" title="삭제">
+                <i class="fas fa-times"></i>
+              </button>
             </div>
           </div>
         </li>
@@ -2848,6 +2862,21 @@ window.loadNotifications = function() {
     } else {
       $badge.hide();
     }
+  };
+  
+  // 개별 알림 삭제 함수
+  window.deleteNotification = function(timeKey) {
+    console.log('[instances.js] 개별 알림 삭제:', timeKey);
+    
+    // 클라이언트에서 해당 알림 제거
+    window.systemNotifications = window.systemNotifications.filter(function(noti) {
+      return noti.time.replace(/[^a-zA-Z0-9]/g, '') !== timeKey;
+    });
+    
+    // 드롭다운 다시 렌더링
+    window.addSystemNotification();
+    
+    console.log('[instances.js] 개별 알림 삭제 완료');
   };
 })();
 

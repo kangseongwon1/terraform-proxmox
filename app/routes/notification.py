@@ -71,12 +71,41 @@ def get_unread_notification_count():
         print(f"💥 읽지 않은 알림 개수 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/notifications/<int:notification_id>', methods=['DELETE'])
+@login_required
+def delete_notification(notification_id):
+    """개별 알림 삭제"""
+    try:
+        # user_id가 None인 시스템 알림도 삭제 가능하도록 수정
+        notification = Notification.query.filter(
+            (Notification.id == notification_id) & 
+            ((Notification.user_id == current_user.id) | (Notification.user_id.is_(None)))
+        ).first()
+        
+        if not notification:
+            return jsonify({'error': '알림을 찾을 수 없습니다.'}), 404
+        
+        db.session.delete(notification)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '알림이 삭제되었습니다.'
+        })
+        
+    except Exception as e:
+        print(f"💥 개별 알림 삭제 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/notifications/clear-all', methods=['POST'])
 @login_required
 def clear_all_notifications():
     """모든 알림 삭제"""
     try:
-        Notification.query.filter_by(user_id=current_user.id).delete()
+        # user_id가 None인 시스템 알림도 삭제 가능하도록 수정
+        Notification.query.filter(
+            (Notification.user_id == current_user.id) | (Notification.user_id.is_(None))
+        ).delete()
         db.session.commit()
         
         return jsonify({
