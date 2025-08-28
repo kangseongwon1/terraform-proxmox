@@ -1,4 +1,19 @@
 - become: true
-  hosts: all
+  hosts: "{{ target_server }}"
+  gather_facts: false
+  vars:
+    ansible_verbosity: 2
+  tasks:
+    - name: Update package cache
+      raw: dnf update -y
+      changed_when: false
+
+    - name: Install Python3
+      raw: dnf install -y python3 python3-pip
+      changed_when: false
+
+    - name: Gather facts after Python installation
+      setup:
+
   roles:
-  - ''
+    - "{{ role }}"

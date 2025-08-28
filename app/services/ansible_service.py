@@ -39,6 +39,7 @@ class AnsibleService:
         self.dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
         self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
         self.single_server_playbook = os.path.join(self.ansible_dir, "single_server_playbook.yml")
+        self.role_playbook = os.path.join(self.ansible_dir, "role_playbook.yml")
         self.simple_test_playbook = os.path.join(self.ansible_dir, "simple_test_playbook.yml")
         self.minimal_test_playbook = os.path.join(self.ansible_dir, "minimal_test_playbook.yml")
         
@@ -714,7 +715,7 @@ class AnsibleService:
                     command = [
                         'ansible-playbook',
                         '-i', self.dynamic_inventory_script,
-                        self.single_server_playbook,
+                        self.role_playbook,
                         '--extra-vars', json.dumps(role_vars),
                         '--ssh-common-args=-o StrictHostKeyChecking=no',
                         '-vv'  # 상세한 로그 출력
