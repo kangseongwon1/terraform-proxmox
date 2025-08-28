@@ -5,6 +5,9 @@ $(function() {
   
   console.log('[instances.js] 초기화 시작');
   
+  // 페이지 로드 시 알림 로드
+  window.loadNotifications();
+  
   // 실시간 서버 상태 폴링
   let serverStatusPolling = null;
   let isBulkOperationInProgress = false; // 일괄 작업 진행 상태 플래그
@@ -2756,6 +2759,29 @@ function initializeServerForm() {
 // =========================
 // 시스템 알림 드롭다운 구현 (상단 네비게이션 notification-list만 사용)
 // =========================
+
+// 서버에서 알림 로드하는 함수
+window.loadNotifications = function() {
+  console.log('[instances.js] 알림 로드 시작');
+  $.get('/api/notifications')
+    .done(function(response) {
+      console.log('[instances.js] 알림 로드 성공:', response);
+      if (response.notifications && response.notifications.length > 0) {
+        // 서버 알림을 클라이언트 알림으로 변환
+        response.notifications.forEach(function(noti) {
+          window.addSystemNotification(
+            noti.severity || 'info',
+            noti.title,
+            noti.message,
+            noti.details
+          );
+        });
+      }
+    })
+    .fail(function(xhr, status, error) {
+      console.error('[instances.js] 알림 로드 실패:', error);
+    });
+};
 (function(){
   // 알림 목록 관리
   window.systemNotifications = window.systemNotifications || [];

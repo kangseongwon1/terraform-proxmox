@@ -750,6 +750,7 @@ class AnsibleService:
                         )
                         print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
                         print(f"✅ 알림 생성 완료: 성공 알림")
+                        print(f"🔧 성공 로그 길이: {len(success_log)}")
                     else:
                         # 실패 시 알림 (상세 로그 포함)
                         error_log = f"""❌ Ansible 실행 실패
