@@ -808,12 +808,10 @@ Return Code: {returncode}
                 except:
                     pass
         
-        # 백그라운드 스레드에서 실행
-        thread = threading.Thread(target=run_ansible)
-        thread.daemon = True
-        thread.start()
+        # 동기 실행으로 변경 (디버깅용)
+        run_ansible()
         
-        return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
+        return f"Ansible 실행이 완료되었습니다. 알림을 확인하세요."
 
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""
