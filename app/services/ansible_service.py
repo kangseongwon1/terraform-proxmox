@@ -118,8 +118,8 @@ class AnsibleService:
                         )
                         
                         print(f"🔧 Ansible 명령어 완료: returncode={result.returncode}")
-                        if result.stderr:
-                            print(f"🔧 Ansible stderr: {result.stderr}")
+                        print(f"🔧 Ansible stdout: {result.stdout[:500]}..." if len(result.stdout) > 500 else f"🔧 Ansible stdout: {result.stdout}")
+                        print(f"🔧 Ansible stderr: {result.stderr[:500]}..." if len(result.stderr) > 500 else f"🔧 Ansible stderr: {result.stderr}")
                         
                         return result.returncode, result.stdout, result.stderr
                         
@@ -148,10 +148,10 @@ class AnsibleService:
                 )
                 
                 print(f"🔧 Ansible 명령어 완료: returncode={result.returncode}")
-                if result.stderr:
-                    print(f"🔧 Ansible stderr: {result.stderr}")
+                print(f"🔧 Ansible stdout: {result.stdout[:500]}..." if len(result.stdout) > 500 else f"🔧 Ansible stdout: {result.stdout}")
+                print(f"🔧 Ansible stderr: {result.stderr[:500]}..." if len(result.stderr) > 500 else f"🔧 Ansible stderr: {result.stderr}")
                 
-            return result.returncode, result.stdout, result.stderr
+                return result.returncode, result.stdout, result.stderr
                 
         except subprocess.TimeoutExpired:
             logger.error("Ansible 명령어 실행 타임아웃")
@@ -709,7 +709,11 @@ class AnsibleService:
                     ]
                     
                     # Ansible 실행
+                    print(f"🔧 Ansible 명령어 실행 시작: {' '.join(command)}")
                     returncode, stdout, stderr = self._run_ansible_command(command, env=env)
+                    print(f"🔧 Ansible 실행 완료: returncode={returncode}")
+                    print(f"🔧 Ansible stdout 길이: {len(stdout) if stdout else 0}")
+                    print(f"🔧 Ansible stderr 길이: {len(stderr) if stderr else 0}")
                     
                     if returncode == 0:
                         # 성공 시 DB 업데이트
