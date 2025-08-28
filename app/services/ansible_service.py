@@ -674,69 +674,80 @@ class AnsibleService:
         """Ansible을 비동기로 실행하고 알림 생성"""
         def run_ansible():
             try:
-                print(f"🔧 비동기 Ansible 실행 시작: {server_name} - {role}")
-                
-                # 서버 정보 조회
-                server = Server.query.filter_by(name=server_name).first()
-                if not server or not server.ip_address:
-                    self._create_notification(
-                        f"서버 {server_name} 역할 할당 실패",
-                        f"서버 정보를 찾을 수 없거나 IP 주소가 설정되지 않았습니다.",
-                        "error"
-                    )
-                    return
-                
-                # 환경 변수 설정
-                env = os.environ.copy()
-                env['TARGET_SERVER_IP'] = server.ip_address
-                
-                # 역할 변수 설정
-                role_vars = extra_vars or {}
-                role_vars['target_server'] = server.ip_address
-                role_vars['role'] = role
-                
-                # Ansible 명령어 구성
-                command = [
-                    'ansible-playbook',
-                    '-i', self.dynamic_inventory_script,
-                    self.single_server_playbook,
-                    '--extra-vars', json.dumps(role_vars),
-                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
-                ]
-                
-                # Ansible 실행
-                returncode, stdout, stderr = self._run_ansible_command(command, env=env)
-                
-                if returncode == 0:
-                    # 성공 시 DB 업데이트
-                    server.role = role
-                    db.session.commit()
-                    self._update_tfvars_role(server_name, role)
+                # Flask 앱 컨텍스트 생성
+                from app import create_app
+                app = create_app()
+                with app.app_context():
+                    print(f"🔧 비동기 Ansible 실행 시작: {server_name} - {role}")
                     
-                    self._create_notification(
-                        f"서버 {server_name} 역할 할당 완료",
-                        f"역할 '{role}'이 성공적으로 적용되었습니다.",
-                        "success"
-                    )
-                    print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
-                else:
-                    # 실패 시 알림
-                    error_msg = stderr if stderr else "알 수 없는 오류가 발생했습니다."
-                    self._create_notification(
-                        f"서버 {server_name} 역할 할당 실패",
-                        f"Ansible 실행 중 오류가 발생했습니다: {error_msg}",
-                        "error"
-                    )
-                    print(f"❌ 비동기 Ansible 실행 실패: {server_name} - {role}")
+                    # 서버 정보 조회
+                    server = Server.query.filter_by(name=server_name).first()
+                    if not server or not server.ip_address:
+                        self._create_notification(
+                            f"서버 {server_name} 역할 할당 실패",
+                            f"서버 정보를 찾을 수 없거나 IP 주소가 설정되지 않았습니다.",
+                            "error"
+                        )
+                        return
+                
+                    # 환경 변수 설정
+                    env = os.environ.copy()
+                    env['TARGET_SERVER_IP'] = server.ip_address
                     
+                    # 역할 변수 설정
+                    role_vars = extra_vars or {}
+                    role_vars['target_server'] = server.ip_address
+                    role_vars['role'] = role
+                    
+                    # Ansible 명령어 구성
+                    command = [
+                        'ansible-playbook',
+                        '-i', self.dynamic_inventory_script,
+                        self.single_server_playbook,
+                        '--extra-vars', json.dumps(role_vars),
+                        '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                    ]
+                    
+                    # Ansible 실행
+                    returncode, stdout, stderr = self._run_ansible_command(command, env=env)
+                    
+                    if returncode == 0:
+                        # 성공 시 DB 업데이트
+                        server.role = role
+                        db.session.commit()
+                        self._update_tfvars_role(server_name, role)
+                        
+                        self._create_notification(
+                            f"서버 {server_name} 역할 할당 완료",
+                            f"역할 '{role}'이 성공적으로 적용되었습니다.",
+                            "success"
+                        )
+                        print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
+                    else:
+                        # 실패 시 알림
+                        error_msg = stderr if stderr else "알 수 없는 오류가 발생했습니다."
+                        self._create_notification(
+                            f"서버 {server_name} 역할 할당 실패",
+                            f"Ansible 실행 중 오류가 발생했습니다: {error_msg}",
+                            "error"
+                        )
+                        print(f"❌ 비동기 Ansible 실행 실패: {server_name} - {role}")
+                        
             except Exception as e:
-                error_msg = f"비동기 Ansible 실행 중 예외 발생: {str(e)}"
-                self._create_notification(
-                    f"서버 {server_name} 역할 할당 실패",
-                    error_msg,
-                    "error"
-                )
-                print(f"❌ {error_msg}")
+                # Flask 컨텍스트가 없을 때도 알림 생성 시도
+                try:
+                    from app import create_app
+                    app = create_app()
+                    with app.app_context():
+                        error_msg = f"비동기 Ansible 실행 중 예외 발생: {str(e)}"
+                        self._create_notification(
+                            f"서버 {server_name} 역할 할당 실패",
+                            error_msg,
+                            "error"
+                        )
+                except:
+                    print(f"❌ 알림 생성 실패: {e}")
+                print(f"❌ 비동기 Ansible 실행 중 예외 발생: {str(e)}")
         
         # 백그라운드 스레드에서 실행
         thread = threading.Thread(target=run_ansible)
@@ -745,13 +756,14 @@ class AnsibleService:
         
         return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
 
-    def _create_notification(self, title: str, message: str, notification_type: str = "info"):
+    def _create_notification(self, title: str, message: str, severity: str = "info"):
         """알림 생성"""
         try:
             notification = Notification(
+                type="ansible_role",
                 title=title,
                 message=message,
-                notification_type=notification_type,
+                severity=severity,
                 created_at=datetime.now()
             )
             db.session.add(notification)
