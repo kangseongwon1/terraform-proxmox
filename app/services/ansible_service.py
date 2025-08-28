@@ -7,6 +7,9 @@ import os
 import logging
 import tempfile
 import json
+import threading
+import time
+from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from flask import current_app
 from app.models.server import Server
@@ -423,68 +426,14 @@ class AnsibleService:
             
             print(f"🔧 역할 변수 설정: {role_vars}")
             
-            # 8. Ansible 플레이북 실행 (개별 서버 대상)
-            # Windows 환경에서는 Ansible 실행을 건너뛰고 DB만 업데이트
-            import platform
-            if platform.system() == 'Windows':
-                print(f"🔧 Windows 환경 감지: Ansible 실행 건너뛰고 DB만 업데이트")
-                ansible_success = True
-                ansible_message = "Windows 환경에서 Ansible 실행 건너뜀"
-            else:
-                # 개별 서버 플레이북 직접 실행
-                print(f"🔧 개별 서버 플레이북 직접 실행: {server.ip_address}")
-                
-                # extra_vars에 target_server 추가
-                role_vars['target_server'] = server.ip_address
-                role_vars['role'] = role
-                
-                # 개별 서버 플레이북 실행 (환경 변수 사용)
-                env = os.environ.copy()
-                env['TARGET_SERVER_IP'] = server.ip_address
-                
-                command = [
-                    'ansible-playbook',
-                    '-i', self.dynamic_inventory_script,
-                    self.single_server_playbook,
-                    '--extra-vars', json.dumps(role_vars),
-                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
-                ]
-                
-                print(f"🔧 Ansible 명령어: {' '.join(command)}")
-                returncode, stdout, stderr = self._run_ansible_command(command, env=env)
-                
-                if returncode == 0:
-                    ansible_success = True
-                    ansible_message = f"Ansible 플레이북 실행 성공 (role: {role})"
-                else:
-                    ansible_success = False
-                    ansible_message = stderr or stdout or f"Ansible 플레이북 실행 실패 (role: {role})"
+            # 8. 비동기 Ansible 실행
+            print(f"🔧 비동기 Ansible 실행 시작: {server_name} - {role}")
             
-            # 9. Ansible 실행 결과에 따라 DB 업데이트
-            if ansible_success:
-                # DB에 역할 업데이트
-                server.role = role
-                db.session.commit()
-                print(f"✅ DB에 역할 업데이트 완료: {server_name} - {role}")
-                
-                # tfvars도 업데이트
-                try:
-                    from app.services.terraform_service import TerraformService
-                    terraform_service = TerraformService()
-                    
-                    tfvars = terraform_service.load_tfvars()
-                    if 'servers' in tfvars and server_name in tfvars['servers']:
-                        tfvars['servers'][server_name]['role'] = role
-                        terraform_service.save_tfvars(tfvars)
-                        print(f"✅ tfvars에서 역할 업데이트 완료: {server_name} - {role}")
-                except Exception as e:
-                    print(f"⚠️ tfvars 업데이트 실패: {e}")
-                
-                return True, f"서버 {server_name}에 {role} 역할이 성공적으로 할당되었습니다"
-            else:
-                # Ansible 실패 시 DB는 업데이트하지 않음
-                print(f"❌ Ansible 실행 실패, DB 업데이트하지 않음: {ansible_message}")
-                return False, f"Ansible 실행 실패: {ansible_message}"
+            # 비동기로 Ansible 실행
+            message = self._run_ansible_async(server_name, role, role_vars)
+            
+            # 즉시 성공 응답 (실제 처리는 백그라운드에서)
+            return True, message
             
         except Exception as e:
             logger.error(f"서버 {server_name}에 대한 역할 {role} 할당 실패: {e}")
@@ -698,4 +647,115 @@ class AnsibleService:
                     return False, "Linux/Mac에서 Ansible이 설치되지 않았습니다. 'sudo apt install ansible' 또는 'brew install ansible'을 사용하세요."
                     
         except Exception as e:
-            return False, f"Ansible 설치 확인 중 오류: {str(e)}" 
+            return False, f"Ansible 설치 확인 중 오류: {str(e)}"
+
+    def _update_tfvars_role(self, server_name: str, role: str) -> bool:
+        """terraform.tfvars.json에서 서버 역할 업데이트"""
+        try:
+            from app.services.terraform_service import TerraformService
+            terraform_service = TerraformService()
+            
+            # tfvars 로드
+            tfvars = terraform_service.load_tfvars()
+            if 'servers' in tfvars and server_name in tfvars['servers']:
+                # 역할 업데이트
+                tfvars['servers'][server_name]['role'] = role
+                terraform_service.save_tfvars(tfvars)
+                print(f"✅ tfvars에서 역할 업데이트 완료: {server_name} - {role}")
+                return True
+            else:
+                print(f"⚠️ tfvars에서 서버를 찾을 수 없음: {server_name}")
+                return False
+        except Exception as e:
+            print(f"⚠️ tfvars 업데이트 실패: {e}")
+            return False
+
+    def _run_ansible_async(self, server_name: str, role: str, extra_vars: Dict[str, Any] = None) -> str:
+        """Ansible을 비동기로 실행하고 알림 생성"""
+        def run_ansible():
+            try:
+                print(f"🔧 비동기 Ansible 실행 시작: {server_name} - {role}")
+                
+                # 서버 정보 조회
+                server = Server.query.filter_by(name=server_name).first()
+                if not server or not server.ip_address:
+                    self._create_notification(
+                        f"서버 {server_name} 역할 할당 실패",
+                        f"서버 정보를 찾을 수 없거나 IP 주소가 설정되지 않았습니다.",
+                        "error"
+                    )
+                    return
+                
+                # 환경 변수 설정
+                env = os.environ.copy()
+                env['TARGET_SERVER_IP'] = server.ip_address
+                
+                # 역할 변수 설정
+                role_vars = extra_vars or {}
+                role_vars['target_server'] = server.ip_address
+                role_vars['role'] = role
+                
+                # Ansible 명령어 구성
+                command = [
+                    'ansible-playbook',
+                    '-i', self.dynamic_inventory_script,
+                    self.single_server_playbook,
+                    '--extra-vars', json.dumps(role_vars),
+                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                ]
+                
+                # Ansible 실행
+                returncode, stdout, stderr = self._run_ansible_command(command, env=env)
+                
+                if returncode == 0:
+                    # 성공 시 DB 업데이트
+                    server.role = role
+                    db.session.commit()
+                    self._update_tfvars_role(server_name, role)
+                    
+                    self._create_notification(
+                        f"서버 {server_name} 역할 할당 완료",
+                        f"역할 '{role}'이 성공적으로 적용되었습니다.",
+                        "success"
+                    )
+                    print(f"✅ 비동기 Ansible 실행 성공: {server_name} - {role}")
+                else:
+                    # 실패 시 알림
+                    error_msg = stderr if stderr else "알 수 없는 오류가 발생했습니다."
+                    self._create_notification(
+                        f"서버 {server_name} 역할 할당 실패",
+                        f"Ansible 실행 중 오류가 발생했습니다: {error_msg}",
+                        "error"
+                    )
+                    print(f"❌ 비동기 Ansible 실행 실패: {server_name} - {role}")
+                    
+            except Exception as e:
+                error_msg = f"비동기 Ansible 실행 중 예외 발생: {str(e)}"
+                self._create_notification(
+                    f"서버 {server_name} 역할 할당 실패",
+                    error_msg,
+                    "error"
+                )
+                print(f"❌ {error_msg}")
+        
+        # 백그라운드 스레드에서 실행
+        thread = threading.Thread(target=run_ansible)
+        thread.daemon = True
+        thread.start()
+        
+        return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
+
+    def _create_notification(self, title: str, message: str, notification_type: str = "info"):
+        """알림 생성"""
+        try:
+            notification = Notification(
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                created_at=datetime.now()
+            )
+            db.session.add(notification)
+            db.session.commit()
+            print(f"✅ 알림 생성: {title}")
+        except Exception as e:
+            print(f"⚠️ 알림 생성 실패: {e}") 

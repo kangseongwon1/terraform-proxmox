@@ -13,19 +13,41 @@
     - name: Gather facts after Python installation
       setup:
 
-    - name: Install required packages based on role
+    - name: Install web server packages
       package:
-        name:
-          - "{{ item }}"
+        name: nginx
         state: present
-      loop:
-        - "{{ 'nginx' if role == 'web' else omit }}"
-        - "{{ 'mysql-server' if role == 'db' else omit }}"
-        - "{{ 'java-11-openjdk' if role in ['was', 'java'] else omit }}"
-        - "{{ 'tomcat' if role == 'was' else omit }}"
-        - "{{ 'elasticsearch' if role == 'search' else omit }}"
-        - "{{ 'vsftpd' if role == 'ftp' else omit }}"
-      when: item is not omit
+      when: role == 'web'
+
+    - name: Install database server packages
+      package:
+        name: mysql-server
+        state: present
+      when: role == 'db'
+
+    - name: Install Java packages
+      package:
+        name: java-11-openjdk
+        state: present
+      when: role in ['was', 'java']
+
+    - name: Install WAS packages
+      package:
+        name: tomcat
+        state: present
+      when: role == 'was'
+
+    - name: Install search server packages
+      package:
+        name: elasticsearch
+        state: present
+      when: role == 'search'
+
+    - name: Install FTP server packages
+      package:
+        name: vsftpd
+        state: present
+      when: role == 'ftp'
 
     - name: Configure web server (nginx)
       block:
