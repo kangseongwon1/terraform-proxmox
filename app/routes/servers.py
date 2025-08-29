@@ -193,10 +193,8 @@ def create_server():
                     os_type = classify_os_type(template_name)
                     
                     # 기본 사용자명/비밀번호 설정 (사용자가 입력하지 않은 경우)
-                    if not vm_username:
-                        vm_username = get_default_username(os_type)
-                    if not vm_password:
-                        vm_password = get_default_password(os_type)
+                    current_vm_username = vm_username if vm_username else get_default_username(os_type)
+                    current_vm_password = vm_password if vm_password else get_default_password(os_type)
                     
                     # 서버 설정 생성
                     server_data = {
@@ -209,8 +207,8 @@ def create_server():
                         'disks': disks,
                         'network_devices': network_devices,
                         'template_vm_id': template_vm_id,
-                        'vm_username': vm_username,
-                        'vm_password': vm_password
+                        'vm_username': current_vm_username,
+                        'vm_password': current_vm_password
                     }
                     print(f"🔧 서버 설정 생성 시작: {json.dumps(server_data, indent=2)}")
                     
