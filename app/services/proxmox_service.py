@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from flask import current_app
 from app.models.server import Server
 from app.models.notification import Notification
+from app.utils.os_classifier import classify_os_type
 from app import db
 
 logger = logging.getLogger(__name__)
@@ -1705,7 +1706,8 @@ class ProxmoxService:
                     server = Server(
                         name=vm_data['name'],
                         vmid=vm_data['vmid'],
-                        status=vm_data['status']
+                        status=vm_data['status'],
+                        os_type=classify_os_type(vm_data['name'])  # 동적으로 분류된 OS 타입
                     )
                     db.session.add(server)
             

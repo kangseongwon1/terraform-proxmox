@@ -10,6 +10,26 @@ import os
 import sqlite3
 from typing import Dict, List, Any
 
+def get_os_family(os_type: str) -> str:
+    """OS 타입을 기반으로 OS 계열을 반환합니다."""
+    # RedHat 계열
+    redhat_family = ['rocky', 'centos', 'rhel', 'alma', 'fedora']
+    if os_type in redhat_family:
+        return 'RedHat'
+    
+    # Debian 계열
+    debian_family = ['ubuntu', 'debian']
+    if os_type in debian_family:
+        return 'Debian'
+    
+    # SUSE 계열
+    suse_family = ['suse', 'opensuse', 'sles']
+    if os_type in suse_family:
+        return 'Suse'
+    
+    # 기본값
+    return 'RedHat'
+
 class DynamicInventory:
     def __init__(self):
         self.db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance', 'proxmox_manager.db')
@@ -21,21 +41,22 @@ class DynamicInventory:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT name, ip_address, role, status, cpu, memory 
+                SELECT name, ip_address, role, status, cpu, memory, os_type 
                 FROM servers 
                 WHERE ip_address IS NOT NULL AND ip_address != ''
             """)
             
             servers = []
             for row in cursor.fetchall():
-                name, ip_address, role, status, cpu, memory = row
+                name, ip_address, role, status, cpu, memory, os_type = row
                 servers.append({
                     'name': name,
                     'ip_address': ip_address,
                     'role': role,
                     'status': status,
                     'cpu': cpu,
-                    'memory': memory
+                    'memory': memory,
+                    'os_type': os_type
                 })
             
             conn.close()
@@ -100,16 +121,33 @@ class DynamicInventory:
                 
                 inventory[group_name]['hosts'].append(hostname)
             
+            # OS 타입에 따른 설정
+            os_type = server.get('os_type', 'rocky')
+            os_family = get_os_family(os_type)
+            
+            # OS별 기본 사용자명
+            username_map = {
+                'rocky': 'rocky',
+                'centos': 'centos',
+                'rhel': 'rhel',
+                'ubuntu': 'ubuntu',
+                'debian': 'debian',
+                'alma': 'alma',
+                'fedora': 'fedora',
+                'suse': 'suse'
+            }
+            ansible_user = username_map.get(os_type, 'rocky')
+            
             # 호스트 변수 설정
             inventory['_meta']['hostvars'][hostname] = {
                 'ansible_host': hostname,
                 'server_name': server['name'],
                 'server_role': role,
                 'server_status': server['status'],
-                'ansible_user': 'rocky',
+                'ansible_user': ansible_user,
                 'ansible_ssh_private_key_file': '~/.ssh/id_rsa',
                 'ansible_host_key_checking': False,
-                'ansible_os_family': 'RedHat'  # Rocky Linux는 RedHat 계열
+                'ansible_os_family': os_family  # 동적으로 결정된 OS 계열
             }
         
         return inventory
@@ -120,15 +158,32 @@ class DynamicInventory:
         
         for server in servers:
             if server['ip_address'] == hostname:
+                # OS 타입에 따른 설정
+                os_type = server.get('os_type', 'rocky')
+                os_family = get_os_family(os_type)
+                
+                # OS별 기본 사용자명
+                username_map = {
+                    'rocky': 'rocky',
+                    'centos': 'centos',
+                    'rhel': 'rhel',
+                    'ubuntu': 'ubuntu',
+                    'debian': 'debian',
+                    'alma': 'alma',
+                    'fedora': 'fedora',
+                    'suse': 'suse'
+                }
+                ansible_user = username_map.get(os_type, 'rocky')
+                
                 return {
                     'ansible_host': hostname,
                     'server_name': server['name'],
                     'server_role': server.get('role', 'none'),
                     'server_status': server['status'],
-                    'ansible_user': 'rocky',
+                    'ansible_user': ansible_user,
                     'ansible_ssh_private_key_file': '~/.ssh/id_rsa',
                     'ansible_host_key_checking': False,
-                    'ansible_os_family': 'RedHat'  # Rocky Linux는 RedHat 계열
+                    'ansible_os_family': os_family  # 동적으로 결정된 OS 계열
                 }
         
         return {}

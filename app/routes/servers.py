@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from app.models import Server, User, UserPermission
 from app.services import ProxmoxService, TerraformService, AnsibleService, NotificationService
+from app.utils.os_classifier import classify_os_type, get_default_username, get_default_password
 from app import db
 import json
 import os
@@ -168,6 +169,15 @@ def create_server():
                     # Terraform 서비스 초기화
                     terraform_service = TerraformService()
                     
+                    # OS 타입 동적 분류
+                    os_type = classify_os_type(template_vm_id or 'rocky-9-template')
+                    
+                    # 기본 사용자명/비밀번호 설정 (사용자가 입력하지 않은 경우)
+                    if not vm_username:
+                        vm_username = get_default_username(os_type)
+                    if not vm_password:
+                        vm_password = get_default_password(os_type)
+                    
                     # 서버 설정 생성
                     server_data = {
                         'name': server_name,
@@ -175,6 +185,7 @@ def create_server():
                         'memory': memory,
                         'role': role,
                         'ip_address': ip_address,
+                        'os_type': os_type,  # 동적으로 분류된 OS 타입
                         'disks': disks,
                         'network_devices': network_devices,
                         'template_vm_id': template_vm_id,
@@ -233,7 +244,8 @@ def create_server():
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
-                        memory=memory
+                        memory=memory,
+                        os_type=os_type  # OS 타입 추가
                     )
                     db.session.add(new_server)
                     db.session.commit()
@@ -1026,7 +1038,8 @@ def create():
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
-                        memory=memory
+                        memory=memory,
+                        os_type=os_type  # OS 타입 추가
                     )
                     db.session.add(new_server)
                     db.session.commit()
