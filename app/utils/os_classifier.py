@@ -18,6 +18,9 @@ def classify_os_type(image_name: str, template_vm_id: Optional[str] = None) -> s
     if not image_name:
         return 'rocky'  # 기본값
     
+    # 문자열로 변환하여 안전하게 처리
+    image_name = str(image_name)
+    
     # 소문자로 변환하여 비교
     image_lower = image_name.lower()
     

@@ -169,8 +169,28 @@ def create_server():
                     # Terraform 서비스 초기화
                     terraform_service = TerraformService()
                     
+                    # Proxmox 서비스 초기화
+                    proxmox_service = ProxmoxService()
+                    
+                    # 템플릿 이름 가져오기 (template_vm_id가 있는 경우)
+                    template_name = 'rocky-9-template'  # 기본값
+                    if template_vm_id:
+                        try:
+                            # Proxmox에서 템플릿 정보 조회
+                            headers, error = proxmox_service.get_proxmox_auth()
+                            if not error:
+                                vms, vm_error = proxmox_service.get_proxmox_vms(headers)
+                                if not vm_error:
+                                    for vm in vms:
+                                        if vm.get('vmid') == template_vm_id:
+                                            template_name = vm.get('name', 'rocky-9-template')
+                                            break
+                        except Exception as e:
+                            print(f"⚠️ 템플릿 정보 조회 실패: {e}")
+                            template_name = 'rocky-9-template'
+                    
                     # OS 타입 동적 분류
-                    os_type = classify_os_type(template_vm_id or 'rocky-9-template')
+                    os_type = classify_os_type(template_name)
                     
                     # 기본 사용자명/비밀번호 설정 (사용자가 입력하지 않은 경우)
                     if not vm_username:

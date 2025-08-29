@@ -1707,7 +1707,7 @@ class ProxmoxService:
                         name=vm_data['name'],
                         vmid=vm_data['vmid'],
                         status=vm_data['status'],
-                        os_type=classify_os_type(vm_data['name'])  # 동적으로 분류된 OS 타입
+                        os_type=classify_os_type(str(vm_data['name']))  # 동적으로 분류된 OS 타입
                     )
                     db.session.add(server)
             
