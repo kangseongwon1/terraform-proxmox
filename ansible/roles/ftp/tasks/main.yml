@@ -36,20 +36,6 @@
     mode: '0644'
   notify: restart vsftpd
 
-- name: Configure firewall for FTP (RedHat/Rocky/CentOS)
-  ansible.builtin.firewalld:
-    port: "{{ ftp_port | default(21) }}/tcp"
-    permanent: yes
-    state: enabled
-  when: ansible_os_family == "RedHat"
-
-- name: Configure UFW for FTP (Debian/Ubuntu)
-  ansible.builtin.ufw:
-    rule: allow
-    port: "{{ ftp_port | default(21) }}"
-    proto: tcp
-  when: ansible_os_family == "Debian"
-
 - name: Ensure vsftpd is running
   ansible.builtin.service:
     name: vsftpd

@@ -37,6 +37,8 @@ class AnsibleService:
         # Ansible 디렉토리 설정
         self.ansible_dir = os.path.join(project_root, ansible_dir)
         self.dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
+        # 정적 인벤토리 파일 경로 (다중 서버 동시 실행용)
+        self.inventory_file = os.path.join(self.ansible_dir, "inventory.ini")
         self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
         self.single_server_playbook = os.path.join(self.ansible_dir, "single_server_playbook.yml")
         self.role_playbook = os.path.join(self.ansible_dir, "role_playbook.yml")
@@ -154,7 +156,7 @@ class AnsibleService:
                 print(f"🔧 Ansible stdout: {result.stdout[:500]}..." if len(result.stdout) > 500 else f"🔧 Ansible stdout: {result.stdout}")
                 print(f"🔧 Ansible stderr: {result.stderr[:500]}..." if len(result.stderr) > 500 else f"🔧 Ansible stderr: {result.stderr}")
                 
-                return result.returncode, result.stdout, result.stderr
+            return result.returncode, result.stdout, result.stderr
                 
         except subprocess.TimeoutExpired:
             logger.error("Ansible 명령어 실행 타임아웃")
@@ -189,58 +191,69 @@ class AnsibleService:
             logger.error(f"Ansible 인벤토리 파일 생성 실패: {e}")
             return False
     
-    def run_playbook(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
-        """Ansible 플레이북 실행 (ansible-runner 사용)"""
+    def run_playbook(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None, inventory: str = None, limit_hosts: str = None) -> Tuple[bool, str]:
+        """Ansible 플레이북 실행 (ansible-runner 사용)
+
+        Args:
+            role: 실행할 역할(로le)
+            extra_vars: 추가 변수
+            target_server: 단일 서버 타겟(IP 또는 호스트) - 지정 시 단일 실행
+            inventory: 정적 인벤토리 파일 경로 - 지정 시 이 인벤토리를 사용해 전체 실행
+        """
         try:
             print(f"🔧 Ansible 플레이북 실행 시작: {role}")
             if target_server:
                 print(f"🔧 대상 서버: {target_server}")
             
             if ANSIBLE_RUNNER_AVAILABLE:
-                return self._run_playbook_with_runner(role, extra_vars, target_server)
+                return self._run_playbook_with_runner(role, extra_vars, target_server, inventory, limit_hosts)
             else:
-                return self._run_playbook_with_subprocess(role, extra_vars, target_server)
+                return self._run_playbook_with_subprocess(role, extra_vars, target_server, inventory, limit_hosts)
                 
         except Exception as e:
             logger.error(f"Ansible 플레이북 실행 실패: {e}")
             return False, str(e)
     
-    def _run_playbook_with_runner(self, role: str, extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+    def _run_playbook_with_runner(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None, inventory: str = None, limit_hosts: str = None) -> Tuple[bool, str]:
         """ansible-runner를 사용한 플레이북 실행"""
         try:
             print(f"🔧 ansible-runner를 사용한 플레이북 실행: {role}")
             
             # 임시 디렉토리 생성
             with tempfile.TemporaryDirectory() as temp_dir:
-                # 플레이북 파일 생성
+            # 플레이북 파일 생성
                 playbook_path = os.path.join(temp_dir, 'playbook.yml')
                 playbook_content = [{
-                    'hosts': 'all',
-                    'become': True,
-                    'roles': [role]
+                'hosts': 'all',
+                'become': True,
+                'roles': [role]
                 }]
-                
-                if extra_vars:
-                    playbook_content[0]['vars'] = extra_vars
+            
+            if extra_vars:
+                playbook_content[0]['vars'] = extra_vars
                 
                 with open(playbook_path, 'w', encoding='utf-8') as f:
                     yaml.dump(playbook_content, f, default_flow_style=False, allow_unicode=True)
                 
-                # inventory 파일 복사
+                # inventory 파일 복사 (지정된 인벤토리가 있으면 사용, 없으면 동적 인벤토리 스크립트 출력 사용 불가 → 정적 인벤토리 필요)
                 inventory_path = os.path.join(temp_dir, 'inventory')
-                with open(self.inventory_file, 'r', encoding='utf-8') as src:
+                src_path = inventory or self.inventory_file
+                with open(src_path, 'r', encoding='utf-8') as src:
                     with open(inventory_path, 'w', encoding='utf-8') as dst:
                         dst.write(src.read())
                 
                 # ansible-runner 실행
                 print(f"🔧 ansible-runner 실행: {playbook_path}")
-                result = ansible_runner.run(
+                run_kwargs = dict(
                     private_data_dir=temp_dir,
                     playbook='playbook.yml',
                     inventory=inventory_path,
                     quiet=False,
                     json_mode=False
                 )
+                if limit_hosts:
+                    run_kwargs['limit'] = limit_hosts
+                result = ansible_runner.run(**run_kwargs)
                 
                 print(f"🔧 ansible-runner 결과: returncode={result.rc}")
                 print(f"🔧 ansible-runner 상태: {result.status}")
@@ -259,7 +272,7 @@ class AnsibleService:
             print(f"❌ {error_msg}")
             return False, error_msg
     
-    def _run_playbook_with_subprocess(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
+    def _run_playbook_with_subprocess(self, role: str, extra_vars: Dict[str, Any] = None, target_server: str = None, inventory: str = None, limit_hosts: str = None) -> Tuple[bool, str]:
         """subprocess를 사용한 플레이북 실행 (기존 방식)"""
         try:
             print(f"🔧 subprocess를 사용한 플레이북 실행: {role}")
@@ -278,35 +291,29 @@ class AnsibleService:
                 # Ansible 플레이북 실행 (개별 서버 플레이북 사용)
                 command = [
                     'ansible-playbook',
-                    '-i', f'python {self.dynamic_inventory_script} {target_server}',
-                    self.single_server_playbook,
-                    '--extra-vars', json.dumps(extra_vars),
+                        '-i', f'python {self.dynamic_inventory_script} {target_server}',
+                        self.single_server_playbook,
+                        '--extra-vars', json.dumps(extra_vars),
                     '--ssh-common-args="-o StrictHostKeyChecking=no"'
                 ]
             else:
-                # 기존 방식 (전체 서버 대상)
+                # 전체 서버 대상 - 정적 인벤토리 또는 동적 인벤토리 사용
                 print(f"🔧 전체 서버 플레이북 사용")
                 
-                # 플레이북 파일 생성
-                playbook_content = {
-                    'hosts': 'all',
-                    'become': True,
-                    'roles': [role]
-                }
+                # 역할 중심 플레이북 그대로 사용 (role_playbook.yml)
+                command = ['ansible-playbook']
+                if inventory and os.path.exists(inventory):
+                    # 정적 인벤토리 사용
+                    command.extend(['-i', inventory, self.role_playbook])
+                else:
+                    # 동적 인벤토리 스크립트 사용 (기존 동작 유지)
+                    command.extend(['-i', f'python {self.dynamic_inventory_script} --list', self.role_playbook])
                 
                 if extra_vars:
-                    playbook_content['vars'] = extra_vars
-                
-                with open(self.playbook_file, 'w', encoding='utf-8') as f:
-                    yaml.dump([playbook_content], f, default_flow_style=False, allow_unicode=True)
-                
-                # Ansible 플레이북 실행 (Dynamic Inventory 사용)
-                command = [
-                    'ansible-playbook',
-                    '-i', f'python {self.dynamic_inventory_script} --list',
-                    self.playbook_file,
-                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
-                ]
+                    command.extend(['--extra-vars', json.dumps(extra_vars)])
+                if limit_hosts:
+                    command.extend(['--limit', limit_hosts])
+                command.append('--ssh-common-args="-o StrictHostKeyChecking=no"')
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
@@ -532,7 +539,11 @@ class AnsibleService:
     
     def run_role_for_multiple_servers(self, servers: List[Dict[str, Any]], role: str, 
                                     extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
-        """여러 서버에 대해 역할 실행"""
+        """여러 서버에 대해 역할 실행 (동적 인벤토리 + --limit)
+
+        - DB/파라미터 기반 서버 목록에서 IP만 추려서 --limit 로 한 번에 실행
+        - 정적 인벤토리 파일 유지/생성 없이 동적 인벤토리 스크립트만 사용
+        """
         try:
             # IP 주소가 있는 서버만 필터링
             valid_servers = [s for s in servers if s.get('ip_address')]
@@ -540,12 +551,11 @@ class AnsibleService:
             if not valid_servers:
                 return False, "유효한 IP 주소를 가진 서버가 없습니다"
             
-            # 인벤토리 생성
-            if not self.create_inventory(valid_servers):
-                return False, "인벤토리 파일 생성 실패"
+            # --limit 에 사용할 호스트 목록 (IP 기준)
+            limit_hosts = ','.join([s['ip_address'] for s in valid_servers])
             
-            # 플레이북 실행
-            return self.run_playbook(role, extra_vars)
+            # 동적 인벤토리 + --limit 로 단 한 번 실행
+            return self.run_playbook(role, extra_vars, target_server=None, inventory=None, limit_hosts=limit_hosts)
             
         except Exception as e:
             logger.error(f"여러 서버에 대한 역할 {role} 실행 실패: {e}")

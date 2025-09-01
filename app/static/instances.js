@@ -2597,10 +2597,22 @@ function initializeServerForm() {
         if (res.task_id) {
           // Task 진행 상황 모니터링
           pollTaskStatus(res.task_id, 'assign_roles_bulk', `${serverNames.length}개 서버`);
+          // Ansible 완료 알림을 미리 감지하기 위해 각 서버에 대한 짧은 폴링 시작
+          if (window.watchAnsibleRoleNotification) {
+            serverNames.forEach(function(name){
+              window.watchAnsibleRoleNotification(name);
+            });
+          }
         } else {
           // 즉시 완료된 경우
           addSystemNotification('success', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할이 성공적으로 할당되었습니다.`);
           loadActiveServers();
+          // 각 서버 알림 즉시 감지 시도
+          if (window.watchAnsibleRoleNotification) {
+            serverNames.forEach(function(name){
+              window.watchAnsibleRoleNotification(name);
+            });
+          }
         }
       },
       error: function(xhr) {
