@@ -1434,40 +1434,29 @@ def assign_role_bulk():
         if not role:
             return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
         
-        # AnsibleService를 통해 각 서버에 역할 할당
+        # AnsibleService를 통해 한 번에 역할 할당 (동적 인벤토리 + --limit)
         ansible_service = AnsibleService()
-        results = []
+        # DB에서 대상 서버 정보 수집 (IP 필수)
+        db_servers = Server.query.filter(Server.name.in_(server_names)).all()
+        target_servers = []
+        missing = []
+        for s in db_servers:
+            if s.ip_address:
+                target_servers.append({'ip_address': s.ip_address})
+            else:
+                missing.append(s.name)
         
-        for server_name in server_names:
-            try:
-                success, message = ansible_service.assign_role_to_server(server_name, role)
-                results.append({
-                    'server_name': server_name,
-                    'success': success,
-                    'message': message
-                })
-                print(f"🔧 {server_name}: {'성공' if success else '실패'} - {message}")
-            except Exception as e:
-                results.append({
-                    'server_name': server_name,
-                    'success': False,
-                    'message': str(e)
-                })
-                print(f"❌ {server_name}: 오류 - {e}")
+        if not target_servers:
+            return jsonify({'error': '선택된 서버들에 유효한 IP가 없습니다.'}), 400
         
-        # 결과 요약
-        success_count = sum(1 for r in results if r['success'])
-        total_count = len(results)
+        success, message = ansible_service.run_role_for_multiple_servers(target_servers, role)
+        print(f"🔧 일괄 역할 실행 결과: success={success}")
         
         return jsonify({
-            'success': True,
-            'message': f'{success_count}/{total_count}개 서버에 역할 할당 완료',
-            'results': results,
-            'summary': {
-                'total': total_count,
-                'success': success_count,
-                'failed': total_count - success_count
-            }
+            'success': success,
+            'message': message,
+            'targets': [s['ip_address'] for s in target_servers],
+            'missing_ip': missing
         })
         
     except Exception as e:
