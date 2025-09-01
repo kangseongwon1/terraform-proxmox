@@ -1415,7 +1415,34 @@ $(function() {
             addSystemNotification('info', type, `${name} ${type} 중...`);
             progressNotified = true;
           } else if (res.status === 'completed') {
-            addSystemNotification('success', type, `${name} ${type} 완료`);
+            // 서버에서 생성된 알림을 가져와서 표시
+            $.get('/api/notifications')
+              .done(function(response) {
+                if (response.notifications && response.notifications.length > 0) {
+                  // 가장 최근 알림을 찾아서 표시
+                  const latestNotification = response.notifications[0];
+                  const isDuplicate = window.systemNotifications.some(function(existing) {
+                    return existing.title === latestNotification.title && existing.message === latestNotification.message;
+                  });
+                  
+                  if (!isDuplicate) {
+                    window.addSystemNotification(
+                      latestNotification.severity || 'success',
+                      latestNotification.title,
+                      latestNotification.message,
+                      latestNotification.details
+                    );
+                  }
+                } else {
+                  // 서버 알림이 없으면 기본 알림 표시
+                  addSystemNotification('success', type, `${name} ${type} 완료`);
+                }
+              })
+              .fail(function() {
+                // API 호출 실패 시 기본 알림 표시
+                addSystemNotification('success', type, `${name} ${type} 완료`);
+              });
+            
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
@@ -1483,7 +1510,34 @@ $(function() {
             }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
             }
           } else if (res.status === 'failed') {
-            addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+            // 서버에서 생성된 알림을 가져와서 표시
+            $.get('/api/notifications')
+              .done(function(response) {
+                if (response.notifications && response.notifications.length > 0) {
+                  // 가장 최근 알림을 찾아서 표시
+                  const latestNotification = response.notifications[0];
+                  const isDuplicate = window.systemNotifications.some(function(existing) {
+                    return existing.title === latestNotification.title && existing.message === latestNotification.message;
+                  });
+                  
+                  if (!isDuplicate) {
+                    window.addSystemNotification(
+                      latestNotification.severity || 'error',
+                      latestNotification.title,
+                      latestNotification.message,
+                      latestNotification.details
+                    );
+                  }
+                } else {
+                  // 서버 알림이 없으면 기본 알림 표시
+                  addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+                }
+              })
+              .fail(function() {
+                // API 호출 실패 시 기본 알림 표시
+                addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+              });
+            
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
