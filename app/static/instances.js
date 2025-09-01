@@ -1446,13 +1446,45 @@ $(function() {
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
-            // 역할 설치 완료 시 버튼 상태 복원
+            // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
             if (type === 'ansible_role_install') {
               console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
               const btn = $(`.server-role-apply[data-server="${name}"]`);
               if (btn.length) {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
+              
+              // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시
+              console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
+              $.get('/api/notifications')
+                .done(function(response) {
+                  if (response.notifications && response.notifications.length > 0) {
+                    // 가장 최근 알림을 찾아서 표시
+                    const latestNotification = response.notifications[0];
+                    const isDuplicate = window.systemNotifications.some(function(existing) {
+                      return existing.title === latestNotification.title && existing.message === latestNotification.message;
+                    });
+                    
+                    if (!isDuplicate) {
+                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
+                      window.addSystemNotification(
+                        latestNotification.severity || 'success',
+                        latestNotification.title,
+                        latestNotification.message,
+                        latestNotification.details
+                      );
+                    } else {
+                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
+                    }
+                  } else {
+                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
+                    addSystemNotification('success', type, `${name} ${type} 완료`);
+                  }
+                })
+                .fail(function() {
+                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
+                  addSystemNotification('success', type, `${name} ${type} 완료`);
+                });
             }
             
             // 일괄 역할 할당 완료 시 플래그 해제
@@ -1541,13 +1573,45 @@ $(function() {
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
-            // 역할 설치 실패 시 버튼 상태 복원
+            // 역할 설치 실패 시 버튼 상태 복원 및 서버 알림 가져오기
             if (type === 'ansible_role_install') {
               console.log(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
               const btn = $(`.server-role-apply[data-server="${name}"]`);
               if (btn.length) {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
+              
+              // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시
+              console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
+              $.get('/api/notifications')
+                .done(function(response) {
+                  if (response.notifications && response.notifications.length > 0) {
+                    // 가장 최근 알림을 찾아서 표시
+                    const latestNotification = response.notifications[0];
+                    const isDuplicate = window.systemNotifications.some(function(existing) {
+                      return existing.title === latestNotification.title && existing.message === latestNotification.message;
+                    });
+                    
+                    if (!isDuplicate) {
+                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
+                      window.addSystemNotification(
+                        latestNotification.severity || 'error',
+                        latestNotification.title,
+                        latestNotification.message,
+                        latestNotification.details
+                      );
+                    } else {
+                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
+                    }
+                  } else {
+                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
+                    addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+                  }
+                })
+                .fail(function() {
+                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
+                  addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+                });
             }
             
             // 일괄 역할 할당 실패 시에도 플래그 해제
