@@ -611,6 +611,11 @@ $(function() {
                     } else {
                       alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 역할이 '${currentRole}'에서 '${selectedRole}'로 변경되었습니다.`);
                     }
+
+                    // Ansible 비동기 완료 알림을 한시적으로 폴링하여 즉시 표시
+                    if (window.watchAnsibleRoleNotification) {
+                      window.watchAnsibleRoleNotification(serverName);
+                    }
                   } else {
                     console.error('[instances.js] 역할 할당 실패:', roleRes.error);
                     alert(`서버 설정은 저장되었지만 역할 할당에 실패했습니다: ${roleRes.error}`);
@@ -3096,6 +3101,48 @@ window.addNewNotification = function(severity, title, message, details) {
     }).catch(function(err) {
       console.error('클립보드 복사 실패:', err);
     });
+  };
+
+  // Ansible 역할 알림을 짧게 폴링해서 즉시 반영
+  // - 역할 변경 API 성공 직후 15초 동안 2초 간격으로 서버 알림을 조회
+  // - 새 알림이 발견되면 즉시 표시 후 폴링 중단
+  window.watchAnsibleRoleNotification = function(serverName){
+    try {
+      const start = Date.now();
+      const DURATION_MS = 15000;
+      const INTERVAL_MS = 2000;
+      const seen = new Set();
+      const timer = setInterval(function(){
+        if (Date.now() - start > DURATION_MS) {
+          clearInterval(timer);
+          return;
+        }
+        $.get('/api/notifications')
+          .done(function(response){
+            if (!response || !response.notifications || response.notifications.length === 0) return;
+            // 가장 최근 5개만 체크
+            response.notifications.slice(0, 5).forEach(function(noti){
+              const key = `${noti.title}|${noti.message}`;
+              if (seen.has(key)) return;
+              // 서버 역할 관련 알림만 필터링(제목/메시지에 서버 이름 포함 시 우선 표시)
+              const related = (noti.title && noti.title.includes(serverName)) || (noti.message && noti.message.includes(serverName));
+              if (related) {
+                const duplicate = window.systemNotifications.some(function(existing){
+                  return existing.title === noti.title && existing.message === noti.message;
+                });
+                if (!duplicate) {
+                  window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details);
+                }
+                seen.add(key);
+                // 관련 알림이 감지되었으면 폴링 종료
+                clearInterval(timer);
+              }
+            });
+          });
+      }, INTERVAL_MS);
+    } catch(e) {
+      console.error('[instances.js] watchAnsibleRoleNotification 오류:', e);
+    }
   };
 })();
 
