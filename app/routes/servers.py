@@ -141,12 +141,17 @@ def create_server():
         cpu = data.get('cpu', 2)
         memory = data.get('memory', 2048)
         role = data.get('role', '')
-        ip_address = data.get('ip_address', '')
         disks = data.get('disks', [])
         network_devices = data.get('network_devices', [])
         template_vm_id = data.get('template_vm_id', 8000)
         vm_username = data.get('vm_username', 'rocky')
         vm_password = data.get('vm_password', 'rocky123')
+        
+        # IP 주소를 network_devices에서 추출
+        ip_address = ''
+        if network_devices:
+            ip_addresses = [device.get('ip_address', '') for device in network_devices if device.get('ip_address')]
+            ip_address = ', '.join(ip_addresses) if ip_addresses else ''
         
         if not server_name:
             return jsonify({'error': '서버 이름이 필요합니다.'}), 400
@@ -411,16 +416,23 @@ def create_servers_bulk():
                         if not server_name:
                             continue
                         
+                        # IP 주소를 network_devices에서 추출
+                        ip_address = ''
+                        network_devices = server_data.get('network_devices', [])
+                        if network_devices:
+                            ip_addresses = [device.get('ip_address', '') for device in network_devices if device.get('ip_address')]
+                            ip_address = ', '.join(ip_addresses) if ip_addresses else ''
+                        
                         # 서버별 기본값 설정
                         server_config = {
                             'name': server_name,
                             'cpu': server_data.get('cpu', 2),
                             'memory': server_data.get('memory', 2048),
                             'role': server_data.get('role', ''),
-                            'ip_address': server_data.get('ip_address', ''),
+                            'ip_address': ip_address,  # 추출된 IP 주소 사용
                             'os_type': server_data.get('os_type', ''), 
                             'disks': server_data.get('disks', []),
-                            'network_devices': server_data.get('network_devices', []),
+                            'network_devices': network_devices,
                             'template_vm_id': server_data.get('template_vm_id', 8000),
                             'vm_username': server_data.get('vm_username', tfvars.get('vm_username', 'rocky')),
                             'vm_password': server_data.get('vm_password', tfvars.get('vm_password', 'rocky123'))
@@ -507,11 +519,12 @@ def create_servers_bulk():
                         if vm_exists:
                             created_servers.append(server_name)
                             
-                            # IP 주소 처리 (리스트인 경우 문자열로 변환)
-                            ip_address = server_data.get('ip_address', '')
-                            ip_address_str = ip_address
-                            if isinstance(ip_address, list):
-                                ip_address_str = ', '.join(ip_address) if ip_address else ''
+                            # IP 주소를 network_devices에서 추출 (이미 위에서 처리했지만 다시 확인)
+                            ip_address_str = ''
+                            network_devices = server_data.get('network_devices', [])
+                            if network_devices:
+                                ip_addresses = [device.get('ip_address', '') for device in network_devices if device.get('ip_address')]
+                                ip_address_str = ', '.join(ip_addresses) if ip_addresses else ''
                             
                             # OS 타입 동적 분류 (캐시된 정보 사용)
                             template_vm_id = server_data.get('template_vm_id', 8000)
