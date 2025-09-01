@@ -2928,7 +2928,7 @@ function initializeServerForm() {
 // 서버에서 알림 로드하는 함수 (페이지 로드 시에만 사용)
 window.loadNotifications = function() {
   console.log('[instances.js] 알림 로드 시작');
-  $.get('/api/notifications')
+  $.get('/api/notifications', { _ts: Date.now() })
     .done(function(response) {
       console.log('[instances.js] 알림 로드 성공:', response);
       if (response.notifications && response.notifications.length > 0) {
@@ -2985,17 +2985,22 @@ window.addNewNotification = function(severity, title, message, details) {
     // 드롭다운 렌더링 (상단 네비게이션)
     const $list = $('#notification-list');
     let html = '';
-    window.systemNotifications.forEach(function(noti){
+    window.systemNotifications.forEach(function(noti, idx){
       const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
       
       // details가 있으면 모달로 표시
-      const detailsHtml = noti.details ? `
+      const detailsHtml = noti.details ? (function(){
+        try {
+          const titleEnc = encodeURIComponent(noti.title || '상세 로그');
+          const detailsB64 = btoa(unescape(encodeURIComponent(String(noti.details))));
+          return `
         <div class="mt-2">
-          <button class="btn btn-sm btn-outline-primary" type="button" onclick="showLogModal('${noti.title}', \`${noti.details.replace(/`/g, '\\`')}\`)">
+          <button class="btn btn-sm btn-outline-primary" type="button" onclick="showLogModalEncoded('${titleEnc}','${detailsB64}')">
             <i class="fas fa-terminal me-1"></i>상세 로그 보기
           </button>
-        </div>
-      ` : '';
+        </div>`;
+        } catch(e) { return ''; }
+      })() : '';
       
       html += `
         <li>
@@ -3085,6 +3090,21 @@ window.addNewNotification = function(severity, title, message, details) {
     const modal = new bootstrap.Modal(document.getElementById('logModal'));
     modal.show();
   };
+  // Base64로 전달된 로그 모달 표시(안전한 인라인 전달용)
+  window.showLogModalEncoded = function(titleEnc, detailsB64){
+    try {
+      const title = decodeURIComponent(titleEnc || '상세 로그');
+      let details = '';
+      try {
+        details = decodeURIComponent(escape(atob(detailsB64)));
+      } catch(e) {
+        details = atob(detailsB64);
+      }
+      window.showLogModal(title, details);
+    } catch(e) {
+      console.error('[instances.js] showLogModalEncoded 오류:', e);
+    }
+  };
   
   // 로그 클립보드 복사 함수
   window.copyLogToClipboard = function() {
@@ -3129,7 +3149,7 @@ window.addNewNotification = function(severity, title, message, details) {
           clearInterval(timer);
           return;
         }
-        $.get('/api/notifications')
+        $.get('/api/notifications', { _ts: Date.now() })
           .done(function(response){
             if (!response || !response.notifications || response.notifications.length === 0) return;
             // 가장 최근 5개만 체크
