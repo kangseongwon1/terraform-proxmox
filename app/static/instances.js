@@ -1421,7 +1421,7 @@ $(function() {
             progressNotified = true;
           } else if (res.status === 'completed') {
             // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/api/notifications')
+            $.get('/api/notifications', { _ts: Date.now() })
               .done(function(response) {
                 if (response.notifications && response.notifications.length > 0) {
                   // 가장 최근 알림을 찾아서 표시
@@ -1461,7 +1461,7 @@ $(function() {
               
               // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시
               console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
-              $.get('/api/notifications')
+              $.get('/api/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
                     // 가장 최근 알림을 찾아서 표시
@@ -1548,7 +1548,7 @@ $(function() {
             }
           } else if (res.status === 'failed') {
             // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/api/notifications')
+            $.get('/api/notifications', { _ts: Date.now() })
               .done(function(response) {
                 if (response.notifications && response.notifications.length > 0) {
                   // 가장 최근 알림을 찾아서 표시
@@ -1588,7 +1588,7 @@ $(function() {
               
               // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시
               console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
-              $.get('/api/notifications')
+              $.get('/api/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
                     // 가장 최근 알림을 찾아서 표시

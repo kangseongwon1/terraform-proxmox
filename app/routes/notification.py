@@ -34,7 +34,12 @@ def get_notifications():
                 'created_at': notification.created_at.isoformat() if notification.created_at else None
             })
         
-        return jsonify({'notifications': notification_data})
+        resp = jsonify({'notifications': notification_data})
+        # 캐시 방지 헤더 추가 (즉시 최신 알림 반영)
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
     except Exception as e:
         print(f"💥 알림 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
