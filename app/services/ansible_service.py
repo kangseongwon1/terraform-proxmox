@@ -277,6 +277,11 @@ class AnsibleService:
         try:
             print(f"🔧 subprocess를 사용한 플레이북 실행: {role}")
             
+            # bulk/전체 실행에서도 role 변수가 필요하므로 보장
+            extra_vars = extra_vars or {}
+            if 'role' not in extra_vars:
+                extra_vars['role'] = role
+
             # 대상 서버가 지정된 경우 개별 서버 플레이북 사용
             if target_server:
                 print(f"🔧 개별 서버 플레이북 사용: {target_server}")
@@ -291,9 +296,10 @@ class AnsibleService:
                 # Ansible 플레이북 실행 (개별 서버 플레이북 사용)
                 command = [
                     'ansible-playbook',
-                        '-i', f'python {self.dynamic_inventory_script} {target_server}',
-                        self.single_server_playbook,
-                        '--extra-vars', json.dumps(extra_vars),
+                    '-i', self.dynamic_inventory_script,
+                    self.single_server_playbook,
+                    '--extra-vars', json.dumps(extra_vars),
+                    '--limit', target_server,
                     '--ssh-common-args="-o StrictHostKeyChecking=no"'
                 ]
             else:
@@ -307,7 +313,7 @@ class AnsibleService:
                     command.extend(['-i', inventory, self.role_playbook])
                 else:
                     # 동적 인벤토리 스크립트 사용 (기존 동작 유지)
-                    command.extend(['-i', f'python {self.dynamic_inventory_script} --list', self.role_playbook])
+                    command.extend(['-i', self.dynamic_inventory_script, self.role_playbook])
                 
                 if extra_vars:
                     command.extend(['--extra-vars', json.dumps(extra_vars)])
