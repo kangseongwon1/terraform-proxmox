@@ -414,9 +414,11 @@ def create_servers_bulk():
                         # 서버별 기본값 설정
                         server_config = {
                             'name': server_name,
-                            'role': server_data.get('role', ''),
                             'cpu': server_data.get('cpu', 2),
                             'memory': server_data.get('memory', 2048),
+                            'role': server_data.get('role', ''),
+                            'ip_address': ip_address,
+                            'os_type': os_type, 
                             'disks': server_data.get('disks', []),
                             'network_devices': server_data.get('network_devices', []),
                             'template_vm_id': server_data.get('template_vm_id', 8000),
@@ -714,7 +716,30 @@ def process_bulk_delete_terraform(server_names):
             print("❌ 유효한 서버가 없습니다.")
             return success_servers, failed_servers
         
-        # 2. Terraform 설정에서 삭제할 서버들 제거
+        # 2. Proxmox API를 통해 서버들을 먼저 중지 (shutdown 대신 stop 사용)
+        from app.services.proxmox_service import ProxmoxService
+        import time
+        proxmox_service = ProxmoxService()
+        
+        print(f"🛑 서버 중지 단계 시작: {valid_servers}")
+        for server_name in valid_servers:
+            try:
+                print(f"🛑 {server_name} 중지 중...")
+                stop_result = proxmox_service.stop_vm(server_name)
+                if stop_result['success']:
+                    print(f"✅ {server_name} 중지 성공")
+                else:
+                    print(f"⚠️ {server_name} 중지 실패: {stop_result['message']}")
+                    # 중지 실패해도 계속 진행 (이미 중지된 상태일 수 있음)
+            except Exception as e:
+                print(f"⚠️ {server_name} 중지 중 예외 발생: {e}")
+                # 예외 발생해도 계속 진행
+        
+        # 서버 중지 후 잠시 대기 (완전히 중지되도록)
+        print("⏳ 서버 중지 완료 대기 중... (5초)")
+        time.sleep(5)
+        
+        # 3. Terraform 설정에서 삭제할 서버들 제거
         terraform_service = TerraformService()
         tfvars = terraform_service.load_tfvars()
         
@@ -731,11 +756,11 @@ def process_bulk_delete_terraform(server_names):
                 failed_servers.append(f"{server_name}: tfvars.json에서 찾을 수 없음")
             return success_servers, failed_servers
         
-        # 3. tfvars.json 저장
+        # 4. tfvars.json 저장
         terraform_service.save_tfvars(tfvars)
         print(f"💾 tfvars.json 업데이트 완료: {len(deleted_from_tfvars)}개 서버 제거")
         
-        # 4. Terraform destroy with targeted resources
+        # 5. Terraform destroy with targeted resources
         destroy_targets = []
         for server_name in deleted_from_tfvars:
             target = f'module.server["{server_name}"]'
