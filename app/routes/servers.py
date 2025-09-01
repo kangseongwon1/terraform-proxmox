@@ -207,7 +207,6 @@ def create_server():
                         'cpu': cpu,
                         'memory': memory,
                         'role': role,
-                        'ip_address': ip_address,
                         'os_type': os_type,  # 동적으로 분류된 OS 타입
                         'disks': disks,
                         'network_devices': network_devices,
