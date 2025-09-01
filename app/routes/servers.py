@@ -141,7 +141,7 @@ def create_server():
         cpu = data.get('cpu', 2)
         memory = data.get('memory', 2048)
         role = data.get('role', '')
-        ip_address = data.get('ip_address',[])
+        ip_address = data.get('ip_address', '')
         disks = data.get('disks', [])
         network_devices = data.get('network_devices', [])
         template_vm_id = data.get('template_vm_id', 8000)
@@ -255,10 +255,15 @@ def create_server():
                         update_task(task_id, 'failed', 'Proxmox에서 VM을 찾을 수 없습니다.')
                         return
                     
+                    # IP 주소 처리 (리스트인 경우 문자열로 변환)
+                    ip_address_str = ip_address
+                    if isinstance(ip_address, list):
+                        ip_address_str = ', '.join(ip_address) if ip_address else ''
+                    
                     # DB에 서버 정보 저장
                     new_server = Server(
                         name=server_name,
-                        ip_address=ip_address,  # IP 주소 추가
+                        ip_address=ip_address_str,  # IP 주소 추가 (문자열로 변환)
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
@@ -267,6 +272,7 @@ def create_server():
                     )
                     db.session.add(new_server)
                     db.session.commit()
+                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id})")
                     
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':
@@ -278,20 +284,49 @@ def create_server():
                             if ansible_success:
                                 print(f"✅ Ansible 역할 할당 성공: {server_name} - {role}")
                                 update_task(task_id, 'completed', f'서버 {server_name} 생성 및 {role} 역할 할당 완료')
+                                # 성공 알림 생성
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'success', 
+                                    f'서버 {server_name} 생성 및 {role} 역할 할당이 완료되었습니다.'
+                                )
                             else:
                                 print(f"⚠️ Ansible 역할 할당 실패: {server_name} - {role}, 메시지: {ansible_message}")
                                 update_task(task_id, 'completed', f'서버 {server_name} 생성 완료 (Ansible 실패: {ansible_message})')
+                                # 부분 성공 알림 생성
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'warning', 
+                                    f'서버 {server_name} 생성 완료 (Ansible 실패: {ansible_message})'
+                                )
                         except Exception as ansible_error:
                             print(f"⚠️ Ansible 실행 중 오류: {str(ansible_error)}")
                             update_task(task_id, 'completed', f'서버 {server_name} 생성 완료 (Ansible 오류: {str(ansible_error)})')
+                            # 부분 성공 알림 생성
+                            NotificationService.create_server_notification(
+                                server_name, 'create', 'warning', 
+                                f'서버 {server_name} 생성 완료 (Ansible 오류: {str(ansible_error)})'
+                            )
                     else:
                         update_task(task_id, 'completed', f'서버 {server_name} 생성 완료')
+                        # 성공 알림 생성
+                        NotificationService.create_server_notification(
+                            server_name, 'create', 'success', 
+                            f'서버 {server_name} 생성이 완료되었습니다.'
+                        )
                     
                     print(f"✅ 서버 생성 완료: {server_name}")
                     
             except Exception as e:
                 print(f"💥 서버 생성 작업 실패: {str(e)}")
                 update_task(task_id, 'failed', f'서버 생성 중 오류: {str(e)}')
+                
+                # 실패 알림 생성
+                try:
+                    NotificationService.create_server_notification(
+                        server_name, 'create', 'error', 
+                        f'서버 {server_name} 생성 중 오류가 발생했습니다: {str(e)}'
+                    )
+                except Exception as notif_error:
+                    print(f"⚠️ 실패 알림 생성 실패: {str(notif_error)}")
                 
                 # 실패 시 정리 작업
                 try:
@@ -449,6 +484,18 @@ def create_servers_bulk():
                     created_servers = []
                     failed_servers = []
                     
+                    # 템플릿 정보를 한 번에 조회 (효율성 향상)
+                    template_cache = {}
+                    try:
+                        headers, error = proxmox_service.get_proxmox_auth()
+                        if not error:
+                            vms, vm_error = proxmox_service.get_proxmox_vms(headers)
+                            if not vm_error:
+                                for vm in vms:
+                                    template_cache[vm.get('vmid')] = vm.get('name', 'rocky-9-template')
+                    except Exception as e:
+                        print(f"⚠️ 템플릿 정보 조회 실패: {e}")
+                    
                     for server_data in servers_data:
                         server_name = server_data.get('name')
                         if not server_name:
@@ -458,13 +505,26 @@ def create_servers_bulk():
                         if vm_exists:
                             created_servers.append(server_name)
                             
+                            # IP 주소 처리 (리스트인 경우 문자열로 변환)
+                            ip_address = server_data.get('ip_address', '')
+                            ip_address_str = ip_address
+                            if isinstance(ip_address, list):
+                                ip_address_str = ', '.join(ip_address) if ip_address else ''
+                            
+                            # OS 타입 동적 분류 (캐시된 정보 사용)
+                            template_vm_id = server_data.get('template_vm_id', 8000)
+                            template_name = template_cache.get(template_vm_id, 'rocky-9-template')
+                            os_type = classify_os_type(template_name)
+                            
                             # DB에 서버 정보 저장
                             new_server = Server(
                                 name=server_name,
+                                ip_address=ip_address_str,  # IP 주소 추가
                                 cpu=server_data.get('cpu', 2),
                                 memory=server_data.get('memory', 2048),
                                 role=server_data.get('role', ''),
                                 status='running',
+                                os_type=os_type,  # OS 타입 추가
                                 created_at=datetime.utcnow()
                             )
                             
@@ -484,14 +544,49 @@ def create_servers_bulk():
                         success_msg = f'모든 서버 생성 완료: {", ".join(created_servers)}'
                         update_task(task_id, 'completed', success_msg)
                         print(f"✅ {success_msg}")
+                        # 성공 알림 생성
+                        for server_name in created_servers:
+                            try:
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'success', 
+                                    f'서버 {server_name} 생성이 완료되었습니다.'
+                                )
+                            except Exception as notif_error:
+                                print(f"⚠️ 알림 생성 실패: {str(notif_error)}")
                     elif created_servers and failed_servers:
                         partial_msg = f'일부 서버 생성 완료. 성공: {", ".join(created_servers)}, 실패: {", ".join(failed_servers)}'
                         update_task(task_id, 'completed', partial_msg)
                         print(f"⚠️ {partial_msg}")
+                        # 부분 성공 알림 생성
+                        for server_name in created_servers:
+                            try:
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'success', 
+                                    f'서버 {server_name} 생성이 완료되었습니다.'
+                                )
+                            except Exception as notif_error:
+                                print(f"⚠️ 알림 생성 실패: {str(notif_error)}")
+                        for server_name in failed_servers:
+                            try:
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'error', 
+                                    f'서버 {server_name} 생성에 실패했습니다.'
+                                )
+                            except Exception as notif_error:
+                                print(f"⚠️ 알림 생성 실패: {str(notif_error)}")
                     else:
                         error_msg = f'모든 서버 생성 실패: {", ".join(failed_servers)}'
                         update_task(task_id, 'failed', error_msg)
                         print(f"❌ {error_msg}")
+                        # 실패 알림 생성
+                        for server_name in failed_servers:
+                            try:
+                                NotificationService.create_server_notification(
+                                    server_name, 'create', 'error', 
+                                    f'서버 {server_name} 생성에 실패했습니다.'
+                                )
+                            except Exception as notif_error:
+                                print(f"⚠️ 알림 생성 실패: {str(notif_error)}")
                     
             except Exception as e:
                 error_msg = f'다중 서버 생성 작업 중 예외 발생: {str(e)}'
@@ -1049,10 +1144,15 @@ def create():
                         update_task(task_id, 'failed', 'Proxmox에서 VM을 찾을 수 없습니다.')
                         return
                     
+                    # IP 주소 처리 (리스트인 경우 문자열로 변환)
+                    ip_address_str = ip_address
+                    if isinstance(ip_address, list):
+                        ip_address_str = ', '.join(ip_address) if ip_address else ''
+                    
                     # DB에 서버 정보 저장
                     new_server = Server(
                         name=server_name,
-                        ip_address=ip_address,  # IP 주소 추가
+                        ip_address=ip_address_str,  # IP 주소 추가 (문자열로 변환)
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
                         cpu=cpu,
@@ -1061,6 +1161,7 @@ def create():
                     )
                     db.session.add(new_server)
                     db.session.commit()
+                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id})")
                     
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':

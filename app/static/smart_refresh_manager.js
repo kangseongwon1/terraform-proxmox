@@ -133,10 +133,8 @@ $(function() {
     // 인스턴스 페이지에서는 자동 새로고침 하지 않음
     // 사용자가 작업을 수행할 때만 상태 업데이트
     
-    // 알림은 모든 페이지에서 공통으로 갱신
-    if (typeof window.loadNotifications === 'function') {
-      window.loadNotifications();
-    }
+    // 알림은 페이지 로드 시에만 로드하고, 이후에는 자동 갱신하지 않음
+    // (알림이 새로 생성될 때만 표시)
   }
 
   /**

@@ -5,7 +5,7 @@ $(function() {
   
   console.log('[instances.js] 초기화 시작');
   
-  // 페이지 로드 시 알림 로드
+  // 페이지 로드 시에만 알림 로드 (한 번만)
   window.loadNotifications();
   
   // 실시간 서버 상태 폴링
@@ -90,6 +90,36 @@ $(function() {
       
       console.log(`[instances.js] 서버 ${serverName} 상태 업데이트 완료: ${newStatus}`);
     }
+  }
+  
+  // 작업 완료 시 알림 표시 함수
+  function showTaskCompletionNotification(taskType, serverName, status, message) {
+    let severity = 'info';
+    let title = '';
+    
+    switch(taskType) {
+      case 'create':
+        title = `서버 생성 ${status === 'success' ? '완료' : '실패'}`;
+        severity = status === 'success' ? 'success' : 'error';
+        break;
+      case 'start':
+        title = `서버 시작 ${status === 'success' ? '완료' : '실패'}`;
+        severity = status === 'success' ? 'success' : 'error';
+        break;
+      case 'stop':
+        title = `서버 중지 ${status === 'success' ? '완료' : '실패'}`;
+        severity = status === 'success' ? 'success' : 'error';
+        break;
+      case 'delete':
+        title = `서버 삭제 ${status === 'success' ? '완료' : '실패'}`;
+        severity = status === 'success' ? 'success' : 'error';
+        break;
+      default:
+        title = `작업 ${status === 'success' ? '완료' : '실패'}`;
+        severity = status === 'success' ? 'success' : 'error';
+    }
+    
+    window.addNewNotification(severity, title, message);
   }
   
   // 서버 작업 버튼 상태 업데이트
@@ -2760,34 +2790,41 @@ function initializeServerForm() {
 // 시스템 알림 드롭다운 구현 (상단 네비게이션 notification-list만 사용)
 // =========================
 
-// 서버에서 알림 로드하는 함수
+// 서버에서 알림 로드하는 함수 (페이지 로드 시에만 사용)
 window.loadNotifications = function() {
   console.log('[instances.js] 알림 로드 시작');
   $.get('/api/notifications')
     .done(function(response) {
       console.log('[instances.js] 알림 로드 성공:', response);
       if (response.notifications && response.notifications.length > 0) {
-        // 기존 알림 초기화
-        window.systemNotifications = [];
-        
-        // 서버 알림을 클라이언트 알림으로 변환
+        // 새로운 알림만 추가 (기존 알림 유지)
         response.notifications.forEach(function(noti) {
-          window.addSystemNotification(
-            noti.severity || 'info',
-            noti.title,
-            noti.message,
-            noti.details
-          );
+          // 중복 알림 방지 (제목과 메시지로 체크)
+          const isDuplicate = window.systemNotifications.some(function(existing) {
+            return existing.title === noti.title && existing.message === noti.message;
+          });
+          
+          if (!isDuplicate) {
+            window.addSystemNotification(
+              noti.severity || 'info',
+              noti.title,
+              noti.message,
+              noti.details
+            );
+          }
         });
-      } else {
-        // 알림이 없으면 초기화
-        window.systemNotifications = [];
-        window.addSystemNotification(); // 드롭다운만 갱신
       }
+      // 알림이 없어도 기존 알림은 유지 (초기화하지 않음)
     })
     .fail(function(xhr, status, error) {
       console.error('[instances.js] 알림 로드 실패:', error);
     });
+};
+
+// 새로운 알림 추가 함수 (서버에서 알림 생성 시 호출)
+window.addNewNotification = function(severity, title, message, details) {
+  console.log('[instances.js] 새 알림 추가:', title);
+  window.addSystemNotification(severity, title, message, details);
 };
 (function(){
   // 알림 목록 관리
