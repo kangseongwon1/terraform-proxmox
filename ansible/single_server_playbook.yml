@@ -1,5 +1,5 @@
 - become: true
-  hosts: "{{ target_server }}"
+  hosts: all
   gather_facts: false  # Python이 없을 수 있으므로 facts 수집 비활성화
   vars:
     ansible_verbosity: 2  # 상세한 로그 출력

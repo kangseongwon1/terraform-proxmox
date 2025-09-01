@@ -1,5 +1,5 @@
 - become: true
-  hosts: "{{ target_server }}"
+  hosts: all
   gather_facts: false
   vars:
     ansible_verbosity: 2

@@ -733,6 +733,7 @@ class AnsibleService:
                         '-i', self.dynamic_inventory_script,
                         self.role_playbook,
                         '--extra-vars', json.dumps(role_vars),
+                        '--limit', server.ip_address,
                         '--ssh-common-args=-o StrictHostKeyChecking=no',
                         '-vv'  # 상세한 로그 출력
                     ]
