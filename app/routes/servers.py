@@ -1431,7 +1431,7 @@ def assign_role_bulk():
         if not server_names:
             return jsonify({'error': '서버 목록을 지정해야 합니다.'}), 400
         
-        if not role:
+        if not role or role == '':
             return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
         
         # "none" 값을 역할 해제로 처리

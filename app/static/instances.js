@@ -2563,7 +2563,7 @@ function initializeServerForm() {
       return;
     }
     
-    if (!role) {
+    if (!role || role === '') {
       addSystemNotification('warning', '역할 선택', '할당할 역할을 선택해주세요.');
       return;
     }
@@ -2581,7 +2581,8 @@ function initializeServerForm() {
     clearSelection();
     
     // 시작 알림
-    addSystemNotification('info', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할을 할당하는 중...`);
+    const actionText = role === 'none' ? '역할을 해제' : `${role} 역할을 할당`;
+    addSystemNotification('info', '일괄 역할 할당', `${serverNames.length}개 서버에 ${actionText}하는 중...`);
     
     // 일괄 역할 할당 API 호출
     $.ajax({
