@@ -93,6 +93,7 @@ class AnsibleService:
             env['ANSIBLE_USER'] = ssh_user
             env['ANSIBLE_SSH_PRIVATE_KEY_FILE'] = ssh_private_key
             env['ANSIBLE_HOST_KEY_CHECKING'] = 'False'  # 호스트 키 검증 비활성화
+            env['ANSIBLE_PIPELINING'] = 'True'  # SSH 파이프라이닝으로 오버헤드 감소
             
             print(f"🔧 Ansible 명령어 실행: {' '.join(command)}")
             print(f"🔧 SSH 사용자: {ssh_user}")
@@ -300,7 +301,7 @@ class AnsibleService:
                     self.single_server_playbook,
                     '--extra-vars', json.dumps(extra_vars),
                     '--limit', target_server,
-                    '--ssh-common-args="-o StrictHostKeyChecking=no"'
+                    '--ssh-common-args="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p"'
                 ]
             else:
                 # 전체 서버 대상 - 정적 인벤토리 또는 동적 인벤토리 사용
@@ -319,7 +320,7 @@ class AnsibleService:
                     command.extend(['--extra-vars', json.dumps(extra_vars)])
                 if limit_hosts:
                     command.extend(['--limit', limit_hosts])
-                command.append('--ssh-common-args="-o StrictHostKeyChecking=no"')
+                command.append('--ssh-common-args="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p"')
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
@@ -734,7 +735,7 @@ class AnsibleService:
                         self.role_playbook,
                         '--extra-vars', json.dumps(role_vars),
                         '--limit', server.ip_address,
-                        '--ssh-common-args=-o StrictHostKeyChecking=no',
+                        '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p',
                         '-vv'  # 상세한 로그 출력
                     ]
                     

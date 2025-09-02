@@ -3141,22 +3141,17 @@ window.addNewNotification = function(severity, title, message, details) {
   window.watchAnsibleRoleNotification = function(serverName){
     try {
       const start = Date.now();
-      const DURATION_MS = 15000;
-      const INTERVAL_MS = 2000;
+      const MAX_DURATION_MS = 180000; // 최대 3분 대기
+      let intervalMs = 2000; // 2초부터 시작
       const seen = new Set();
-      const timer = setInterval(function(){
-        if (Date.now() - start > DURATION_MS) {
-          clearInterval(timer);
-          return;
-        }
+      function tick(){
+        if (Date.now() - start > MAX_DURATION_MS) return;
         $.get('/api/notifications', { _ts: Date.now() })
           .done(function(response){
             if (!response || !response.notifications || response.notifications.length === 0) return;
-            // 가장 최근 5개만 체크
-            response.notifications.slice(0, 5).forEach(function(noti){
+            response.notifications.slice(0, 8).forEach(function(noti){
               const key = `${noti.title}|${noti.message}`;
               if (seen.has(key)) return;
-              // 서버 역할 관련 알림만 필터링(제목/메시지에 서버 이름 포함 시 우선 표시)
               const related = (noti.title && noti.title.includes(serverName)) || (noti.message && noti.message.includes(serverName));
               if (related) {
                 const duplicate = window.systemNotifications.some(function(existing){
@@ -3166,12 +3161,15 @@ window.addNewNotification = function(severity, title, message, details) {
                   window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details);
                 }
                 seen.add(key);
-                // 관련 알림이 감지되었으면 폴링 종료
-                clearInterval(timer);
               }
             });
+          })
+          .always(function(){
+            intervalMs = Math.min(intervalMs + 1000, 7000); // 백오프(최대 7초)
+            setTimeout(tick, intervalMs);
           });
-      }, INTERVAL_MS);
+      }
+      setTimeout(tick, intervalMs);
     } catch(e) {
       console.error('[instances.js] watchAnsibleRoleNotification 오류:', e);
     }
