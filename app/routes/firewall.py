@@ -237,6 +237,99 @@ def apply_security_group_to_vm(server_name):
         print(f"💥 Security Group 적용 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/firewall/assign_bulk', methods=['POST'])
+@login_required
+@permission_required('assign_firewall_groups')
+def assign_firewall_group_bulk():
+    """여러 서버에 방화벽 그룹 일괄 할당"""
+    try:
+        data = request.get_json()
+        server_names = data.get('server_names', [])
+        firewall_group = data.get('security_group')
+        
+        print(f"🔍 일괄 방화벽 그룹 할당 요청")
+        print(f"🔍 대상 서버들: {server_names}")
+        print(f"🔍 방화벽 그룹: {firewall_group}")
+        
+        if not server_names:
+            return jsonify({'error': '서버 목록이 필요합니다.'}), 400
+            
+        if not firewall_group:
+            return jsonify({'error': '방화벽 그룹이 필요합니다.'}), 400
+        
+        from app.models import Server
+        from app.services.proxmox_service import ProxmoxService
+        from app import db
+        
+        # 대상 서버들 조회
+        servers = Server.query.filter(Server.name.in_(server_names)).all()
+        found_servers = {s.name: s for s in servers}
+        
+        # 존재하지 않는 서버 체크
+        missing_servers = [name for name in server_names if name not in found_servers]
+        if missing_servers:
+            return jsonify({'error': f'다음 서버들을 찾을 수 없습니다: {", ".join(missing_servers)}'}), 404
+        
+        proxmox_service = ProxmoxService()
+        success_count = 0
+        failed_servers = []
+        
+        # 각 서버에 방화벽 그룹 적용
+        for server_name in server_names:
+            try:
+                print(f"🔍 서버 '{server_name}'에 방화벽 그룹 '{firewall_group}' 적용 시도")
+                
+                # Proxmox에서 Security Group 적용
+                success = proxmox_service.apply_security_group_to_vm(server_name, firewall_group)
+                
+                if success:
+                    # DB 업데이트
+                    server = found_servers[server_name]
+                    server.firewall_group = firewall_group
+                    success_count += 1
+                    print(f"✅ 서버 '{server_name}' 방화벽 그룹 적용 성공")
+                else:
+                    failed_servers.append(server_name)
+                    print(f"❌ 서버 '{server_name}' 방화벽 그룹 적용 실패")
+                    
+            except Exception as e:
+                failed_servers.append(server_name)
+                print(f"❌ 서버 '{server_name}' 방화벽 그룹 적용 중 오류: {e}")
+        
+        # DB 커밋
+        db.session.commit()
+        
+        # 결과 응답
+        if success_count == len(server_names):
+            return jsonify({
+                'success': True,
+                'message': f'{success_count}개 서버에 방화벽 그룹 \'{firewall_group}\'이 성공적으로 할당되었습니다.',
+                'summary': {
+                    'total': len(server_names),
+                    'success': success_count,
+                    'failed': len(failed_servers)
+                }
+            })
+        elif success_count > 0:
+            return jsonify({
+                'success': True,
+                'message': f'{success_count}/{len(server_names)}개 서버에 방화벽 그룹 할당 완료. 실패: {", ".join(failed_servers)}',
+                'summary': {
+                    'total': len(server_names),
+                    'success': success_count,
+                    'failed': len(failed_servers)
+                },
+                'failed_servers': failed_servers
+            })
+        else:
+            return jsonify({
+                'error': f'모든 서버에 방화벽 그룹 할당 실패. 실패한 서버: {", ".join(failed_servers)}'
+            }), 500
+            
+    except Exception as e:
+        print(f"💥 일괄 방화벽 그룹 할당 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/remove_firewall_group/<server_name>', methods=['POST'])
 @login_required
 @permission_required('remove_firewall_groups')
