@@ -2979,14 +2979,14 @@ window.loadNotifications = function() {
 };
 
 // 새로운 알림 추가 함수 (서버에서 알림 생성 시 호출)
-window.addNewNotification = function(severity, title, message, details) {
+window.addNewNotification = function(severity, title, message, details, id) {
   console.log('[instances.js] 새 알림 추가:', title);
-  window.addSystemNotification(severity, title, message, details);
+  window.addSystemNotification(severity, title, message, details, id);
 };
 (function(){
   // 알림 목록 관리
   window.systemNotifications = window.systemNotifications || [];
-  window.addSystemNotification = function(type, title, message, details) {
+  window.addSystemNotification = function(type, title, message, details, id) {
     if (typeof type === 'undefined' && typeof title === 'undefined' && typeof message === 'undefined') {
       // 알림 추가 없이 드롭다운만 갱신
       const $list = $('#notification-list');
@@ -3002,7 +3002,7 @@ window.addNewNotification = function(severity, title, message, details) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('ko-KR', {hour12:false});
     // 알림 객체 추가 (최대 10개 유지)
-    window.systemNotifications.unshift({type, title, message, details, time: timeStr});
+    window.systemNotifications.unshift({id, type, title, message, details, time: timeStr});
     if (window.systemNotifications.length > 10) window.systemNotifications.length = 10;
     // 드롭다운 렌더링 (상단 네비게이션)
     const $list = $('#notification-list');
@@ -3012,13 +3012,27 @@ window.addNewNotification = function(severity, title, message, details) {
       
       // details가 있으면 모달로 표시
       const detailsHtml = (function(){
-        const btn = `
+        if (noti.id) {
+          return `
         <div class="mt-2">
           <button class="btn btn-sm btn-outline-primary" type="button" onclick="openNotificationLog(${noti.id})">
             <i class="fas fa-terminal me-1"></i>상세 로그 보기
           </button>
         </div>`;
-        return btn;
+        }
+        if (noti.details) {
+          try {
+            const titleEnc = encodeURIComponent(noti.title || '상세 로그');
+            const detailsB64 = btoa(unescape(encodeURIComponent(String(noti.details))));
+            return `
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-primary" type="button" onclick="showLogModalEncoded('${titleEnc}','${detailsB64}')">
+            <i class="fas fa-terminal me-1"></i>상세 로그 보기
+          </button>
+        </div>`;
+          } catch(e) { return ''; }
+        }
+        return '';
       })();
       
       html += `

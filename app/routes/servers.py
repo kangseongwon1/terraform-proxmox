@@ -1531,7 +1531,7 @@ def assign_role_bulk():
                         s.role = role
                         updated += 1
                         # 성공 알림 생성
-                        Notification.create_notification(
+                        n = Notification.create_notification(
                             type='ansible_role',
                             title=f"서버 {s.name} 역할 할당 완료",
                             message=f"역할 '{role}'이 성공적으로 적용되었습니다.",
@@ -1539,18 +1539,20 @@ def assign_role_bulk():
                             details=message,
                             severity='success'
                         )
+                        print(f"✅ 알림 생성: id={n.id} 서버={s.name}")
                 db.session.commit()
                 print(f"✅ 일괄 역할 DB 업데이트 완료: {updated}개 서버")
             else:
                 # 실패 알림(요약)
                 for s in db_servers:
-                    Notification.create_notification(
+                    n = Notification.create_notification(
                         type='ansible_role',
                         title=f"서버 {s.name} 역할 할당 실패",
                         message="Ansible 실행 중 오류가 발생했습니다.",
                         details=message,
                         severity='error'
                     )
+                    print(f"✅ 알림 생성: id={n.id} 서버={s.name} (실패)")
         except Exception as notify_err:
             print(f"⚠️ 일괄 역할 알림/DB 반영 중 오류: {notify_err}")
 
