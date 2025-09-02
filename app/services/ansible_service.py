@@ -301,7 +301,7 @@ class AnsibleService:
                     self.single_server_playbook,
                     '--extra-vars', json.dumps(extra_vars),
                     '--limit', target_server,
-                    '--ssh-common-args="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p"'
+                    '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s'
                 ]
             else:
                 # 전체 서버 대상 - 정적 인벤토리 또는 동적 인벤토리 사용
@@ -320,7 +320,7 @@ class AnsibleService:
                     command.extend(['--extra-vars', json.dumps(extra_vars)])
                 if limit_hosts:
                     command.extend(['--limit', limit_hosts])
-                command.append('--ssh-common-args="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p"')
+                command.append('--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s')
             
             print(f"🔧 Ansible 명령어: {' '.join(command)}")
             print(f"🔧 플레이북 파일 존재 확인: {os.path.exists(self.playbook_file)}")
@@ -735,7 +735,7 @@ class AnsibleService:
                         self.role_playbook,
                         '--extra-vars', json.dumps(role_vars),
                         '--limit', server.ip_address,
-                        '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s -o ControlPath=~/.ssh/ansible-ctlx-%r@%h:%p',
+                        '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s',
                         '-vv'  # 상세한 로그 출력
                     ]
                     
