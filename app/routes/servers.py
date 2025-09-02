@@ -1508,7 +1508,8 @@ def assign_role_bulk():
                             type='ansible_role',
                             title=f"서버 {s.name} 역할 할당 완료",
                             message=f"역할 '{role}'이 성공적으로 적용되었습니다.",
-                            details=None,
+                            # Ansible stdout(성공 로그)을 details로 저장 (길면 그대로 저장, UI에서 모달로 표시)
+                            details=message,
                             severity='success'
                         )
                 db.session.commit()

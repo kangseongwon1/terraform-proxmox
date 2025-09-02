@@ -96,6 +96,29 @@ def get_latest_notification():
         print(f"💥 최신 알림 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/notifications/<int:notification_id>', methods=['GET'])
+@login_required
+def get_notification_by_id(notification_id: int):
+    """알림 1건 조회 (상세 로그 포함)"""
+    try:
+        n = Notification.query.filter_by(id=notification_id).first()
+        if not n:
+            return jsonify({'error': '알림을 찾을 수 없습니다.'}), 404
+        return jsonify({
+            'success': True,
+            'notification': {
+                'id': n.id,
+                'title': n.title,
+                'message': n.message,
+                'details': n.details,
+                'severity': n.severity,
+                'created_at': n.created_at.isoformat() if n.created_at else None
+            }
+        })
+    except Exception as e:
+        print(f"💥 알림 단건 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
 @login_required
 def mark_notification_read(notification_id):

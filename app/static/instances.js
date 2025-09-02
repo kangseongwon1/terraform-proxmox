@@ -2990,18 +2990,15 @@ window.addNewNotification = function(severity, title, message, details) {
       const icon = noti.type==='success' ? 'fa-check-circle text-success' : noti.type==='error' ? 'fa-exclamation-circle text-danger' : 'fa-info-circle text-info';
       
       // details가 있으면 모달로 표시
-      const detailsHtml = noti.details ? (function(){
-        try {
-          const titleEnc = encodeURIComponent(noti.title || '상세 로그');
-          const detailsB64 = btoa(unescape(encodeURIComponent(String(noti.details))));
-          return `
+      const detailsHtml = (function(){
+        const btn = `
         <div class="mt-2">
-          <button class="btn btn-sm btn-outline-primary" type="button" onclick="showLogModalEncoded('${titleEnc}','${detailsB64}')">
+          <button class="btn btn-sm btn-outline-primary" type="button" onclick="openNotificationLog(${noti.id})">
             <i class="fas fa-terminal me-1"></i>상세 로그 보기
           </button>
         </div>`;
-        } catch(e) { return ''; }
-      })() : '';
+        return btn;
+      })();
       
       html += `
         <li>
@@ -3090,6 +3087,19 @@ window.addNewNotification = function(severity, title, message, details) {
     $('body').append(modalHtml);
     const modal = new bootstrap.Modal(document.getElementById('logModal'));
     modal.show();
+  };
+  // 알림 ID 기반 상세 로그 열기 (서버에서 안전하게 가져오기)
+  window.openNotificationLog = function(notificationId){
+    $.get(`/api/notifications/${notificationId}`)
+      .done(function(res){
+        if (res && res.success && res.notification){
+          const n = res.notification;
+          window.showLogModal(n.title || '상세 로그', n.details || n.message || '내용 없음');
+        }
+      })
+      .fail(function(xhr){
+        console.error('[instances.js] 알림 상세 조회 실패:', xhr);
+      });
   };
   // Base64로 전달된 로그 모달 표시(안전한 인라인 전달용)
   window.showLogModalEncoded = function(titleEnc, detailsB64){
