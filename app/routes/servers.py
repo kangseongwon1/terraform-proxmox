@@ -1010,6 +1010,21 @@ def get_all_server_status():
             servers = result['data']['servers']
             stats = result['data']['stats']
             
+            # DB에서 서버 정보 가져와서 병합 (역할, 방화벽 그룹 정보)
+            db_servers = Server.query.all()
+            db_server_map = {s.name: s for s in db_servers}
+            
+            # Proxmox 데이터에 DB 정보 병합
+            for vm_key, server_data in servers.items():
+                server_name = server_data.get('name')
+                if server_name and server_name in db_server_map:
+                    db_server = db_server_map[server_name]
+                    # DB의 역할과 방화벽 그룹 정보를 Proxmox 데이터에 추가
+                    server_data['role'] = db_server.role
+                    server_data['firewall_group'] = db_server.firewall_group
+                    server_data['os_type'] = db_server.os_type
+                    print(f"🔧 서버 '{server_name}' DB 정보 병합: role={db_server.role}, firewall_group={db_server.firewall_group}")
+            
             # 통계 정보를 포함하여 반환
             return jsonify({
                 'success': True,
