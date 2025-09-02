@@ -70,10 +70,26 @@ def get_latest_notification():
             since_dt = datetime.fromtimestamp(since_ts)
             query = query.filter(Notification.created_at >= since_dt)
 
-        # 제목 또는 메시지에 서버명이 포함된 최신 알림
-        query = query.filter(
-            (Notification.title.contains(server)) | (Notification.message.contains(server))
-        ).order_by(Notification.created_at.desc())
+        # 제목/메시지 내 정확한 서버명 매칭(부분 일치에 의한 교차 매칭 방지)
+        from sqlalchemy import or_
+        token_a = f"서버 {server} "           # 예: 서버 test 
+        token_b = f"서버 {server}\n"          # 줄바꿈 케이스
+        token_c = f"'{server}'"               # 따옴표로 감싼 서버명
+        token_d = f"\"{server}\""           # 쌍따옴표로 감싼 서버명
+        token_e = f" {server} "               # 공백으로 구분된 서버명
+        server_filter = or_(
+            Notification.title.contains(token_a),
+            Notification.title.contains(token_b),
+            Notification.title.contains(token_c),
+            Notification.title.contains(token_d),
+            Notification.message.contains(token_a),
+            Notification.message.contains(token_b),
+            Notification.message.contains(token_c),
+            Notification.message.contains(token_d),
+            Notification.title == server,
+            Notification.message == server,
+        )
+        query = query.filter(server_filter).order_by(Notification.created_at.desc())
 
         latest = query.first()
         data = None
