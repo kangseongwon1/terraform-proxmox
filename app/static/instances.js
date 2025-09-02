@@ -2444,6 +2444,7 @@ function initializeServerForm() {
     $.get('/api/firewall/groups', function(res) {
       if (res.success) {
         let options = '<option value="">보안그룹을 선택하세요</option>';
+        options += '<option value="none" class="text-muted">🚫 보안그룹 없음 (해제)</option>';
         res.groups.forEach(function(group) {
           options += `<option value="${group.name}">${group.name} (${group.description || '설명 없음'})</option>`;
         });

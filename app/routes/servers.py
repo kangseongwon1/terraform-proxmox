@@ -1434,6 +1434,11 @@ def assign_role_bulk():
         if not role:
             return jsonify({'error': '역할(role)을 지정해야 합니다.'}), 400
         
+        # "none" 값을 역할 해제로 처리
+        if role == 'none':
+            print(f"🔧 역할 해제 요청으로 변환: none → None")
+            role = None
+        
         # AnsibleService를 통해 한 번에 역할 할당 (동적 인벤토리 + --limit)
         ansible_service = AnsibleService()
         # DB에서 대상 서버 정보 수집 (IP 필수)
@@ -1445,6 +1450,24 @@ def assign_role_bulk():
                 target_servers.append({'ip_address': s.ip_address})
             else:
                 missing.append(s.name)
+        
+        # 역할 해제인 경우 별도 처리 (Ansible 실행 없이 DB만 업데이트)
+        if role is None:
+            print(f"🔧 역할 해제: DB에서만 역할 제거")
+            updated_count = 0
+            for server in db_servers:
+                server.role = None
+                updated_count += 1
+            
+            from app import db
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'{updated_count}개 서버에서 역할이 해제되었습니다.',
+                'targets': [s.name for s in db_servers],
+                'missing_ip': missing
+            })
         
         if not target_servers:
             return jsonify({'error': '선택된 서버들에 유효한 IP가 없습니다.'}), 400

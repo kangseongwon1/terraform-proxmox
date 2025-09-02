@@ -257,6 +257,11 @@ def assign_firewall_group_bulk():
         if not firewall_group:
             return jsonify({'error': '방화벽 그룹이 필요합니다.'}), 400
         
+        # "none" 값을 방화벽 그룹 해제로 처리
+        is_remove_operation = (firewall_group == 'none')
+        if is_remove_operation:
+            print(f"🔧 방화벽 그룹 해제 요청으로 변환: none → 해제")
+        
         from app.models import Server
         from app.services.proxmox_service import ProxmoxService
         from app import db
@@ -274,36 +279,54 @@ def assign_firewall_group_bulk():
         success_count = 0
         failed_servers = []
         
-        # 각 서버에 방화벽 그룹 적용
+        # 각 서버에 방화벽 그룹 적용/해제
         for server_name in server_names:
             try:
-                print(f"🔍 서버 '{server_name}'에 방화벽 그룹 '{firewall_group}' 적용 시도")
-                
-                # Proxmox에서 Security Group 적용
-                success = proxmox_service.apply_security_group_to_vm(server_name, firewall_group)
-                
-                if success:
-                    # DB 업데이트
-                    server = found_servers[server_name]
-                    server.firewall_group = firewall_group
-                    success_count += 1
-                    print(f"✅ 서버 '{server_name}' 방화벽 그룹 적용 성공")
+                if is_remove_operation:
+                    print(f"🔍 서버 '{server_name}'에서 방화벽 그룹 해제 시도")
+                    # Proxmox에서 Security Group 제거
+                    success = proxmox_service.remove_security_group_from_vm(server_name)
+                    
+                    if success:
+                        # DB 업데이트 (방화벽 그룹 제거)
+                        server = found_servers[server_name]
+                        server.firewall_group = None
+                        success_count += 1
+                        print(f"✅ 서버 '{server_name}' 방화벽 그룹 해제 성공")
+                    else:
+                        failed_servers.append(server_name)
+                        print(f"❌ 서버 '{server_name}' 방화벽 그룹 해제 실패")
                 else:
-                    failed_servers.append(server_name)
-                    print(f"❌ 서버 '{server_name}' 방화벽 그룹 적용 실패")
+                    print(f"🔍 서버 '{server_name}'에 방화벽 그룹 '{firewall_group}' 적용 시도")
+                    # Proxmox에서 Security Group 적용
+                    success = proxmox_service.apply_security_group_to_vm(server_name, firewall_group)
+                    
+                    if success:
+                        # DB 업데이트
+                        server = found_servers[server_name]
+                        server.firewall_group = firewall_group
+                        success_count += 1
+                        print(f"✅ 서버 '{server_name}' 방화벽 그룹 적용 성공")
+                    else:
+                        failed_servers.append(server_name)
+                        print(f"❌ 서버 '{server_name}' 방화벽 그룹 적용 실패")
                     
             except Exception as e:
                 failed_servers.append(server_name)
-                print(f"❌ 서버 '{server_name}' 방화벽 그룹 적용 중 오류: {e}")
+                action = "해제" if is_remove_operation else "적용"
+                print(f"❌ 서버 '{server_name}' 방화벽 그룹 {action} 중 오류: {e}")
         
         # DB 커밋
         db.session.commit()
         
         # 결과 응답
+        action_text = "해제" if is_remove_operation else f"'{firewall_group}' 할당"
+        action_verb = "해제" if is_remove_operation else "할당"
+        
         if success_count == len(server_names):
             return jsonify({
                 'success': True,
-                'message': f'{success_count}개 서버에 방화벽 그룹 \'{firewall_group}\'이 성공적으로 할당되었습니다.',
+                'message': f'{success_count}개 서버에 방화벽 그룹 {action_text}이 성공적으로 완료되었습니다.',
                 'summary': {
                     'total': len(server_names),
                     'success': success_count,
@@ -313,7 +336,7 @@ def assign_firewall_group_bulk():
         elif success_count > 0:
             return jsonify({
                 'success': True,
-                'message': f'{success_count}/{len(server_names)}개 서버에 방화벽 그룹 할당 완료. 실패: {", ".join(failed_servers)}',
+                'message': f'{success_count}/{len(server_names)}개 서버에 방화벽 그룹 {action_verb} 완료. 실패: {", ".join(failed_servers)}',
                 'summary': {
                     'total': len(server_names),
                     'success': success_count,
@@ -323,7 +346,7 @@ def assign_firewall_group_bulk():
             })
         else:
             return jsonify({
-                'error': f'모든 서버에 방화벽 그룹 할당 실패. 실패한 서버: {", ".join(failed_servers)}'
+                'error': f'모든 서버에 방화벽 그룹 {action_verb} 실패. 실패한 서버: {", ".join(failed_servers)}'
             }), 500
             
     except Exception as e:
