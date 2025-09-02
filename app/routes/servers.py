@@ -1489,7 +1489,43 @@ def assign_role_bulk():
         
         success, message = ansible_service.run_role_for_multiple_servers(target_servers, role)
         print(f"🔧 일괄 역할 실행 결과: success={success}")
-        
+
+        # 실행 결과 반영: DB 업데이트 및 알림 생성
+        try:
+            from app import db
+            from app.models.notification import Notification
+
+            if success:
+                # DB에 역할 반영
+                updated = 0
+                for s in db_servers:
+                    # 대상에 포함된 서버만
+                    if s.ip_address and any(t['ip_address'] == s.ip_address for t in target_servers):
+                        s.role = role
+                        updated += 1
+                        # 성공 알림 생성
+                        Notification.create_notification(
+                            type='ansible_role',
+                            title=f"서버 {s.name} 역할 할당 완료",
+                            message=f"역할 '{role}'이 성공적으로 적용되었습니다.",
+                            details=None,
+                            severity='success'
+                        )
+                db.session.commit()
+                print(f"✅ 일괄 역할 DB 업데이트 완료: {updated}개 서버")
+            else:
+                # 실패 알림(요약)
+                for s in db_servers:
+                    Notification.create_notification(
+                        type='ansible_role',
+                        title=f"서버 {s.name} 역할 할당 실패",
+                        message="Ansible 실행 중 오류가 발생했습니다.",
+                        details=message,
+                        severity='error'
+                    )
+        except Exception as notify_err:
+            print(f"⚠️ 일괄 역할 알림/DB 반영 중 오류: {notify_err}")
+
         return jsonify({
             'success': success,
             'message': message,
