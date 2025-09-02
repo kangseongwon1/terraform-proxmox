@@ -2966,7 +2966,8 @@ window.loadNotifications = function() {
               noti.severity || 'info',
               noti.title,
               noti.message,
-              noti.details
+              noti.details,
+              noti.id
             );
           }
         });
@@ -3203,7 +3204,7 @@ window.addNewNotification = function(severity, title, message, details, id) {
               return existing.title === noti.title && existing.message === noti.message;
             });
             if (!duplicate) {
-              window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details);
+              window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details, noti.id);
             }
             seen.add(key);
           })
