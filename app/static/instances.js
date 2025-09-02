@@ -2608,8 +2608,7 @@ function initializeServerForm() {
         } else {
           // 즉시 완료된 경우
           addSystemNotification('success', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할이 성공적으로 할당되었습니다.`);
-          loadActiveServers();
-          // 각 서버 알림 즉시 감지 시도
+          // 전체 상태 리프레시 대신 각 서버 알림만 짧게 감지
           if (window.watchAnsibleRoleNotification) {
             serverNames.forEach(function(name){
               window.watchAnsibleRoleNotification(name);
@@ -3148,23 +3147,20 @@ window.addNewNotification = function(severity, title, message, details) {
       const seen = new Set();
       function tick(){
         if (Date.now() - start > MAX_DURATION_MS) return;
-        $.get('/api/notifications', { _ts: Date.now() })
+        // 경량 최신 알림 API로 교체: 서버명/타입 필터
+        $.get('/api/notifications/latest', { server: serverName, type: 'ansible_role', _ts: Date.now() })
           .done(function(response){
-            if (!response || !response.notifications || response.notifications.length === 0) return;
-            response.notifications.slice(0, 8).forEach(function(noti){
-              const key = `${noti.title}|${noti.message}`;
-              if (seen.has(key)) return;
-              const related = (noti.title && noti.title.includes(serverName)) || (noti.message && noti.message.includes(serverName));
-              if (related) {
-                const duplicate = window.systemNotifications.some(function(existing){
-                  return existing.title === noti.title && existing.message === noti.message;
-                });
-                if (!duplicate) {
-                  window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details);
-                }
-                seen.add(key);
-              }
+            if (!response || !response.success || !response.notification) return;
+            const noti = response.notification;
+            const key = `${noti.title}|${noti.message}`;
+            if (seen.has(key)) return;
+            const duplicate = window.systemNotifications.some(function(existing){
+              return existing.title === noti.title && existing.message === noti.message;
             });
+            if (!duplicate) {
+              window.addSystemNotification(noti.severity || 'info', noti.title, noti.message, noti.details);
+            }
+            seen.add(key);
           })
           .always(function(){
             intervalMs = Math.min(intervalMs + 1000, 7000); // 백오프(최대 7초)

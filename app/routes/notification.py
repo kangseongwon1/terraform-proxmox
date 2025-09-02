@@ -44,6 +44,58 @@ def get_notifications():
         print(f"💥 알림 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/notifications/latest', methods=['GET'])
+@login_required
+def get_latest_notification():
+    """특정 서버/타입에 대한 최신 알림 1건 조회 (경량)
+
+    Query params:
+      - server: 서버 이름(제목/메시지 내 포함 여부로 필터)
+      - type: 알림 타입 필터(옵션)
+      - since_ts: Unix epoch seconds 이후의 알림만 반환(옵션)
+    """
+    try:
+        server = request.args.get('server', type=str)
+        ntype = request.args.get('type', type=str)
+        since_ts = request.args.get('since_ts', type=float)
+
+        if not server:
+            return jsonify({'success': True, 'notification': None})
+
+        query = Notification.query
+        if ntype:
+            query = query.filter(Notification.type == ntype)
+        if since_ts:
+            from datetime import datetime
+            since_dt = datetime.fromtimestamp(since_ts)
+            query = query.filter(Notification.created_at >= since_dt)
+
+        # 제목 또는 메시지에 서버명이 포함된 최신 알림
+        query = query.filter(
+            (Notification.title.contains(server)) | (Notification.message.contains(server))
+        ).order_by(Notification.created_at.desc())
+
+        latest = query.first()
+        data = None
+        if latest:
+            data = {
+                'id': latest.id,
+                'title': latest.title,
+                'message': latest.message,
+                'details': latest.details,
+                'severity': latest.severity,
+                'created_at': latest.created_at.isoformat() if latest.created_at else None
+            }
+
+        resp = jsonify({'success': True, 'notification': data})
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
+    except Exception as e:
+        print(f"💥 최신 알림 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
 @login_required
 def mark_notification_read(notification_id):
