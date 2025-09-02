@@ -89,17 +89,3 @@
     state: started
     enabled: yes
     daemon_reload: yes
-
-- name: Configure firewall for Tomcat (RedHat/Rocky/CentOS)
-  ansible.builtin.firewalld:
-    port: "{{ tomcat_port | default(8080) }}/tcp"
-    permanent: yes
-    state: enabled
-  when: ansible_os_family == "RedHat"
-
-- name: Configure UFW for Tomcat (Debian/Ubuntu)
-  ansible.builtin.ufw:
-    rule: allow
-    port: "{{ tomcat_port | default(8080) }}"
-    proto: tcp
-  when: ansible_os_family == "Debian" 
