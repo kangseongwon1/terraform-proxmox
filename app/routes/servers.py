@@ -105,6 +105,33 @@ def list_servers():
         print(f"💥 서버 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/api/servers/brief', methods=['GET'])
+@permission_required('view_all')
+def get_servers_brief():
+    """지정한 서버들의 경량 정보(역할/보안그룹/OS/IP)만 반환"""
+    try:
+        names_param = request.args.get('names', '')
+        if not names_param:
+            return jsonify({'success': True, 'servers': {}})
+        names = [n.strip() for n in names_param.split(',') if n.strip()]
+        if not names:
+            return jsonify({'success': True, 'servers': {}})
+
+        servers = Server.query.filter(Server.name.in_(names)).all()
+        result = {}
+        for s in servers:
+            result[s.name] = {
+                'name': s.name,
+                'role': s.role or '',
+                'firewall_group': s.firewall_group,
+                'os_type': s.os_type,
+                'ip_addresses': [s.ip_address] if s.ip_address else []
+            }
+        return jsonify({'success': True, 'servers': result})
+    except Exception as e:
+        print(f"💥 경량 서버 정보 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/api/debug/servers', methods=['GET'])
 @login_required
 def debug_servers():

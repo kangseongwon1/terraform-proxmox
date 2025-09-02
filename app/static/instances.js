@@ -1440,7 +1440,7 @@ $(function() {
                   }
                 } else {
                   // 서버 알림이 없으면 기본 알림 표시
-                  addSystemNotification('success', type, `${name} ${type} 완료`);
+            addSystemNotification('success', type, `${name} ${type} 완료`);
                 }
               })
               .fail(function() {
@@ -1567,7 +1567,7 @@ $(function() {
                   }
                 } else {
                   // 서버 알림이 없으면 기본 알림 표시
-                  addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
+            addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
                 }
               })
               .fail(function() {
@@ -2608,12 +2608,33 @@ function initializeServerForm() {
         } else {
           // 즉시 완료된 경우
           addSystemNotification('success', '일괄 역할 할당', `${serverNames.length}개 서버에 ${role} 역할이 성공적으로 할당되었습니다.`);
-          // 전체 상태 리프레시 대신 각 서버 알림만 짧게 감지
-          if (window.watchAnsibleRoleNotification) {
-            serverNames.forEach(function(name){
-              window.watchAnsibleRoleNotification(name);
+          // 전체 상태 리프레시 대신 변경된 서버들의 최소 정보만 갱신
+          $.get('/api/servers/brief', { names: serverNames.join(',') })
+            .done(function(res){
+              if (res && res.success && res.servers) {
+                // window.serversData가 있으면 부분 갱신
+                if (!window.serversData) window.serversData = {};
+                Object.keys(res.servers).forEach(function(name){
+                  const brief = res.servers[name];
+                  if (!window.serversData[name]) window.serversData[name] = { name: name };
+                  window.serversData[name].role = brief.role || '';
+                  window.serversData[name].firewall_group = brief.firewall_group || null;
+                  window.serversData[name].ip_addresses = brief.ip_addresses || [];
+                });
+                // 현재 테이블만 부분 리렌더 (간단히 전체 renderTableView 재호출)
+                if (typeof renderTableView === 'function' && window.firewallGroups) {
+                  renderTableView(window.serversData, window.firewallGroups);
+                }
+              }
+            })
+            .always(function(){
+              // 각 서버 알림 즉시 감지 시도
+              if (window.watchAnsibleRoleNotification) {
+                serverNames.forEach(function(name){
+                  window.watchAnsibleRoleNotification(name);
+                });
+              }
             });
-          }
         }
       },
       error: function(xhr) {
@@ -3005,12 +3026,12 @@ window.addNewNotification = function(severity, title, message, details) {
           <div class="dropdown-item d-flex align-items-start small" style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
             <div class="d-flex justify-content-between align-items-start w-100">
               <div class="d-flex align-items-start flex-grow-1">
-                <i class="fas ${icon} me-2 mt-1"></i>
-                <div class="flex-grow-1">
-                  <div class="fw-bold mb-1">${noti.title}</div>
-                  <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
+            <i class="fas ${icon} me-2 mt-1"></i>
+            <div class="flex-grow-1">
+              <div class="fw-bold mb-1">${noti.title}</div>
+              <div class="text-muted" style="word-wrap: break-word; white-space: normal; line-height: 1.5; margin-bottom: 4px;">${noti.message}</div>
                   ${detailsHtml}
-                  <div class="text-muted small">${noti.time}</div>
+              <div class="text-muted small">${noti.time}</div>
                 </div>
               </div>
               <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteNotification('${noti.time.replace(/[^a-zA-Z0-9]/g, '')}')" title="삭제">
