@@ -1,13 +1,5 @@
 // iam.js
 $(function() {
-  // 중복 실행 방지 플래그
-  if (window.iamInitialized) {
-    console.log('[iam.js] 이미 초기화됨, 중복 실행 방지');
-    return;
-  }
-  // 초기화 플래그 설정
-  window.iamInitialized = true;
-  
   console.log('[iam.js] iam.js loaded');
   let PERMISSIONS = [];
   let USERS = {};
@@ -84,6 +76,21 @@ $(function() {
   function renderPermCardsOverlay(username) {
     const user = USERS[username];
     if (!user) return '';
+    
+    // PERMISSIONS가 로드되지 않은 경우 기본값 설정
+    if (!PERMISSIONS || PERMISSIONS.length === 0) {
+      console.warn('[iam.js] PERMISSIONS가 로드되지 않음, 기본 권한 목록 사용');
+      PERMISSIONS = [
+        'view_all', 'create_server', 'delete_server', 'start_server', 'stop_server',
+        'manage_users', 'manage_roles', 'view_logs', 'manage_storage', 'manage_network'
+      ];
+    }
+    
+    // user.permissions가 undefined인 경우 빈 배열로 초기화
+    if (!user.permissions) {
+      user.permissions = [];
+    }
+    
     let perms = selectedPerms.length ? selectedPerms : user.permissions;
     // 왼쪽: 부여되지 않은 권한, 오른쪽: 부여된 권한
     const unassigned = PERMISSIONS.filter(p => !perms.includes(p));
@@ -199,10 +206,24 @@ $(function() {
   // 권한 관리 버튼 클릭 시 오버레이 띄우기
   $(document).off('click', '.iam-expand-btn').on('click', '.iam-expand-btn', function(e) {
     console.log('[iam.js] .iam-expand-btn 클릭', $(this).data('username'));
+    console.log('[iam.js] 현재 USERS:', USERS);
+    console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
+    
     e.stopPropagation();
     const username = $(this).data('username');
+    
+    if (!USERS[username]) {
+      console.error('[iam.js] 사용자 정보를 찾을 수 없음:', username);
+      showIAMAlert('danger', '사용자 정보를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+      return;
+    }
+    
     overlayUser = username;
-    selectedPerms = [...USERS[username].permissions];
+    selectedPerms = [...(USERS[username].permissions || [])];
+    
+    console.log('[iam.js] 선택된 사용자:', USERS[username]);
+    console.log('[iam.js] 선택된 권한:', selectedPerms);
+    
     const html = renderPermCardsOverlay(username);
     $('#iam-overlay-content').html(html);
     $('#iam-overlay').fadeIn(120);
@@ -522,11 +543,28 @@ $(function() {
   // 초기 로드
   window.loadIAM = function() {
     console.log('[iam.js] loadIAM 호출');
+    console.log('[iam.js] 현재 USERS:', USERS);
+    console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
+    
     $('#iam-loading').removeClass('d-none');
     $.get('/api/admin/iam', function(res) {
       console.log('[iam.js] /admin/iam 응답:', res);
-      USERS = res.users;
-      PERMISSIONS = res.permissions;
+      console.log('[iam.js] 응답에서 users:', res.users);
+      console.log('[iam.js] 응답에서 permissions:', res.all_permissions);
+      
+      // users 배열을 username을 키로 하는 객체로 변환
+      USERS = {};
+      if (res.users && Array.isArray(res.users)) {
+        res.users.forEach(user => {
+          USERS[user.username] = user;
+        });
+      }
+      
+      PERMISSIONS = res.all_permissions || [];
+      
+      console.log('[iam.js] 변환된 USERS:', USERS);
+      console.log('[iam.js] 설정된 PERMISSIONS:', PERMISSIONS);
+      
       renderSummary();
       renderTable();
       $('#iam-loading').addClass('d-none');
@@ -536,6 +574,9 @@ $(function() {
       $('#iam-overlay-content').empty();
     }).fail(function(xhr) {
       console.error('[iam.js] /admin/iam 실패:', xhr);
+      console.error('[iam.js] 응답 상태:', xhr.status);
+      console.error('[iam.js] 응답 텍스트:', xhr.responseText);
+      
       let errorMsg = '사용자 목록을 불러올 수 없습니다.';
       
       if (xhr.status === 403) {

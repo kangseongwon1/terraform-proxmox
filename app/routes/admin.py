@@ -367,3 +367,42 @@ def admin_iam_set_role(username):
     except Exception as e:
         print(f"💥 사용자 역할 설정 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500        
+
+@bp.route('/api/users/<username>/password', methods=['POST'])
+@login_required
+@admin_required
+def change_user_password(username):
+    """사용자 비밀번호 변경"""
+    try:
+        data = request.get_json()
+        new_password = data.get('new_password')
+        confirm_password = data.get('confirm_password')
+        
+        if not new_password or not confirm_password:
+            return jsonify({'error': '새 비밀번호와 확인을 입력해주세요.'}), 400
+        
+        if new_password != confirm_password:
+            return jsonify({'error': '새 비밀번호가 일치하지 않습니다.'}), 400
+        
+        if len(new_password) < 6:
+            return jsonify({'error': '새 비밀번호는 최소 6자 이상이어야 합니다.'}), 400
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+        
+        # 비밀번호 해시 생성
+        from werkzeug.security import generate_password_hash
+        user.password_hash = generate_password_hash(new_password)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'사용자 {username}의 비밀번호가 변경되었습니다.'
+        })
+        
+    except Exception as e:
+        print(f"💥 사용자 비밀번호 변경 실패: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500        

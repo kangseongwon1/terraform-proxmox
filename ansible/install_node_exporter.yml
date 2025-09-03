@@ -1,0 +1,82 @@
+---
+- name: Install Node Exporter on All Monitoring Targets
+  hosts: monitoring_targets
+  become: yes
+  vars:
+    node_exporter_version: "1.6.1"
+    node_exporter_user: "node_exporter"
+    node_exporter_group: "node_exporter"
+    node_exporter_dir: "/opt/node_exporter"
+    node_exporter_bin: "/usr/local/bin/node_exporter"
+    node_exporter_service: "node_exporter"
+    node_exporter_port: "9100"
+
+  tasks:
+    - name: Create node_exporter user
+      user:
+        name: "{{ node_exporter_user }}"
+        system: yes
+        shell: /sbin/nologin
+        createhome: no
+
+    - name: Create node_exporter directory
+      file:
+        path: "{{ node_exporter_dir }}"
+        state: directory
+        owner: "{{ node_exporter_user }}"
+        group: "{{ node_exporter_group }}"
+        mode: '0755'
+
+    - name: Download Node Exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        mode: '0644'
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+        creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+
+    - name: Copy Node Exporter binary
+      copy:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+        dest: "{{ node_exporter_bin }}"
+        remote_src: yes
+        mode: '0755'
+        owner: "{{ node_exporter_user }}"
+        group: "{{ node_exporter_group }}"
+
+    - name: Create Node Exporter systemd service
+      template:
+        src: node_exporter.service.j2
+        dest: /etc/systemd/system/{{ node_exporter_service }}.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart node_exporter
+
+    - name: Enable and start Node Exporter
+      systemd:
+        name: "{{ node_exporter_service }}"
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Clean up temporary files
+      file:
+        path: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+        state: absent
+
+    - name: Clean up downloaded archive
+      file:
+        path: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+        state: absent
+
+  handlers:
+    - name: restart node_exporter
+      systemd:
+        name: "{{ node_exporter_service }}"
+        state: restarted

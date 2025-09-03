@@ -1,12 +1,5 @@
 // storage.js
 $(function() {
-  // 중복 실행 방지 플래그
-  if (window.storageInitialized) {
-    console.log('[storage.js] 이미 초기화됨, 중복 실행 방지');
-    return;
-  }
-  window.storageInitialized = true;
-  
   console.log('[storage.js] storage.js loaded');
   
   // 숫자 포맷팅 함수 (index.html에서 가져옴)
@@ -14,9 +7,6 @@ $(function() {
     if (isNaN(val) || !isFinite(val)) return "0.00";
     return Number(val).toFixed(2);
   }
-  
-  // 초기화 플래그 설정
-  window.storageInitialized = true;
   
   window.loadStorageInfo = function() {
     console.log('[storage.js] loadStorageInfo 호출');

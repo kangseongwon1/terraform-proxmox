@@ -143,15 +143,15 @@ class AnsibleService:
             else:
                 # Linux/Mac 환경
                 result = subprocess.run(
-                    command,
-                    cwd=cwd,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    timeout=1800
-                )
+                command,
+                cwd=cwd,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=1800
+            )
                 
                 print(f"🔧 Ansible 명령어 완료: returncode={result.returncode}")
                 print(f"🔧 Ansible stdout: {result.stdout[:500]}..." if len(result.stdout) > 500 else f"🔧 Ansible stdout: {result.stdout}")
@@ -296,7 +296,7 @@ class AnsibleService:
                 
                 # Ansible 플레이북 실행 (개별 서버 플레이북 사용)
                 command = [
-                    'ansible-playbook',
+                'ansible-playbook',
                     '-i', self.dynamic_inventory_script,
                     self.single_server_playbook,
                     '--extra-vars', json.dumps(extra_vars),

@@ -1016,8 +1016,9 @@
       loadSPA('/storage/content', '/static/storage.js');
     } else if (href === '#backups') {
       loadSPA('/backups/content', '/static/backups.js');
+    } else if (href === '#monitoring') {
+      loadSPA('/monitoring/content', '/static/monitoring.js');
     }
-    // 필요시 네트워크, 모니터링 등 추가
   });
 
   // 상단 네비게이션 사용자 관리 버튼 클릭 이벤트
@@ -1063,6 +1064,9 @@
           }
         });
         break;
+      case '#monitoring':
+        loadSPA('/monitoring/content', '/static/monitoring.js');
+        break;
       default:
         if (hash.startsWith('#firewall-group-')) {
           const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
@@ -1106,6 +1110,9 @@
       $('#storageSubmenu').addClass('show');
       $('.sidebar .nav-link[href="#backups"]').addClass('active');
       $('.sidebar .nav-link[href="#backups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#monitoring') {
+      loadSPA('/monitoring/content', '/static/monitoring.js');
+      $('.sidebar .nav-link[href="#monitoring"]').addClass('active');
     } else if (hash.startsWith('#firewall-group-')) {
       const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
       loadFirewallGroupDetail(group);
@@ -1144,6 +1151,9 @@
       });
       $('.sidebar .dropdown-item[href="#firewall-groups"]').addClass('active');
       $('.sidebar .dropdown-item[href="#firewall-groups"]').closest('.dropdown').find('.dropdown-toggle').addClass('active');
+    } else if (hash === '#monitoring') {
+      loadSPA('/monitoring/content', '/static/monitoring.js');
+      $('.sidebar .nav-link[href="#monitoring"]').addClass('active');
     } else if (hash.startsWith('#firewall-group-')) {
       const group = decodeURIComponent(hash.replace('#firewall-group-', ''));
       loadFirewallGroupDetail(group);

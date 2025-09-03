@@ -226,8 +226,9 @@ function renderSecurityGroupRules(rules) {
     });
   }
 
-// 서비스 매크로 정의
-const SERVICE_MACROS = {
+// 서비스 매크로 정의 (중복 선언 방지)
+if (typeof window.SERVICE_MACROS === 'undefined') {
+  window.SERVICE_MACROS = {
     'SSH': { protocol: 'tcp', port: '22' },
     'HTTP': { protocol: 'tcp', port: '80' },
     'HTTPS': { protocol: 'tcp', port: '443' },
@@ -247,7 +248,8 @@ const SERVICE_MACROS = {
     'Elasticsearch': { protocol: 'tcp', port: '9200' },
     'Kafka': { protocol: 'tcp', port: '9092' },
     'RabbitMQ': { protocol: 'tcp', port: '5672' }
-};
+  };
+}
 
 // 매크로 선택 시 자동 설정 함수
 function handleMacroSelection() {
@@ -255,8 +257,8 @@ function handleMacroSelection() {
     const $protocolSelect = $('#protocol-select');
     const $portInput = $('#port-input');
     
-    if (selectedMacro && SERVICE_MACROS[selectedMacro]) {
-        const macro = SERVICE_MACROS[selectedMacro];
+    if (selectedMacro && window.SERVICE_MACROS[selectedMacro]) {
+        const macro = window.SERVICE_MACROS[selectedMacro];
         
         // 프로토콜과 포트 자동 설정
         $protocolSelect.val(macro.protocol);

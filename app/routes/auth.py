@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-bp = Blueprint('auth', __name__, url_prefix='/auth')
+bp = Blueprint('auth', __name__)
 
 def permission_required(permission):
     """권한 확인 데코레이터"""

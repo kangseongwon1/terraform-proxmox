@@ -68,8 +68,19 @@ def get_current_user_compat():
 def get_profile_api_compat():
     """프로필 정보 API (호환성)"""
     try:
-        from app.routes.auth import get_profile_api
-        return get_profile_api()
+        from flask_login import current_user
+        user_data = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'name': current_user.name or '',
+            'email': current_user.email or '',
+            'role': current_user.role,
+            'is_active': current_user.is_active,
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+            'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+            'permissions': [perm.permission for perm in current_user.permissions]
+        }
+        return jsonify(user_data)
     except Exception as e:
         print(f"💥 /profile/api 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -231,8 +242,8 @@ def change_user_password_compat(username):
 def update_user_permissions_compat(username):
     """사용자 권한 업데이트 (호환성)"""
     try:
-        from app.routes.admin import update_user_permissions
-        return update_user_permissions(username)
+        from app.routes.admin import admin_iam_set_permissions
+        return admin_iam_set_permissions(username)
     except Exception as e:
         print(f"💥 사용자 권한 업데이트 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500

@@ -78,6 +78,7 @@ def setup_logging(app):
 def register_blueprints(app):
     """블루프린트 등록"""
     from app.routes import main, auth, admin, servers, api, firewall, notification, backup
+    from app.routes.monitoring import bp as monitoring
     
     app.register_blueprint(main)
     app.register_blueprint(auth)
@@ -87,6 +88,7 @@ def register_blueprints(app):
     app.register_blueprint(firewall)
     app.register_blueprint(notification)
     app.register_blueprint(backup)
+    app.register_blueprint(monitoring)
 
 def register_error_handlers(app):
     """에러 핸들러 등록"""
