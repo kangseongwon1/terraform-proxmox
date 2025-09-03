@@ -17,6 +17,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 설정 파일 경로
+CONFIG_FILE="monitoring_config.conf"
+INVENTORY_FILE="/tmp/monitoring_inventory"
+
 # 로그 함수
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -32,6 +36,122 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 설정 파일 생성
+create_config_file() {
+    log_info "설정 파일 생성 중..."
+    
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        cat > "$CONFIG_FILE" << 'EOF'
+# 🚀 모니터링 시스템 설정 파일
+# 이 파일을 수정하여 대상 서버와 연결 정보를 설정하세요
+
+# 대상 서버 목록 (쉼표로 구분하여 여러 서버 지정 가능)
+# 형식: IP:PORT (예: 192.168.0.10:22,192.168.0.111:20222)
+TARGET_SERVERS="192.168.0.10:22,192.168.0.111:20222"
+
+# SSH 사용자명
+SSH_USER="root"
+
+# SSH 개인키 파일 경로
+SSH_PRIVATE_KEY_FILE="/root/.ssh/id_rsa"
+
+# Prometheus 웹 포트 (기본값: 9090)
+PROMETHEUS_PORT="9090"
+
+# Grafana 웹 포트 (기본값: 3000)
+GRAFANA_PORT="3000"
+
+# Node Exporter 포트 (기본값: 9100)
+NODE_EXPORTER_PORT="9100"
+EOF
+        
+        log_success "설정 파일 생성됨: $CONFIG_FILE"
+        log_warning "설정 파일을 수정한 후 다시 실행해주세요!"
+        log_info "주요 설정 항목:"
+        log_info "  - TARGET_SERVERS: 모니터링할 서버들의 IP:PORT 목록"
+        log_info "  - SSH_USER: SSH 연결 사용자명"
+        log_info "  - SSH_PRIVATE_KEY_FILE: SSH 개인키 파일 경로"
+        exit 0
+    fi
+}
+
+# 설정 파일 로드
+load_config() {
+    log_info "설정 파일 로드 중..."
+    
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        log_error "설정 파일을 찾을 수 없습니다: $CONFIG_FILE"
+        exit 1
+    fi
+    
+    # 설정 파일 소스
+    source "$CONFIG_FILE"
+    
+    # 필수 설정 확인
+    if [[ -z "$TARGET_SERVERS" ]]; then
+        log_error "TARGET_SERVERS가 설정되지 않았습니다."
+        exit 1
+    fi
+    
+    if [[ -z "$SSH_USER" ]]; then
+        log_error "SSH_USER가 설정되지 않았습니다."
+        exit 1
+    fi
+    
+    if [[ -z "$SSH_PRIVATE_KEY_FILE" ]]; then
+        log_error "SSH_PRIVATE_KEY_FILE이 설정되지 않았습니다."
+        exit 1
+    fi
+    
+    log_success "설정 파일 로드 완료"
+    log_info "대상 서버: $TARGET_SERVERS"
+    log_info "SSH 사용자: $SSH_USER"
+    log_info "SSH 키: $SSH_PRIVATE_KEY_FILE"
+}
+
+# Ansible 인벤토리 생성
+create_ansible_inventory() {
+    log_info "Ansible 인벤토리 생성 중..."
+    
+    # 기존 파일 삭제
+    rm -f "$INVENTORY_FILE"
+    
+    # 인벤토리 파일 생성
+    cat > "$INVENTORY_FILE" << EOF
+# 🚀 모니터링 대상 서버 인벤토리
+# 자동 생성됨 - 수정하지 마세요
+
+[monitoring_targets]
+EOF
+    
+    # 대상 서버들을 쉼표로 분리하여 추가
+    IFS=',' read -ra SERVERS <<< "$TARGET_SERVERS"
+    for server in "${SERVERS[@]}"; do
+        # 공백 제거
+        server=$(echo "$server" | xargs)
+        if [[ -n "$server" ]]; then
+            echo "$server" >> "$INVENTORY_FILE"
+        fi
+    done
+    
+    # 공통 변수 추가
+    cat >> "$INVENTORY_FILE" << EOF
+
+[monitoring_targets:vars]
+ansible_user=$SSH_USER
+ansible_ssh_private_key_file=$SSH_PRIVATE_KEY_FILE
+ansible_python_interpreter=/usr/bin/python3
+ansible_host_key_checking=False
+EOF
+    
+    log_success "Ansible 인벤토리 생성 완료: $INVENTORY_FILE"
+    
+    # 인벤토리 내용 확인
+    log_info "생성된 인벤토리 내용:"
+    cat "$INVENTORY_FILE"
+    echo ""
 }
 
 # 시스템 체크
@@ -67,6 +187,14 @@ check_system() {
         log_warning "Ansible이 설치되지 않았습니다. 설치를 진행합니다..."
         install_ansible
     fi
+    
+    # SSH 키 확인
+    if [[ ! -f "$SSH_PRIVATE_KEY_FILE" ]]; then
+        log_warning "SSH 개인키 파일을 찾을 수 없습니다: $SSH_PRIVATE_KEY_FILE"
+        log_info "SSH 키 설정 방법:"
+        log_info "1. ssh-keygen -t rsa -b 4096 -f $SSH_PRIVATE_KEY_FILE"
+        log_info "2. ssh-copy-id -i ${SSH_PRIVATE_KEY_FILE}.pub $SSH_USER@<서버IP>"
+    fi
 }
 
 # Ansible 설치
@@ -96,7 +224,7 @@ install_prometheus() {
     log_info "Prometheus 설치 중..."
     
     # 사용자 생성
-    sudo useradd --system --no-create-home --shell /bin/false prometheus
+    sudo useradd --system --no-create-home --shell /bin/false prometheus 2>/dev/null || true
     
     # 디렉토리 생성
     sudo mkdir -p /etc/prometheus
@@ -137,7 +265,7 @@ ExecStart=/usr/local/bin/prometheus \\
     --storage.tsdb.path=/var/lib/prometheus \\
     --web.console.templates=/etc/prometheus/consoles \\
     --web.console.libraries=/etc/prometheus/console_libraries \\
-    --web.listen-address=0.0.0.0:9090 \\
+    --web.listen-address=0.0.0.0:${PROMETHEUS_PORT} \\
     --web.enable-lifecycle
 
 [Install]
@@ -195,7 +323,7 @@ EOF
     sudo tee /etc/grafana/grafana.ini > /dev/null <<EOF
 [server]
 http_addr = 0.0.0.0
-http_port = 3000
+http_port = ${GRAFANA_PORT}
 domain = localhost
 root_url = %(protocol)s://%(domain)s:%(http_port)s/
 serve_from_sub_path = false
@@ -236,7 +364,7 @@ EOF
 configure_prometheus() {
     log_info "Prometheus 설정 업데이트 중..."
     
-    # 동적 타겟 설정 (나중에 Ansible로 업데이트)
+    # 동적 타겟 설정 (설정 파일에서 읽어옴)
     sudo tee /etc/prometheus/prometheus.yml > /dev/null <<EOF
 global:
   scrape_interval: 15s
@@ -249,18 +377,26 @@ rule_files:
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['localhost:${PROMETHEUS_PORT}']
 
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['192.168.0.10:9100']
-      - targets: ['192.168.0.11:9100']
-      - targets: ['192.168.0.12:9100']
-      - targets: ['192.168.0.13:9100']
-      - targets: ['192.168.0.14:9100']
-      - targets: ['192.168.0.15:9100']
-      - targets: ['192.168.0.16:9100']
-      - targets: ['192.168.0.17:9100']
+EOF
+    
+    # 대상 서버들을 쉼표로 분리하여 추가
+    IFS=',' read -ra SERVERS <<< "$TARGET_SERVERS"
+    for server in "${SERVERS[@]}"; do
+        # 공백 제거
+        server=$(echo "$server" | xargs)
+        if [[ -n "$server" ]]; then
+            # IP:PORT에서 IP만 추출
+            ip=$(echo "$server" | cut -d: -f1)
+            echo "      - targets: ['${ip}:${NODE_EXPORTER_PORT}']" | sudo tee -a /etc/prometheus/prometheus.yml > /dev/null
+        fi
+    done
+    
+    # 나머지 설정 추가
+    cat <<EOF | sudo tee -a /etc/prometheus/prometheus.yml > /dev/null
     scrape_interval: 10s
     metrics_path: /metrics
 EOF
@@ -275,7 +411,7 @@ install_local_node_exporter() {
     log_info "로컬 Node Exporter 설치 중..."
     
     # 사용자 생성
-    sudo useradd --system --no-create-home --shell /bin/false node_exporter
+    sudo useradd --system --no-create-home --shell /bin/false node_exporter 2>/dev/null || true
     
     # 디렉토리 생성
     sudo mkdir -p /opt/node_exporter
@@ -302,7 +438,7 @@ After=network.target
 User=node_exporter
 Group=node_exporter
 Type=simple
-ExecStart=/usr/local/bin/node_exporter --web.listen-address=0.0.0.0:9100
+ExecStart=/usr/local/bin/node_exporter --web.listen-address=0.0.0.0:${NODE_EXPORTER_PORT}
 
 [Install]
 WantedBy=multi-user.target
@@ -327,49 +463,16 @@ EOF
     rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64*
 }
 
-# Ansible 인벤토리 및 설정
-setup_ansible() {
-    log_info "Ansible 설정 중..."
-    
-    # 인벤토리 파일 생성
-    sudo tee /etc/ansible/hosts > /dev/null <<EOF
-[monitoring_targets]
-192.168.0.10
-192.168.0.11
-192.168.0.12
-192.168.0.13
-192.168.0.14
-192.168.0.15
-192.168.0.16
-192.168.0.17
-
-[monitoring_targets:vars]
-ansible_user=root
-ansible_ssh_private_key_file=/root/.ssh/id_rsa
-ansible_python_interpreter=/usr/bin/python3
-EOF
-    
-    # SSH 키 설정 확인
-    if [[ ! -f /root/.ssh/id_rsa ]]; then
-        log_warning "SSH 키가 설정되지 않았습니다. 수동으로 설정해주세요."
-        log_info "SSH 키 설정 방법:"
-        log_info "1. ssh-keygen -t rsa -b 4096"
-        log_info "2. ssh-copy-id root@192.168.0.x (각 서버별로)"
-    fi
-    
-    log_success "Ansible 설정 완료"
-}
-
 # 설치 완료 후 정보 출력
 show_completion_info() {
     echo ""
     echo "🎉 모니터링 시스템 설치 완료!"
-    echo "=" * 60
+    echo "============================================================"
     echo ""
     echo "📊 서비스 정보:"
-    echo "  - Prometheus: http://$(hostname -I | awk '{print $1}'):9090"
-    echo "  - Grafana: http://$(hostname -I | awk '{print $1}'):3000"
-    echo "  - Node Exporter (로컬): http://$(hostname -I | awk '{print $1}'):9100"
+    echo "  - Prometheus: http://$(hostname -I | awk '{print $1}'):${PROMETHEUS_PORT}"
+    echo "  - Grafana: http://$(hostname -I | awk '{print $1}'):${GRAFANA_PORT}"
+    echo "  - Node Exporter (로컬): http://$(hostname -I | awk '{print $1}'):${NODE_EXPORTER_PORT}"
     echo ""
     echo "🔑 Grafana 기본 계정:"
     echo "  - 사용자: admin"
@@ -381,12 +484,16 @@ show_completion_info() {
     echo "  3. Ansible로 다른 서버들에 Node Exporter 설치"
     echo ""
     echo "🚀 Node Exporter 일괄 설치 명령:"
-    echo "  ansible-playbook -i /etc/ansible/hosts ansible/install_node_exporter.yml"
+    echo "  ansible-playbook -i $INVENTORY_FILE ansible/install_node_exporter.yml"
     echo ""
     echo "💡 서비스 상태 확인:"
     echo "  sudo systemctl status prometheus"
     echo "  sudo systemctl status grafana-server"
     echo "  sudo systemctl status node_exporter"
+    echo ""
+    echo "📁 생성된 파일들:"
+    echo "  - 설정 파일: $CONFIG_FILE"
+    echo "  - Ansible 인벤토리: $INVENTORY_FILE"
     echo ""
 }
 
@@ -396,12 +503,18 @@ main() {
     echo "⏰ 시작 시간: $(date)"
     echo ""
     
+    # 설정 파일 생성 또는 로드
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        create_config_file
+    fi
+    
+    load_config
+    create_ansible_inventory
     check_system
     install_prometheus
     install_grafana
     configure_prometheus
     install_local_node_exporter
-    setup_ansible
     
     show_completion_info
     
