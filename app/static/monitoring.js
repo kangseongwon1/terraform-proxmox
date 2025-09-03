@@ -94,25 +94,42 @@ $(function() {
             .addClass('status-online');
     }
     
-    /**
-     * 서버 전체 개요 로드
-     */
-    function loadServersOverview() {
-        console.log('[monitoring.js] 서버 전체 개요 로드 시작');
-        
-        $.get('/monitoring/servers/overview', function(res) {
-            if (res.success) {
-                renderServersOverview(res.servers);
-                updateSummaryMetrics(res.servers);
-            } else {
-                console.error('[monitoring.js] 서버 개요 로드 실패:', res.error);
-                $('#servers-overview').html('<div class="col-12 text-center text-danger">서버 정보를 불러올 수 없습니다.</div>');
-            }
-        }).fail(function(xhr) {
-            console.error('[monitoring.js] 서버 개요 요청 실패:', xhr);
-            $('#servers-overview').html('<div class="col-12 text-center text-danger">서버 정보를 불러올 수 없습니다.</div>');
-        });
-    }
+         /**
+      * 서버 전체 개요 로드
+      */
+     function loadServersOverview() {
+         console.log('[monitoring.js] 서버 전체 개요 로드 시작');
+         
+         // 실제 서버 목록 (나중에 API에서 가져오도록 수정)
+         const servers = ['192.168.0.10', '192.168.0.11'];
+         
+         // 각 서버의 메트릭을 개별적으로 로드
+         Promise.all(servers.map(serverIp => 
+             $.get(`/monitoring/metrics/${serverIp}`)
+         )).then(responses => {
+             const serverData = {};
+             
+             responses.forEach((response, index) => {
+                 if (response.success) {
+                     const serverIp = servers[index];
+                     serverData[serverIp] = {
+                         status: 'online',
+                         cpu_usage: response.metrics.cpu_usage?.latest || 0,
+                         memory_usage: response.metrics.memory_usage?.latest || 0,
+                         disk_usage: response.metrics.disk_usage?.latest || 0,
+                         last_check: new Date().toISOString()
+                     };
+                 }
+             });
+             
+             renderServersOverview(serverData);
+             updateSummaryMetrics(serverData);
+             
+         }).catch(error => {
+             console.error('[monitoring.js] 서버 메트릭 로드 실패:', error);
+             $('#servers-overview').html('<div class="col-12 text-center text-danger">서버 정보를 불러올 수 없습니다.</div>');
+         });
+     }
     
     /**
      * 서버 개요 렌더링
@@ -323,6 +340,7 @@ $(function() {
         // CPU 차트 업데이트
         if (cpuChart) {
             cpuChart.data.labels.push(timeLabel);
+            // 실제 데이터로 교체 (나중에 API 연동)
             cpuChart.data.datasets[0].data.push(Math.random() * 100);
             
             if (cpuChart.data.labels.length > chartDataPoints) {
@@ -336,6 +354,7 @@ $(function() {
         // 메모리 차트 업데이트
         if (memoryChart) {
             memoryChart.data.labels.push(timeLabel);
+            // 실제 데이터로 교체 (나중에 API 연동)
             memoryChart.data.datasets[0].data.push(Math.random() * 100);
             
             if (memoryChart.data.labels.length > chartDataPoints) {
