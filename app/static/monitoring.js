@@ -448,42 +448,42 @@ $(function() {
         }, 3000);
     }
     
-    /**
-     * 이벤트 리스너 등록
-     */
-    function setupEventListeners() {
-        // 전체 새로고침 버튼
-        $('#refresh-all-btn').on('click', function() {
-            refreshAll();
-        });
-        
-        // 모니터링 설정 버튼
-        $('#monitoring-settings-btn').on('click', function() {
-            $('#monitoring-settings-modal').modal('show');
-        });
-        
-        // 설정 저장 버튼
-        $('#save-monitoring-settings').on('click', function() {
-            saveMonitoringSettings();
-        });
-        
-        // 빠른 액션 버튼들
-        $('#export-metrics-btn').on('click', function() {
-            showNotification('info', '메트릭 내보내기 기능은 개발 중입니다.');
-        });
-        
-        $('#create-alert-btn').on('click', function() {
-            showNotification('info', '알림 규칙 생성 기능은 개발 중입니다.');
-        });
-        
-        $('#open-grafana-btn').on('click', function() {
-            window.open(monitoringConfig.grafanaUrl, '_blank');
-        });
-        
-        $('#open-prometheus-btn').on('click', function() {
-            window.open(monitoringConfig.prometheusUrl, '_blank');
-        });
-    }
+              /**
+      * 이벤트 리스너 등록
+      */
+     function setupEventListeners() {
+         // 전체 새로고침 버튼
+         $('#refresh-all-btn').on('click', function() {
+             refreshAll();
+         });
+         
+         // 모니터링 설정 버튼
+         $('#monitoring-settings-btn').on('click', function() {
+             $('#monitoring-settings-modal').modal('show');
+         });
+         
+         // 설정 저장 버튼
+         $('#save-monitoring-settings').on('click', function() {
+             saveMonitoringSettings();
+         });
+         
+         // 빠른 액션 버튼들
+         $('#export-metrics-btn').on('click', function() {
+             showNotification('info', '메트릭 내보내기 기능은 개발 중입니다.');
+         });
+         
+         $('#create-alert-btn').on('click', function() {
+             showNotification('info', '알림 규칙 생성 기능은 개발 중입니다.');
+         });
+         
+         $('#open-grafana-btn').on('click', function() {
+             window.open(monitoringConfig.grafanaUrl, '_blank');
+         });
+         
+         $('#open-prometheus-btn').on('click', function() {
+             window.open(monitoringConfig.prometheusUrl, '_blank');
+         });
+     }
     
     /**
      * 페이지 초기화

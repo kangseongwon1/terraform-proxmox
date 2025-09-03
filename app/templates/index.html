@@ -33,6 +33,7 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
       padding: 0;
+      padding-top: 60px;
     }
 
     /* Top Header */
@@ -41,6 +42,11 @@
       color: #fff;
       padding: 0.5rem 0;
       box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1030;
     }
 
     .top-header .navbar-brand {
@@ -71,6 +77,7 @@
       width: 250px;
       overflow-y: auto;
       box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+      z-index: 1020;
     }
 
     .sidebar .nav-link {
@@ -100,6 +107,7 @@
     /* Main Content */
     .main-content {
       margin-left: 250px;
+      margin-top: 60px;
       padding: 2rem;
       min-height: calc(100vh - 60px);
     }
