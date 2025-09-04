@@ -14,7 +14,7 @@ from app import db
 bp = Blueprint('monitoring', __name__, url_prefix='/monitoring')
 
 # 프로메테우스 설정 (개발 서버용)
-PROMETHEUS_URL = "http://192.168.0.1:9090"  # 개발 서버 IP로 변경 필요
+PROMETHEUS_URL = "http://localhost:9090"  # 개발 서버 IP로 변경 필요
 
 # 메트릭 캐시 (실제 환경에서는 Redis 등을 사용)
 metrics_cache = {}
