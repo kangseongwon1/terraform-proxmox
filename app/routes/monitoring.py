@@ -20,6 +20,113 @@ PROMETHEUS_URL = "http://localhost:9090"  # 개발 서버 IP로 변경 필요
 metrics_cache = {}
 last_update = {}
 
+def get_current_alerts():
+    """현재 알림 목록 반환"""
+    try:
+        # 실제 환경에서는 DB에서 알림을 가져옴
+        # 현재는 메모리에서 관리 (테스트용)
+        if not hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts = []
+        
+        return get_current_alerts._alerts
+        
+    except Exception as e:
+        print(f"알림 목록 조회 오류: {e}")
+        return []
+
+def add_alert(alert):
+    """새 알림 추가"""
+    try:
+        if not hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts = []
+        
+        # 중복 알림 체크 (같은 서버, 같은 메트릭, 같은 레벨)
+        existing_alert = next(
+            (a for a in get_current_alerts._alerts 
+             if a['server_ip'] == alert['server_ip'] 
+             and a['metric_type'] == alert['metric_type'] 
+             and a['level'] == alert['level']), None
+        )
+        
+        if not existing_alert:
+            get_current_alerts._alerts.append(alert)
+            print(f"새 알림 추가: {alert['message']}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"알림 추가 오류: {e}")
+        return False
+
+def acknowledge_alert(alert_id):
+    """알림 확인 처리"""
+    try:
+        alerts = get_current_alerts()
+        for alert in alerts:
+            if alert['id'] == alert_id:
+                alert['acknowledged'] = True
+                alert['acknowledged_at'] = datetime.now().isoformat()
+                print(f"알림 확인 처리: {alert_id}")
+                return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"알림 확인 처리 오류: {e}")
+        return False
+
+def clear_old_alerts():
+    """오래된 알림 정리 (24시간 이상 된 알림)"""
+    try:
+        alerts = get_current_alerts()
+        current_time = datetime.now()
+        
+        # 24시간 이상 된 알림 제거
+        alerts[:] = [
+            alert for alert in alerts 
+            if (current_time - datetime.fromisoformat(alert['timestamp'])).total_seconds() < 86400
+        ]
+        
+        print(f"오래된 알림 정리 완료")
+        
+    except Exception as e:
+        print(f"오래된 알림 정리 오류: {e}")
+
+@bp.route('/alerts/<alert_id>/acknowledge', methods=['POST'])
+@login_required
+def acknowledge_alert_route(alert_id):
+    """알림 확인 처리 API"""
+    try:
+        if acknowledge_alert(alert_id):
+            return jsonify({
+                'success': True,
+                'message': '알림이 확인 처리되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '알림을 찾을 수 없습니다.'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/alerts/clear', methods=['POST'])
+@login_required
+def clear_alerts():
+    """모든 알림 정리"""
+    try:
+        if hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts.clear()
+        
+        return jsonify({
+            'success': True,
+            'message': '모든 알림이 정리되었습니다.'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/content', methods=['GET'])
 @login_required
 def monitoring_content():
