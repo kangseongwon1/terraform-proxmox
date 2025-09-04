@@ -1,3 +1,11 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<!-- Chart.js 라이브러리 추가 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
 <!-- app/templates/partials/monitoring_content.html -->
 <div class="main-content">
     <div class="container-fluid">
@@ -231,3 +239,4 @@
         </div>
     </div>
 </div>
+{% endblock %}

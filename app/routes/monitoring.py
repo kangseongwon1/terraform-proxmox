@@ -458,47 +458,44 @@ def create_grafana_embed_url(dashboard_info, selected_server):
 def get_actual_servers():
     """실제 DB에서 서버 목록 가져오기"""
     try:
-        # DB에서 서버 목록 조회
-        db_servers = Server.query.all()
+        from app.models.server import Server
+        from app.database import db
         
         servers = []
+        db_servers = Server.query.all()
+        
         for server in db_servers:
-            # 서버 상태 결정 (실제 환경에서는 ping 또는 SSH로 확인)
+            # IP 주소 처리
+            ip_address = server.ip_address
+            if isinstance(ip_address, list) and len(ip_address) > 0:
+                ip = ip_address[0]
+            elif isinstance(ip_address, str):
+                ip = ip_address
+            else:
+                ip = '0.0.0.0'
+            
+            # 포트 설정 (기본값: 22)
+            port = '22'
+            
+            # 서버 상태 결정
             status = determine_server_status(server)
             
-            # IP 주소 처리 (리스트 형태일 수 있음)
-            ip_address = '0.0.0.0'
-            if server.ip_address:
-                if isinstance(server.ip_address, list) and len(server.ip_address) > 0:
-                    ip_address = server.ip_address[0]
-                elif isinstance(server.ip_address, str):
-                    ip_address = server.ip_address
-            
             servers.append({
-                'ip': ip_address,
-                'port': '22',  # 기본 SSH 포트 (실제로는 서버별로 다를 수 있음)
+                'ip': ip,
+                'port': port,
                 'status': status,
                 'name': server.name,
                 'role': server.role,
                 'vmid': server.vmid
             })
         
+        # DB에 서버가 없으면 빈 리스트 반환 (오류 방지)
+        return servers
         
     except Exception as e:
         print(f"서버 목록 조회 오류: {e}")
-        # 오류 시 샘플 데이터 반환
-        return [
-            {'ip': '192.168.0.10', 'port': '22', 'status': 'healthy', 'name': 'dev-server-1', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.111', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-1', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.112', 'port': '20222', 'status': 'warning', 'name': 'prod-server-2', 'role': 'db', 'vmid': None},
-            {'ip': '192.168.0.113', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-3', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.114', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-4', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.115', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-5', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.116', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-6', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.117', 'port': '20222', 'status': 'critical', 'name': 'prod-server-7', 'role': 'db', 'vmid': None},
-            {'ip': '192.168.0.118', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-8', 'role': 'web', 'vmid': None},
-            {'ip': '192.168.0.119', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-9', 'role': 'web', 'vmid': None}
-        ]
+        # 오류 발생 시 빈 리스트 반환
+        return []
 
 def determine_server_status(server):
     """서버 상태 결정 (실제 환경에서는 ping 또는 SSH로 확인)"""

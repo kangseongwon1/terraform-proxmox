@@ -93,26 +93,72 @@ $(document).ready(function() {
     
     // 요약 패널 업데이트
     function updateSummaryPanels() {
-        const total = servers.length;
-        const healthy = servers.filter(s => s.status === SERVER_STATUS.HEALTHY).length;
-        const warning = servers.filter(s => s.status === SERVER_STATUS.WARNING).length;
-        const critical = servers.filter(s => s.status === SERVER_STATUS.CRITICAL).length;
-
-        $('#total-servers').text(total);
-        $('#healthy-servers').text(healthy);
-        $('#warning-servers').text(warning);
-        $('#critical-servers').text(critical);
+        try {
+            // 서버 데이터 검증
+            if (!window.servers || !Array.isArray(window.servers)) {
+                console.warn('서버 데이터가 없거나 유효하지 않습니다.');
+                window.servers = [];
+            }
+            
+            const servers = window.servers;
+            const total = servers.length;
+            const healthy = servers.filter(s => s.status === 'healthy').length;
+            const warning = servers.filter(s => s.status === 'warning').length;
+            const critical = servers.filter(s => s.status === 'critical').length;
+            
+            // 요약 패널 업데이트
+            $('#total-servers').text(total);
+            $('#healthy-servers').text(healthy);
+            $('#warning-servers').text(warning);
+            $('#critical-servers').text(critical);
+            
+            // 상태별 배지 색상 업데이트
+            updateStatusBadge();
+            
+        } catch (error) {
+            console.error('요약 패널 업데이트 오류:', error);
+            // 오류 발생 시 기본값 설정
+            $('#total-servers').text('0');
+            $('#healthy-servers').text('0');
+            $('#warning-servers').text('0');
+            $('#critical-servers').text('0');
+        }
     }
     
     // 서버 드롭다운 채우기
     function populateServerDropdown() {
-        const $select = $('#server-select');
-        $select.find('option:not(:first)').remove();
-
-        servers.forEach(server => {
-            const option = `<option value="${server.ip}">${server.ip}:${server.port}</option>`;
-            $select.append(option);
-        });
+        try {
+            const select = $('#server-select');
+            select.empty();
+            
+            // 서버 데이터 검증
+            if (!window.servers || !Array.isArray(window.servers)) {
+                console.warn('서버 드롭다운 초기화: 서버 데이터가 없습니다.');
+                window.servers = [];
+            }
+            
+            // 전체 서버 옵션 추가
+            select.append('<option value="all">🖥️ 전체 서버</option>');
+            
+            // 개별 서버 옵션 추가
+            if (window.servers.length > 0) {
+                window.servers.forEach(server => {
+                    const option = `<option value="${server.ip}">${server.ip}:${server.port}</option>`;
+                    select.append(option);
+                });
+            } else {
+                // 서버가 없을 때 기본 옵션 추가
+                select.append('<option value="none" disabled>서버가 없습니다</option>');
+            }
+            
+        } catch (error) {
+            console.error('서버 드롭다운 초기화 오류:', error);
+            // 오류 발생 시 기본 옵션만 표시
+            const select = $('#server-select');
+            select.empty();
+            select.append('<option value="all">🖥️ 전체 서버</option>');
+            select.append('<option value="none" disabled>서버 로드 실패</option>');
+        }
     }
     
     // 상태 배지 업데이트
