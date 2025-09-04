@@ -4,14 +4,13 @@ $(document).ready(function() {
     // 🚀 모니터링 시스템 설정 변수들
     // ============================================================================
     
-    // Grafana 설정
-    const GRAFANA_BASE_URL = 'http://localhost:3000';
-    const GRAFANA_DASHBOARD_UID = 'system_monitoring';
-    const GRAFANA_DASHBOARD_TITLE = 'system-monitoring-dashboard-10-servers';
-    
-    // Prometheus 설정
-    const PROMETHEUS_BASE_URL = 'http://localhost:9090';
-    const NODE_EXPORTER_PORT = '9100';
+    // API 엔드포인트 설정
+    const API_BASE_URL = '/monitoring';
+    const METRICS_API = `${API_BASE_URL}/simple-metrics`;
+    const SUMMARY_API = `${API_BASE_URL}/summary`;
+    const SERVERS_API = `${API_BASE_URL}/servers`;
+    const REALTIME_API = `${API_BASE_URL}/real-time-metrics`;
+    const CHART_DATA_API = `${API_BASE_URL}/chart-data`;
     
     // 차트 설정
     const CHART_UPDATE_INTERVAL = 5000; // 5초
@@ -33,45 +32,57 @@ $(document).ready(function() {
     };
     
     // ============================================================================
-    // ��️ 서버 목록 (설정 파일에서 가져올 예정)
-    // ============================================================================
-    const servers = [
-        { ip: '192.168.0.10', port: '22', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.111', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.112', port: '20222', status: SERVER_STATUS.WARNING },
-        { ip: '192.168.0.113', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.114', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.115', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.116', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.117', port: '20222', status: SERVER_STATUS.CRITICAL },
-        { ip: '192.168.0.118', port: '20222', status: SERVER_STATUS.HEALTHY },
-        { ip: '192.168.0.119', port: '20222', status: SERVER_STATUS.HEALTHY }
-    ];
-    
-    // ============================================================================
     // 🔧 전역 변수들
     // ============================================================================
     let charts = {};
     let selectedServer = 'all';
     let autoRefresh = true;
     let refreshInterval;
+    let servers = [];
     
     // ============================================================================
-    // �� 초기화 및 메인 실행
+    // 🚀 초기화 및 메인 실행
     // ============================================================================
     init();
     
     function init() {
-        loadServersOverview();
+        loadServersData();
         setupEventListeners();
         initializeCharts();
         startAutoRefresh();
-        loadGrafanaDashboard();
     }
     
     // ============================================================================
-    // 📋 서버 개요 및 UI 관리
+    // 📋 서버 데이터 로딩 및 관리
     // ============================================================================
+    
+    // 서버 데이터 로딩
+    function loadServersData() {
+        $.getJSON(SERVERS_API)
+            .then(function(response) {
+                if (response.success) {
+                    servers = response.data;
+                    loadServersOverview();
+                }
+            })
+            .catch(function(error) {
+                console.error('서버 데이터 로딩 실패:', error);
+                // 기본 서버 목록 사용
+                servers = [
+                    {ip: '192.168.0.10', port: '22', status: 'healthy'},
+                    {ip: '192.168.0.111', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.112', port: '20222', status: 'warning'},
+                    {ip: '192.168.0.113', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.114', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.115', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.116', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.117', port: '20222', status: 'critical'},
+                    {ip: '192.168.0.118', port: '20222', status: 'healthy'},
+                    {ip: '192.168.0.119', port: '20222', status: 'healthy'}
+                ];
+                loadServersOverview();
+            });
+    }
     
     // 서버 개요 로딩
     function loadServersOverview() {
@@ -128,7 +139,7 @@ $(document).ready(function() {
     }
     
     // ============================================================================
-    // �� 이벤트 리스너 및 사용자 인터페이스
+    // 🎯 이벤트 리스너 및 사용자 인터페이스
     // ============================================================================
     
     // 이벤트 리스너 설정
@@ -138,7 +149,6 @@ $(document).ready(function() {
             selectedServer = $(this).val();
             updateCharts();
             updateStatusBadge();
-            updateGrafanaDashboard();
         });
 
         // 새로고침 버튼
@@ -158,7 +168,7 @@ $(document).ready(function() {
     }
     
     // ============================================================================
-    // �� 차트 초기화 및 관리
+    // 📊 차트 초기화 및 관리
     // ============================================================================
     
     // 차트 초기화
@@ -213,34 +223,64 @@ $(document).ready(function() {
         const now = new Date().toLocaleTimeString();
         
         if (selectedServer === 'all') {
-            // 전체 서버 선택 시 샘플 데이터 사용
-            updateChartWithSampleData(now);
+            // 전체 서버 선택 시 실시간 API에서 데이터 가져오기
+            fetchRealTimeMetrics(now, 'all');
         } else {
-            // 특정 서버 선택 시 실제 Prometheus 데이터 사용
-            updateChartWithRealData(now, selectedServer);
+            // 특정 서버 선택 시 해당 서버 메트릭 가져오기
+            fetchRealTimeMetrics(now, selectedServer);
         }
     }
     
-    // 실제 데이터로 차트 업데이트
-    function updateChartWithRealData(now, serverIp) {
-        Promise.all([
-            fetchPrometheusMetrics(serverIp, METRIC_TYPES.CPU),
-            fetchPrometheusMetrics(serverIp, METRIC_TYPES.MEMORY),
-            fetchPrometheusMetrics(serverIp, METRIC_TYPES.DISK),
-            fetchPrometheusMetrics(serverIp, METRIC_TYPES.NETWORK)
-        ]).then(function([cpuUsage, memoryUsage, diskUsage, networkUsage]) {
-            updateChart(charts.cpu, now, cpuUsage);
-            updateChart(charts.memory, now, memoryUsage);
-            updateChart(charts.disk, now, diskUsage);
-            updateChart(charts.network, now, networkUsage);
-        }).catch(function(error) {
-            console.error('메트릭 데이터 가져오기 실패:', error);
-            // 실패 시 샘플 데이터 사용
-            updateChartWithSampleData(now);
-        });
+    // 실시간 메트릭 가져오기
+    function fetchRealTimeMetrics(now, serverIp) {
+        $.getJSON(REALTIME_API, { server: serverIp, type: 'all' })
+            .then(function(response) {
+                if (response.success) {
+                    const data = response.data;
+                    const metrics = data.metrics;
+                    
+                    // 각 차트 업데이트
+                    if (metrics.cpu_usage !== null) {
+                        updateChart(charts.cpu, now, metrics.cpu_usage);
+                    }
+                    if (metrics.memory_usage !== null) {
+                        updateChart(charts.memory, now, metrics.memory_usage);
+                    }
+                    if (metrics.disk_usage !== null) {
+                        updateChart(charts.disk, now, metrics.disk_usage);
+                    }
+                    if (metrics.network_usage !== null) {
+                        updateChart(charts.network, now, metrics.network_usage);
+                    }
+                    
+                    console.log('실시간 메트릭 업데이트 완료:', serverIp, metrics);
+                }
+            })
+            .catch(function(error) {
+                console.error('실시간 메트릭 가져오기 실패:', error);
+                updateChartWithSampleData(now);
+            });
     }
     
-    // 샘플 데이터로 차트 업데이트 (전체 서버 선택 시)
+    // 시계열 차트 데이터 가져오기 (향후 확장용)
+    function fetchChartData(serverIp, metricType) {
+        $.getJSON(CHART_DATA_API, { 
+            server: serverIp, 
+            type: metricType, 
+            points: MAX_DATA_POINTS 
+        })
+            .then(function(response) {
+                if (response.success) {
+                    console.log('차트 데이터 로드 완료:', response.data);
+                    // 향후 시계열 차트 구현 시 사용
+                }
+            })
+            .catch(function(error) {
+                console.error('차트 데이터 가져오기 실패:', error);
+            });
+    }
+    
+    // 샘플 데이터로 차트 업데이트 (폴백용)
     function updateChartWithSampleData(now) {
         const cpuUsage = Math.random() * 100;
         const memoryUsage = Math.random() * 100;
@@ -265,46 +305,6 @@ $(document).ready(function() {
         }
 
         chart.update('none');
-    }
-    
-    // ============================================================================
-    // �� Prometheus API 연동
-    // ============================================================================
-    
-    // Prometheus API에서 메트릭 데이터 가져오기
-    function fetchPrometheusMetrics(serverIp, metric) {
-        const query = getMetricQuery(metric, serverIp);
-        const url = `${PROMETHEUS_BASE_URL}/api/v1/query?query=${encodeURIComponent(query)}`;
-        
-        return $.getJSON(url)
-            .then(function(data) {
-                if (data.status === 'success' && data.data.result.length > 0) {
-                    return parseFloat(data.data.result[0].value[1]);
-                }
-                return 0;
-            })
-            .catch(function(error) {
-                console.error('Prometheus API 오류:', error);
-                return 0;
-            });
-    }
-    
-    // 메트릭별 쿼리 생성
-    function getMetricQuery(metric, serverIp) {
-        const serverInstance = `${serverIp}:${NODE_EXPORTER_PORT}`;
-        
-        switch(metric) {
-            case METRIC_TYPES.CPU:
-                return `100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle", instance="${serverInstance}"}[5m])) * 100)`;
-            case METRIC_TYPES.MEMORY:
-                return `(1 - (node_memory_MemAvailable_bytes{instance="${serverInstance}"} / node_memory_MemTotal_bytes{instance="${serverInstance}"})) * 100`;
-            case METRIC_TYPES.DISK:
-                return `(1 - (node_filesystem_avail_bytes{mountpoint="/", instance="${serverInstance}"} / node_filesystem_size_bytes{mountpoint="/", instance="${serverInstance}"})) * 100`;
-            case METRIC_TYPES.NETWORK:
-                return `(rate(node_network_receive_bytes_total{instance="${serverInstance}"}[1m]) + rate(node_network_transmit_bytes_total{instance="${serverInstance}"}[1m])) / (1024 * 1024 * 1024) * 100`;
-            default:
-                return `up{instance="${serverInstance}"}`;
-        }
     }
     
     // ============================================================================
@@ -337,32 +337,5 @@ $(document).ready(function() {
         updateCharts();
         updateStatusBadge();
         updateSummaryPanels();
-    }
-    
-    // ============================================================================
-    // 📊 Grafana 대시보드 연동
-    // ============================================================================
-    
-    // Grafana 대시보드 로드
-    function loadGrafanaDashboard() {
-        const defaultUrl = `${GRAFANA_BASE_URL}/d/${GRAFANA_DASHBOARD_UID}/${GRAFANA_DASHBOARD_TITLE}`;
-        $('#grafana-dashboard').attr('src', defaultUrl);
-        console.log('Grafana 대시보드 로드됨:', defaultUrl);
-    }
-    
-    // Grafana 대시보드 업데이트 (서버 선택 시)
-    function updateGrafanaDashboard() {
-        const baseUrl = `${GRAFANA_BASE_URL}/d/${GRAFANA_DASHBOARD_UID}/${GRAFANA_DASHBOARD_TITLE}`;
-        
-        if (selectedServer === 'all') {
-            // 전체 서버 선택 시 기본 URL 사용
-            $('#grafana-dashboard').attr('src', baseUrl);
-        } else {
-            // 특정 서버 선택 시 해당 서버만 필터링
-            const filteredUrl = `${baseUrl}?var-server=${selectedServer}`;
-            $('#grafana-dashboard').attr('src', filteredUrl);
-        }
-        
-        console.log('Grafana 대시보드 업데이트:', selectedServer);
     }
 });
