@@ -149,6 +149,7 @@ $(document).ready(function() {
             selectedServer = $(this).val();
             updateCharts();
             updateStatusBadge();
+            updateGrafanaDashboard(); // 서버 선택 변경 시 Grafana 대시보드 업데이트
         });
 
         // 새로고침 버튼
@@ -164,6 +165,16 @@ $(document).ready(function() {
             } else {
                 stopAutoRefresh();
             }
+        });
+
+        // Grafana 대시보드 새로고침 버튼
+        $('#grafana-refresh-btn').on('click', function() {
+            refreshGrafanaDashboard();
+        });
+
+        // Grafana 전체화면 버튼
+        $('#grafana-fullscreen-btn').on('click', function() {
+            openGrafanaFullscreen();
         });
     }
     
@@ -337,5 +348,56 @@ $(document).ready(function() {
         updateCharts();
         updateStatusBadge();
         updateSummaryPanels();
+    }
+
+    // 서버 선택 변경 시 Grafana 대시보드 업데이트
+    function updateGrafanaDashboard() {
+        const selectedServer = $('#server-select').val();
+        console.log('선택된 서버로 Grafana 대시보드 업데이트:', selectedServer);
+        
+        if (selectedServer && window.grafanaDashboardInfo) {
+            displayGrafanaDashboard(selectedServer);
+        }
+    }
+    
+    // Grafana 대시보드 컨트롤 함수들
+    function refreshGrafanaDashboard() {
+        const selectedServer = $('#server-select').val() || 'all';
+        console.log('Grafana 대시보드 새로고침:', selectedServer);
+        
+        // 로딩 표시
+        $('#grafana-loading').show();
+        $('#grafana-dashboard').hide();
+        hideGrafanaError();
+        
+        // 대시보드 다시 로드
+        displayGrafanaDashboard(selectedServer);
+    }
+    
+    function openGrafanaFullscreen() {
+        if (!window.grafanaDashboardInfo) {
+            alert('Grafana 대시보드 정보가 없습니다.');
+            return;
+        }
+        
+        const selectedServer = $('#server-select').val() || 'all';
+        const embedUrl = `/monitoring/grafana-dashboard/embed?server=${selectedServer}`;
+        
+        // 새 창에서 Grafana 대시보드 열기
+        $.ajax({
+            url: embedUrl,
+            method: 'GET',
+            success: function(response) {
+                if (response.success && response.data) {
+                    const fullscreenUrl = response.data.embed_url;
+                    window.open(fullscreenUrl, '_blank', 'width=1920,height=1080,scrollbars=yes,resizable=yes');
+                } else {
+                    alert('전체화면 모드를 열 수 없습니다.');
+                }
+            },
+            error: function() {
+                alert('전체화면 모드를 열 수 없습니다.');
+            }
+        });
     }
 });

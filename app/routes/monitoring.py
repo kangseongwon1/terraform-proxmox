@@ -358,6 +358,103 @@ def get_chart_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@bp.route('/grafana-dashboard', methods=['GET'])
+@login_required
+def get_grafana_dashboard():
+    """Grafana 대시보드 정보 조회"""
+    try:
+        dashboard_info = get_dashboard_info()
+        if dashboard_info:
+            return jsonify({
+                'success': True,
+                'data': dashboard_info
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '대시보드 정보를 찾을 수 없습니다.'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def get_dashboard_info():
+    """대시보드 정보 파일에서 정보 읽기"""
+    try:
+        import json
+        import os
+        
+        dashboard_file = '/tmp/dashboard_info.json'
+        if os.path.exists(dashboard_file):
+            with open(dashboard_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+            # Grafana URL과 대시보드 정보 반환
+            return {
+                'dashboard_id': data.get('dashboard_id'),
+                'dashboard_uid': data.get('dashboard_uid'),
+                'dashboard_url': data.get('dashboard_url'),
+                'grafana_url': 'http://localhost:3000',  # 설정에서 가져올 수도 있음
+                'embed_url': f"http://localhost:3000/d-solo/{data.get('dashboard_uid')}?orgId=1&theme=light&panelId=1"
+            }
+        
+        return None
+        
+    except Exception as e:
+        print(f"대시보드 정보 읽기 오류: {e}")
+        return None
+
+@bp.route('/grafana-dashboard/embed', methods=['GET'])
+@login_required
+def get_grafana_embed_url():
+    """Grafana 대시보드 임베드 URL 생성"""
+    try:
+        dashboard_info = get_dashboard_info()
+        if not dashboard_info:
+            return jsonify({
+                'success': False,
+                'error': '대시보드 정보를 찾을 수 없습니다.'
+            }), 404
+        
+        # 서버 선택 파라미터 추가
+        selected_server = request.args.get('server', 'all')
+        
+        # Grafana 대시보드 임베드 URL 생성
+        embed_url = create_grafana_embed_url(dashboard_info, selected_server)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'embed_url': embed_url,
+                'dashboard_info': dashboard_info
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def create_grafana_embed_url(dashboard_info, selected_server):
+    """Grafana 대시보드 임베드 URL 생성"""
+    try:
+        base_url = dashboard_info['grafana_url']
+        dashboard_uid = dashboard_info['dashboard_uid']
+        
+        # 기본 임베드 URL
+        embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId=1&theme=light"
+        
+        # 서버 선택이 'all'이 아닌 경우 필터 추가
+        if selected_server != 'all':
+            embed_url += f"&var-server={selected_server}"
+        
+        # 추가 옵션
+        embed_url += "&kiosk=tv&autofitpanels"
+        
+        return embed_url
+        
+    except Exception as e:
+        print(f"임베드 URL 생성 오류: {e}")
+        return dashboard_info.get('dashboard_url', '')
+
 def get_actual_servers():
     """실제 DB에서 서버 목록 가져오기"""
     try:
@@ -386,22 +483,6 @@ def get_actual_servers():
                 'vmid': server.vmid
             })
         
-        # DB에 서버가 없으면 샘플 데이터 사용
-        if not servers:
-            servers = [
-                {'ip': '192.168.0.10', 'port': '22', 'status': 'healthy', 'name': 'dev-server-1', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.111', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-1', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.112', 'port': '20222', 'status': 'warning', 'name': 'prod-server-2', 'role': 'db', 'vmid': None},
-                {'ip': '192.168.0.113', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-3', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.114', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-4', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.115', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-5', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.116', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-6', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.117', 'port': '20222', 'status': 'critical', 'name': 'prod-server-7', 'role': 'db', 'vmid': None},
-                {'ip': '192.168.0.118', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-8', 'role': 'web', 'vmid': None},
-                {'ip': '192.168.0.119', 'port': '20222', 'status': 'healthy', 'name': 'prod-server-9', 'role': 'web', 'vmid': None}
-            ]
-        
-        return servers
         
     except Exception as e:
         print(f"서버 목록 조회 오류: {e}")
