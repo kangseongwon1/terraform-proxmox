@@ -1,542 +1,309 @@
-// monitoring.js - 모니터링 페이지 JavaScript
-$(function() {
-    console.log('[monitoring.js] 모니터링 페이지 초기화 시작');
-    
-    // Chart.js 의존성 확인 및 로드
-    if (typeof Chart === 'undefined') {
-        console.log('[monitoring.js] Chart.js 로드 중...');
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js';
-        script.onload = function() {
-            console.log('[monitoring.js] Chart.js 로드 완료');
-            initializePage();
-        };
-        script.onerror = function() {
-            console.error('[monitoring.js] Chart.js 로드 실패');
-            showNotification('error', 'Chart.js 로드에 실패했습니다. 차트가 표시되지 않을 수 있습니다.');
-            initializePage();
-        };
-        document.head.appendChild(script);
-        return;
-    }
-    
-    // Chart.js가 이미 로드된 경우 바로 초기화
-    initializePage();
-    
+// app/static/monitoring.js
+$(document).ready(function() {
     // 전역 변수
-    let cpuChart = null;
-    let memoryChart = null;
-    let monitoringInterval = null;
-    let chartDataPoints = 100;
+    let charts = {};
+    let selectedServer = 'all';
+    let autoRefresh = true;
+    let refreshInterval;
     
-    // 모니터링 설정
-    const monitoringConfig = {
-        prometheusUrl: 'http://192.168.0.1:9090',
-        grafanaUrl: 'http://192.168.0.1:3000',
-        collectionInterval: 30,
-        chartDataPoints: 100
-    };
+    // 서버 목록 (설정 파일에서 가져올 예정)
+    const servers = [
+        { ip: '192.168.0.10', port: '22', status: 'healthy' },
+        { ip: '192.168.0.111', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.112', port: '20222', status: 'warning' },
+        { ip: '192.168.0.113', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.114', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.115', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.116', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.117', port: '20222', status: 'critical' },
+        { ip: '192.168.0.118', port: '20222', status: 'healthy' },
+        { ip: '192.168.0.119', port: '20222', status: 'healthy' }
+    ];
+
+    // 초기화
+    init();
+
+    function init() {
+        loadServersOverview();
+        setupEventListeners();
+        initializeCharts();
+        startAutoRefresh();
+        loadGrafanaDashboard();
+    }
+
+    // 서버 개요 로딩
+    function loadServersOverview() {
+        updateSummaryPanels();
+        populateServerDropdown();
+        updateStatusBadge();
+    }
+
+    // 요약 패널 업데이트
+    function updateSummaryPanels() {
+        const total = servers.length;
+        const healthy = servers.filter(s => s.status === 'healthy').length;
+        const warning = servers.filter(s => s.status === 'warning').length;
+        const critical = servers.filter(s => s.status === 'critical').length;
+
+        $('#total-servers').text(total);
+        $('#healthy-servers').text(healthy);
+        $('#warning-servers').text(warning);
+        $('#critical-servers').text(critical);
+    }
+
+    // 서버 드롭다운 채우기
+    function populateServerDropdown() {
+        const $select = $('#server-select');
+        $select.find('option:not(:first)').remove();
     
-    // 차트 색상 설정
-    const chartColors = {
-        primary: '#007bff',
-        success: '#28a745',
-        warning: '#ffc107',
-        danger: '#dc3545',
-        info: '#17a2b8',
-        secondary: '#6c757d'
-    };
-    
-    /**
-     * 모니터링 시스템 상태 확인
-     */
-    function checkMonitoringHealth() {
-        console.log('[monitoring.js] 모니터링 시스템 상태 확인 시작');
+        servers.forEach(server => {
+            // ● 기호 제거하고 IP:PORT만 표시
+            const option = `<option value="${server.ip}">${server.ip}:${server.port}</option>`;
+            $select.append(option);
+        });
+    }
+
+    // 상태 아이콘 반환 (심플하게)
+    function getStatusIcon(status) {
+        switch(status) {
+            case 'healthy': return '●';  // 검은색 원
+            case 'warning': return '●';  // 검은색 원
+            case 'critical': return '●';  // 검은색 원
+            default: return '●';         // 검은색 원
+        }
+    }
+
+    // 상태 배지 업데이트
+    function updateStatusBadge() {
+        const selectedServerData = servers.find(s => s.ip === selectedServer) || { status: 'healthy' };
+        const $badge = $('#status-badge');
+        const $lastUpdate = $('#last-update');
+
+        $badge.removeClass().addClass('badge me-2');
         
-        $.get('/monitoring/health', function(res) {
-            if (res.success) {
-                updateMonitoringStatus(res.monitoring_system);
+        switch(selectedServerData.status) {
+            case 'healthy':
+                $badge.addClass('bg-success').html('정상');
+                break;
+            case 'warning':
+                $badge.addClass('bg-warning').html('경고');
+                break;
+            case 'critical':
+                $badge.addClass('bg-danger').html('위험');
+                break;
+        }
+
+        $lastUpdate.text(`마지막 업데이트: ${new Date().toLocaleTimeString()}`);
+    }
+
+    // 이벤트 리스너 설정
+    function setupEventListeners() {
+        // 서버 선택 변경
+        $('#server-select').on('change', function() {
+            selectedServer = $(this).val();
+            updateCharts();
+            updateStatusBadge();
+        });
+
+        // 새로고침 버튼
+        $('#refresh-btn').on('click', function() {
+            refreshData();
+        });
+
+        // 자동 새로고침 토글
+        $('#auto-refresh').on('change', function() {
+            autoRefresh = $(this).is(':checked');
+            if (autoRefresh) {
+                startAutoRefresh();
             } else {
-                console.error('[monitoring.js] 모니터링 상태 확인 실패:', res.error);
-                updateMonitoringStatus({ prometheus: 'error', grafana: 'error' });
+                stopAutoRefresh();
             }
-        }).fail(function(xhr) {
-            console.error('[monitoring.js] 모니터링 상태 확인 요청 실패:', xhr);
-            updateMonitoringStatus({ prometheus: 'error', grafana: 'error' });
         });
     }
-    
-    /**
-     * 모니터링 상태 UI 업데이트
-     */
-    function updateMonitoringStatus(status) {
-        const statusMap = {
-            'healthy': 'status-online',
-            'unhealthy': 'status-warning',
-            'error': 'status-offline'
-        };
-        
-        // Prometheus 상태
-        const prometheusStatus = statusMap[status.prometheus] || 'status-offline';
-        $('#monitoring-status .col-md-4:eq(0) .status-indicator')
-            .removeClass('status-online status-warning status-offline')
-            .addClass(prometheusStatus);
-        
-        // Grafana 상태
-        const grafanaStatus = statusMap[status.grafana] || 'status-offline';
-        $('#monitoring-status .col-md-4:eq(1) .status-indicator')
-            .removeClass('status-online status-warning status-offline')
-            .addClass(grafanaStatus);
-        
-        // Node Exporter 상태 (기본값: 온라인)
-        $('#monitoring-status .col-md-4:eq(2) .status-indicator')
-            .removeClass('status-online status-warning status-offline')
-            .addClass('status-online');
-    }
-    
-         /**
-      * 서버 전체 개요 로드
-      */
-     function loadServersOverview() {
-         console.log('[monitoring.js] 서버 전체 개요 로드 시작');
-         
-         // 실제 서버 목록 (나중에 API에서 가져오도록 수정)
-         const servers = ['192.168.0.10', '192.168.0.11'];
-         
-         // 각 서버의 메트릭을 개별적으로 로드
-         Promise.all(servers.map(serverIp => 
-             $.get(`/monitoring/metrics/${serverIp}`)
-         )).then(responses => {
-             const serverData = {};
-             
-             responses.forEach((response, index) => {
-                 if (response.success) {
-                     const serverIp = servers[index];
-                     serverData[serverIp] = {
-                         status: 'online',
-                         cpu_usage: response.metrics.cpu_usage?.latest || 0,
-                         memory_usage: response.metrics.memory_usage?.latest || 0,
-                         disk_usage: response.metrics.disk_usage?.latest || 0,
-                         last_check: new Date().toISOString()
-                     };
-                 }
-             });
-             
-             renderServersOverview(serverData);
-             updateSummaryMetrics(serverData);
-             
-         }).catch(error => {
-             console.error('[monitoring.js] 서버 메트릭 로드 실패:', error);
-             $('#servers-overview').html('<div class="col-12 text-center text-danger">서버 정보를 불러올 수 없습니다.</div>');
-         });
-     }
-    
-    /**
-     * 서버 개요 렌더링
-     */
-    function renderServersOverview(servers) {
-        let html = '';
-        
-        Object.entries(servers).forEach(([serverIp, server]) => {
-            const statusClass = server.status === 'online' ? 'status-online' : 'status-offline';
-            const statusText = server.status === 'online' ? '온라인' : '오프라인';
-            
-            html += `
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="card-title mb-0">
-                                    <i class="fas fa-server me-2"></i>${serverIp}
-                                </h6>
-                                <div class="d-flex align-items-center">
-                                    <div class="status-indicator ${statusClass}"></div>
-                                    <small class="text-muted">${statusText}</small>
-                                </div>
-                            </div>
-                            <div class="row text-center">
-                                <div class="col-6">
-                                    <div class="metric-value text-primary">${server.cpu_usage || 0}%</div>
-                                    <div class="metric-label">CPU</div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="metric-value text-success">${server.memory_usage || 0}%</div>
-                                    <div class="metric-label">메모리</div>
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <small class="text-muted">마지막 확인: ${new Date(server.last_check).toLocaleTimeString()}</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        $('#servers-overview').html(html);
-    }
-    
-    /**
-     * 요약 메트릭 업데이트
-     */
-    function updateSummaryMetrics(servers) {
-        const onlineServers = Object.values(servers).filter(s => s.status === 'online');
-        const totalServers = Object.keys(servers).length;
-        
-        if (onlineServers.length > 0) {
-            const avgCpu = onlineServers.reduce((sum, s) => sum + (s.cpu_usage || 0), 0) / onlineServers.length;
-            const avgMemory = onlineServers.reduce((sum, s) => sum + (s.memory_usage || 0), 0) / onlineServers.length;
-            
-            $('#avg-cpu-usage').text(avgCpu.toFixed(1) + '%');
-            $('#avg-memory-usage').text(avgMemory.toFixed(1) + '%');
-            $('#online-servers').text(onlineServers.length + '/' + totalServers);
-        } else {
-            $('#avg-cpu-usage').text('--');
-            $('#avg-memory-usage').text('--');
-            $('#online-servers').text('0/' + totalServers);
-        }
-        
-        // 디스크 사용률은 기본값으로 설정 (실제로는 Prometheus에서 가져와야 함)
-        $('#avg-disk-usage').text('--');
-    }
-    
-    /**
-     * 서버별 상세 메트릭 로드
-     */
-    function loadServerMetricsDetail() {
-        console.log('[monitoring.js] 서버별 상세 메트릭 로드 시작');
-        
-        // 실제 구현에서는 각 서버별로 상세 메트릭을 로드
-        // 현재는 기본 UI만 표시
-        const html = `
-            <div class="col-12">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    서버별 상세 메트릭은 Prometheus와 연동 후 표시됩니다.
-                    <br>
-                    <small class="text-muted">현재 개발 중인 기능입니다.</small>
-                </div>
-            </div>
-        `;
-        
-        $('#server-metrics-detail').html(html);
-    }
-    
-    /**
-     * CPU 차트 초기화
-     */
-    function initCpuChart() {
-        if (typeof Chart === 'undefined') {
-            console.warn('[monitoring.js] Chart.js가 로드되지 않아 CPU 차트를 초기화할 수 없습니다.');
-            return;
-        }
-        
-        const ctx = document.getElementById('cpu-chart');
-        if (!ctx) {
-            console.warn('[monitoring.js] CPU 차트 캔버스를 찾을 수 없습니다.');
-            return;
-        }
-        
-        const chartCtx = ctx.getContext('2d');
-        
-        cpuChart = new Chart(chartCtx, {
+
+    // 차트 초기화
+    function initializeCharts() {
+        // CPU 차트
+        charts.cpu = new Chart(document.getElementById('cpuChart'), {
             type: 'line',
             data: {
                 labels: [],
                 datasets: [{
-                    label: '평균 CPU 사용률',
+                    label: 'CPU 사용률 (%)',
                     data: [],
-                    borderColor: chartColors.primary,
-                    backgroundColor: chartColors.primary + '20',
-                    tension: 0.4,
-                    fill: true
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 100,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        }
+                        max: 100
                     }
                 }
             }
         });
-    }
-    
-    /**
-     * 메모리 차트 초기화
-     */
-    function initMemoryChart() {
-        if (typeof Chart === 'undefined') {
-            console.warn('[monitoring.js] Chart.js가 로드되지 않아 메모리 차트를 초기화할 수 없습니다.');
-            return;
-        }
-        
-        const ctx = document.getElementById('memory-chart');
-        if (!ctx) {
-            console.warn('[monitoring.js] 메모리 차트 캔버스를 찾을 수 없습니다.');
-            return;
-        }
-        
-        const chartCtx = ctx.getContext('2d');
-        
-        memoryChart = new Chart(chartCtx, {
+
+        // 메모리 차트
+        charts.memory = new Chart(document.getElementById('memoryChart'), {
             type: 'line',
             data: {
                 labels: [],
                 datasets: [{
-                    label: '평균 메모리 사용률',
+                    label: '메모리 사용률 (%)',
                     data: [],
-                    borderColor: chartColors.success,
-                    backgroundColor: chartColors.success + '20',
-                    tension: 0.4,
-                    fill: true
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.1
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 100,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        }
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // 디스크 차트
+        charts.disk = new Chart(document.getElementById('diskChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '디스크 사용률 (%)',
+                    data: [],
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // 네트워크 차트
+        charts.network = new Chart(document.getElementById('networkChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '네트워크 대역폭 사용률 (%)',
+                    data: [],
+                    borderColor: 'rgb(255, 205, 86)',
+                    backgroundColor: 'rgba(255, 205, 86, 0.2)',
+                    borderWidth: 2,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
                     }
                 }
             }
         });
     }
-    
-    /**
-     * 차트 데이터 업데이트
-     */
+
+    // 차트 업데이트
     function updateCharts() {
-        const now = new Date();
-        const timeLabel = now.toLocaleTimeString();
+        const now = new Date().toLocaleTimeString();
         
+        // 샘플 데이터 (실제로는 Prometheus API에서 가져올 예정)
+        const cpuUsage = Math.random() * 100;
+        const memoryUsage = Math.random() * 100;
+        const diskUsage = Math.random() * 100;
+        const networkUsage = Math.random() * 100;
+
         // CPU 차트 업데이트
-        if (cpuChart) {
-            cpuChart.data.labels.push(timeLabel);
-            // 실제 데이터로 교체 (나중에 API 연동)
-            cpuChart.data.datasets[0].data.push(Math.random() * 100);
-            
-            if (cpuChart.data.labels.length > chartDataPoints) {
-                cpuChart.data.labels.shift();
-                cpuChart.data.datasets[0].data.shift();
-            }
-            
-            cpuChart.update('none');
-        }
+        updateChart(charts.cpu, now, cpuUsage);
         
         // 메모리 차트 업데이트
-        if (memoryChart) {
-            memoryChart.data.labels.push(timeLabel);
-            // 실제 데이터로 교체 (나중에 API 연동)
-            memoryChart.data.datasets[0].data.push(Math.random() * 100);
-            
-            if (memoryChart.data.labels.length > chartDataPoints) {
-                memoryChart.data.labels.shift();
-                memoryChart.data.datasets[0].data.shift();
-            }
-            
-            memoryChart.update('none');
-        }
+        updateChart(charts.memory, now, memoryUsage);
+        
+        // 디스크 차트 업데이트
+        updateChart(charts.disk, now, diskUsage);
+        
+        // 네트워크 차트 업데이트
+        updateChart(charts.network, now, networkUsage);
     }
-    
-    /**
-     * 모니터링 데이터 자동 새로고침 시작
-     */
+
+    // 개별 차트 업데이트
+    function updateChart(chart, label, value) {
+        chart.data.labels.push(label);
+        chart.data.datasets[0].data.push(value);
+
+        // 최대 20개 데이터 포인트 유지
+        if (chart.data.labels.length > 20) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+
+        chart.update('none');
+    }
+
+    // 자동 새로고침 시작
     function startAutoRefresh() {
-        if (monitoringInterval) {
-            clearInterval(monitoringInterval);
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
         }
-        
-        monitoringInterval = setInterval(function() {
-            loadServersOverview();
-            updateCharts();
-        }, monitoringConfig.collectionInterval * 1000);
-        
-        console.log(`[monitoring.js] 자동 새로고침 시작 (${monitoringConfig.collectionInterval}초 간격)`);
+        refreshInterval = setInterval(() => {
+            if (autoRefresh) {
+                updateCharts();
+                updateStatusBadge();
+            }
+        }, 5000); // 5초마다 업데이트
     }
-    
-    /**
-     * 모니터링 데이터 자동 새로고침 중지
-     */
+
+    // 자동 새로고침 중지
     function stopAutoRefresh() {
-        if (monitoringInterval) {
-            clearInterval(monitoringInterval);
-            monitoringInterval = null;
-            console.log('[monitoring.js] 자동 새로고침 중지');
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
         }
     }
-    
-    /**
-     * 전체 새로고침
-     */
-    function refreshAll() {
-        console.log('[monitoring.js] 전체 새로고침 시작');
-        
-        checkMonitoringHealth();
-        loadServersOverview();
-        loadServerMetricsDetail();
-        
-        // 차트 데이터 초기화
-        if (cpuChart) {
-            cpuChart.data.labels = [];
-            cpuChart.data.datasets[0].data = [];
-            cpuChart.update();
-        }
-        
-        if (memoryChart) {
-            memoryChart.data.labels = [];
-            memoryChart.data.datasets[0].data = [];
-            memoryChart.update();
-        }
+
+    // 데이터 새로고침
+    function refreshData() {
+        updateCharts();
+        updateStatusBadge();
+        updateSummaryPanels();
     }
-    
-    /**
-     * 모니터링 설정 저장
-     */
-    function saveMonitoringSettings() {
-        const settings = {
-            prometheusUrl: $('#prometheus-url').val(),
-            grafanaUrl: $('#grafana-url').val(),
-            collectionInterval: parseInt($('#collection-interval').val()),
-            chartDataPoints: parseInt($('#chart-data-points').val())
-        };
-        
-        // 설정 저장 (실제로는 서버에 저장해야 함)
-        Object.assign(monitoringConfig, settings);
-        
-        // 자동 새로고침 재시작
-        stopAutoRefresh();
-        startAutoRefresh();
-        
-        // 모달 닫기
-        $('#monitoring-settings-modal').modal('hide');
-        
-        console.log('[monitoring.js] 모니터링 설정 저장됨:', settings);
-        
-        // 성공 메시지 표시
-        showNotification('success', '설정이 저장되었습니다.');
+
+    // Grafana 대시보드 로드
+    function loadGrafanaDashboard() {
+        // 대시보드 정보 파일에서 URL 가져오기
+        $.getJSON('/tmp/dashboard_info.json')
+            .done(function(data) {
+                const dashboardUrl = data.full_url;
+                $('#grafana-dashboard').attr('src', dashboardUrl);
+            })
+            .fail(function() {
+                // 기본 URL 사용
+                const defaultUrl = 'http://localhost:3000/d/system_monitoring/system-monitoring-dashboard-10-servers';
+                $('#grafana-dashboard').attr('src', defaultUrl);
+            });
     }
-    
-    /**
-     * 알림 표시
-     */
-    function showNotification(type, message) {
-        const alertClass = `alert-${type}`;
-        const icon = type === 'success' ? 'check-circle' : 'info-circle';
-        
-        const alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="fas fa-${icon} me-2"></i>${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        
-        // 페이지 상단에 알림 표시
-        $('.container-fluid').prepend(alertHtml);
-        
-        // 3초 후 자동으로 사라지게
-        setTimeout(() => {
-            $('.alert').fadeOut();
-        }, 3000);
-    }
-    
-              /**
-      * 이벤트 리스너 등록
-      */
-     function setupEventListeners() {
-         // 전체 새로고침 버튼
-         $('#refresh-all-btn').on('click', function() {
-             refreshAll();
-         });
-         
-         // 모니터링 설정 버튼
-         $('#monitoring-settings-btn').on('click', function() {
-             $('#monitoring-settings-modal').modal('show');
-         });
-         
-         // 설정 저장 버튼
-         $('#save-monitoring-settings').on('click', function() {
-             saveMonitoringSettings();
-         });
-         
-         // 빠른 액션 버튼들
-         $('#export-metrics-btn').on('click', function() {
-             showNotification('info', '메트릭 내보내기 기능은 개발 중입니다.');
-         });
-         
-         $('#create-alert-btn').on('click', function() {
-             showNotification('info', '알림 규칙 생성 기능은 개발 중입니다.');
-         });
-         
-         $('#open-grafana-btn').on('click', function() {
-             window.open(monitoringConfig.grafanaUrl, '_blank');
-         });
-         
-         $('#open-prometheus-btn').on('click', function() {
-             window.open(monitoringConfig.prometheusUrl, '_blank');
-         });
-     }
-    
-    /**
-     * 페이지 초기화
-     */
-    function initializePage() {
-        console.log('[monitoring.js] 페이지 초기화 시작');
-        
-        // 차트 초기화
-        initCpuChart();
-        initMemoryChart();
-        
-        // 초기 데이터 로드
-        checkMonitoringHealth();
-        loadServersOverview();
-        loadServerMetricsDetail();
-        
-        // 자동 새로고침 시작
-        startAutoRefresh();
-        
-        // 이벤트 리스너 설정
-        setupEventListeners();
-        
-        console.log('[monitoring.js] 페이지 초기화 완료');
-    }
-    
-    /**
-     * 페이지 언로드 시 정리
-     */
-    $(window).on('beforeunload', function() {
-        stopAutoRefresh();
-    });
-    
-    // 페이지가 언로드될 때 정리
-    $(window).on('pagehide', function() {
-        stopAutoRefresh();
-    });
 });
