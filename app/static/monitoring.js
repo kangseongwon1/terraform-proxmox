@@ -302,25 +302,29 @@ $(document).ready(function() {
     function fetchRealTimeMetrics(now, serverIp) {
         $.getJSON(REALTIME_API, { server: serverIp, type: 'all' })
             .then(function(response) {
-                if (response.success) {
-                    const data = response.data;
-                    const metrics = data.metrics;
+                if (response.success && response.data) {
+                    const metrics = response.data;
                     
-                    // 각 차트 업데이트
-                    if (metrics.cpu_usage !== null) {
+                    console.log('실시간 메트릭 응답:', metrics);
+                    
+                    // 각 차트 업데이트 (안전한 속성 접근)
+                    if (metrics.cpu_usage !== undefined && metrics.cpu_usage !== null) {
                         updateChart(charts.cpu, now, metrics.cpu_usage);
                     }
-                    if (metrics.memory_usage !== null) {
+                    if (metrics.memory_usage !== undefined && metrics.memory_usage !== null) {
                         updateChart(charts.memory, now, metrics.memory_usage);
                     }
-                    if (metrics.disk_usage !== null) {
+                    if (metrics.disk_usage !== undefined && metrics.disk_usage !== null) {
                         updateChart(charts.disk, now, metrics.disk_usage);
                     }
-                    if (metrics.network_usage !== null) {
+                    if (metrics.network_usage !== undefined && metrics.network_usage !== null) {
                         updateChart(charts.network, now, metrics.network_usage);
                     }
                     
                     console.log('실시간 메트릭 업데이트 완료:', serverIp, metrics);
+                } else {
+                    console.warn('메트릭 응답이 올바르지 않음:', response);
+                    updateChartWithSampleData(now);
                 }
             })
             .catch(function(error) {

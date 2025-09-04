@@ -283,33 +283,47 @@ def get_real_time_metrics():
             # 전체 서버의 평균 메트릭
             all_metrics = {}
             servers = get_actual_servers()
+            
+            if not servers:
+                # 서버가 없으면 기본 메트릭 반환
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'cpu_usage': 0,
+                        'memory_usage': 0,
+                        'disk_usage': 0,
+                        'network_usage': 0,
+                        'timestamp': int(time.time())
+                    }
+                })
+            
             for server in servers:
                 all_metrics[server['ip']] = generate_sample_metrics(server['ip'])
             
             # 평균값 계산
-            if metric_type == 'all' or metric_type == 'cpu':
-                cpu_avg = sum(m['cpu_usage'] for m in all_metrics.values()) / len(all_metrics)
-            if metric_type == 'all' or metric_type == 'memory':
-                memory_avg = sum(m['memory_usage'] for m in all_metrics.values()) / len(all_metrics)
-            if metric_type == 'all' or metric_type == 'disk':
-                disk_avg = sum(m['disk_usage'] for m in all_metrics.values()) / len(all_metrics)
-            if metric_type == 'all' or metric_type == 'network':
-                network_avg = sum(m['network_usage'] for m in all_metrics.values()) / len(all_metrics)
+            cpu_avg = sum(m['cpu_usage'] for m in all_metrics.values()) / len(all_metrics)
+            memory_avg = sum(m['memory_usage'] for m in all_metrics.values()) / len(all_metrics)
+            disk_avg = sum(m['disk_usage'] for m in all_metrics.values()) / len(all_metrics)
+            network_avg = sum(m['network_usage'] for m in all_metrics.values()) / len(all_metrics)
             
             result = {
                 'timestamp': int(time.time()),
-                'server': 'all',
-                'metrics': {
-                    'cpu_usage': round(cpu_avg, 2) if metric_type in ['all', 'cpu'] else None,
-                    'memory_usage': round(memory_avg, 2) if metric_type in ['all', 'memory'] else None,
-                    'disk_usage': round(disk_avg, 2) if metric_type in ['all', 'disk'] else None,
-                    'network_usage': round(network_avg, 2) if metric_type in ['all', 'network'] else None
-                }
+                'cpu_usage': round(cpu_avg, 2),
+                'memory_usage': round(memory_avg, 2),
+                'disk_usage': round(disk_avg, 2),
+                'network_usage': round(network_avg, 2)
             }
+            
         else:
             # 특정 서버의 메트릭
-            result = generate_sample_metrics(server_ip)
-            result['server'] = server_ip
+            metrics = generate_sample_metrics(server_ip)
+            result = {
+                'timestamp': int(time.time()),
+                'cpu_usage': metrics['cpu_usage'],
+                'memory_usage': metrics['memory_usage'],
+                'disk_usage': metrics['disk_usage'],
+                'network_usage': metrics['network_usage']
+            }
         
         return jsonify({
             'success': True,
@@ -317,7 +331,18 @@ def get_real_time_metrics():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"실시간 메트릭 생성 오류: {e}")
+        # 오류 시 기본 메트릭 반환
+        return jsonify({
+            'success': True,
+            'data': {
+                'cpu_usage': 0,
+                'memory_usage': 0,
+                'disk_usage': 0,
+                'network_usage': 0,
+                'timestamp': int(time.time())
+            }
+        })
 
 @bp.route('/chart-data', methods=['GET'])
 @login_required
