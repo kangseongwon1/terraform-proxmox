@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timedelta
 from app.models import Server
 from app import db
+from sqlalchemy import text
 
 bp = Blueprint('monitoring', __name__, url_prefix='/monitoring')
 
@@ -458,39 +459,50 @@ def create_grafana_embed_url(dashboard_info, selected_server):
 def get_actual_servers():
     """실제 DB에서 서버 목록 가져오기"""
     try:
-        from app.models.server import Server
-        from app.database import db
+        # 데이터베이스 연결 상태 확인
+        try:
+            # SQLAlchemy 2.0 호환 방식으로 DB 연결 테스트
+            db.session.execute(text('SELECT 1'))
+        except Exception as db_error:
+            print(f"데이터베이스 연결 오류: {db_error}")
+            return []
         
-        servers = []
-        db_servers = Server.query.all()
-        
-        for server in db_servers:
-            # IP 주소 처리
-            ip_address = server.ip_address
-            if isinstance(ip_address, list) and len(ip_address) > 0:
-                ip = ip_address[0]
-            elif isinstance(ip_address, str):
-                ip = ip_address
-            else:
-                ip = '0.0.0.0'
+        # Server 모델 접근 시도
+        try:
+            servers = []
+            db_servers = Server.query.all()
             
-            # 포트 설정 (기본값: 22)
-            port = '22'
+            for server in db_servers:
+                # IP 주소 처리
+                ip_address = server.ip_address
+                if isinstance(ip_address, list) and len(ip_address) > 0:
+                    ip = ip_address[0]
+                elif isinstance(ip_address, str):
+                    ip = ip_address
+                else:
+                    ip = '0.0.0.0'
+                
+                # 포트 설정 (기본값: 22)
+                port = '22'
+                
+                # 서버 상태 결정
+                status = determine_server_status(server)
+                
+                servers.append({
+                    'ip': ip,
+                    'port': port,
+                    'status': status,
+                    'name': server.name,
+                    'role': server.role,
+                    'vmid': server.vmid
+                })
             
-            # 서버 상태 결정
-            status = determine_server_status(server)
+            print(f"DB에서 {len(servers)}개 서버 로드 완료")
+            return servers
             
-            servers.append({
-                'ip': ip,
-                'port': port,
-                'status': status,
-                'name': server.name,
-                'role': server.role,
-                'vmid': server.vmid
-            })
-        
-        # DB에 서버가 없으면 빈 리스트 반환 (오류 방지)
-        return servers
+        except Exception as model_error:
+            print(f"Server 모델 접근 오류: {model_error}")
+            return []
         
     except Exception as e:
         print(f"서버 목록 조회 오류: {e}")

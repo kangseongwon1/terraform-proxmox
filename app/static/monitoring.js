@@ -94,17 +94,22 @@ $(document).ready(function() {
     // 요약 패널 업데이트
     function updateSummaryPanels() {
         try {
+            console.log('updateSummaryPanels 호출됨');
+            console.log('현재 servers 변수:', servers);
+            console.log('현재 window.servers 변수:', window.servers);
+            
             // 서버 데이터 검증
-            if (!window.servers || !Array.isArray(window.servers)) {
+            if (!servers || !Array.isArray(servers)) {
                 console.warn('서버 데이터가 없거나 유효하지 않습니다.');
-                window.servers = [];
+                servers = [];
             }
             
-            const servers = window.servers;
             const total = servers.length;
             const healthy = servers.filter(s => s.status === 'healthy').length;
             const warning = servers.filter(s => s.status === 'warning').length;
             const critical = servers.filter(s => s.status === 'critical').length;
+            
+            console.log(`서버 통계: 전체=${total}, 정상=${healthy}, 경고=${warning}, 위험=${critical}`);
             
             // 요약 패널 업데이트
             $('#total-servers').text(total);
@@ -128,27 +133,32 @@ $(document).ready(function() {
     // 서버 드롭다운 채우기
     function populateServerDropdown() {
         try {
+            console.log('populateServerDropdown 호출됨');
+            console.log('서버 데이터:', servers);
+            
             const select = $('#server-select');
             select.empty();
             
             // 서버 데이터 검증
-            if (!window.servers || !Array.isArray(window.servers)) {
+            if (!servers || !Array.isArray(servers)) {
                 console.warn('서버 드롭다운 초기화: 서버 데이터가 없습니다.');
-                window.servers = [];
+                servers = [];
             }
             
             // 전체 서버 옵션 추가
             select.append('<option value="all">🖥️ 전체 서버</option>');
             
             // 개별 서버 옵션 추가
-            if (window.servers.length > 0) {
-                window.servers.forEach(server => {
+            if (servers.length > 0) {
+                servers.forEach(server => {
                     const option = `<option value="${server.ip}">${server.ip}:${server.port}</option>`;
                     select.append(option);
                 });
+                console.log(`${servers.length}개 서버 옵션 추가됨`);
             } else {
                 // 서버가 없을 때 기본 옵션 추가
                 select.append('<option value="none" disabled>서버가 없습니다</option>');
+                console.log('서버가 없어서 기본 옵션만 표시');
             }
             
         } catch (error) {
