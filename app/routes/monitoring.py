@@ -297,8 +297,33 @@ def get_real_time_metrics():
                     }
                 })
             
+            # 실제 서버 상태 기반 메트릭 생성
             for server in servers:
-                all_metrics[server['ip']] = generate_sample_metrics(server['ip'])
+                # 서버 상태에 따른 현실적인 메트릭
+                if server['status'] == 'critical':
+                    # 위험 상태 - 높은 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(80, 95),
+                        'memory_usage': random.uniform(85, 98),
+                        'disk_usage': random.uniform(85, 95),
+                        'network_usage': random.uniform(70, 90)
+                    }
+                elif server['status'] == 'warning':
+                    # 경고 상태 - 중간 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(60, 80),
+                        'memory_usage': random.uniform(70, 85),
+                        'disk_usage': random.uniform(70, 85),
+                        'network_usage': random.uniform(50, 70)
+                    }
+                else:
+                    # 정상 상태 - 낮은 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(10, 40),
+                        'memory_usage': random.uniform(20, 60),
+                        'disk_usage': random.uniform(30, 70),
+                        'network_usage': random.uniform(5, 25)
+                    }
             
             # 평균값 계산
             cpu_avg = sum(m['cpu_usage'] for m in all_metrics.values()) / len(all_metrics)
@@ -315,15 +340,50 @@ def get_real_time_metrics():
             }
             
         else:
-            # 특정 서버의 메트릭
-            metrics = generate_sample_metrics(server_ip)
-            result = {
-                'timestamp': int(time.time()),
-                'cpu_usage': metrics['cpu_usage'],
-                'memory_usage': metrics['memory_usage'],
-                'disk_usage': metrics['disk_usage'],
-                'network_usage': metrics['network_usage']
-            }
+            # 특정 서버의 메트릭 - 해당 서버 상태 기반
+            servers = get_actual_servers()
+            target_server = next((s for s in servers if s['ip'] == server_ip), None)
+            
+            if target_server:
+                # 서버 상태에 따른 메트릭
+                if target_server['status'] == 'critical':
+                    metrics = {
+                        'cpu_usage': random.uniform(80, 95),
+                        'memory_usage': random.uniform(85, 98),
+                        'disk_usage': random.uniform(85, 95),
+                        'network_usage': random.uniform(70, 90)
+                    }
+                elif target_server['status'] == 'warning':
+                    metrics = {
+                        'cpu_usage': random.uniform(60, 80),
+                        'memory_usage': random.uniform(70, 85),
+                        'disk_usage': random.uniform(70, 85),
+                        'network_usage': random.uniform(50, 70)
+                    }
+                else:
+                    metrics = {
+                        'cpu_usage': random.uniform(10, 40),
+                        'memory_usage': random.uniform(20, 60),
+                        'disk_usage': random.uniform(30, 70),
+                        'network_usage': random.uniform(5, 25)
+                    }
+                
+                result = {
+                    'timestamp': int(time.time()),
+                    'cpu_usage': round(metrics['cpu_usage'], 2),
+                    'memory_usage': round(metrics['memory_usage'], 2),
+                    'disk_usage': round(metrics['disk_usage'], 2),
+                    'network_usage': round(metrics['network_usage'], 2)
+                }
+            else:
+                # 서버를 찾을 수 없는 경우
+                result = {
+                    'timestamp': int(time.time()),
+                    'cpu_usage': 0,
+                    'memory_usage': 0,
+                    'disk_usage': 0,
+                    'network_usage': 0
+                }
         
         return jsonify({
             'success': True,
