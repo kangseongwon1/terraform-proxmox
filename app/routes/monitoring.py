@@ -464,7 +464,7 @@ def get_grafana_dashboard():
                 'org_id': '1',
                 'dashboard_url': 'http://localhost:3000/d/system_monitoring',
                 'grafana_url': 'http://localhost:3000',
-                'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+                'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
             }
             return jsonify({
                 'success': True,
@@ -495,7 +495,7 @@ def get_dashboard_info():
                 'org_id': '1',  # ← 추가
                 'dashboard_url': data.get('dashboard_url'),
                 'grafana_url': 'http://localhost:3000',  # 하위 호환성
-                'embed_url': f"http://localhost:3000/d-solo/{dashboard_uid}?orgId=1&theme=light&panelId=1"
+                'embed_url': f"http://localhost:3000/d/{dashboard_uid}?orgId=1&theme=light&kiosk=tv"
             }
         
         # 파일이 없으면 기본 정보 반환
@@ -506,7 +506,7 @@ def get_dashboard_info():
             'org_id': '1',  # ← 추가
             'dashboard_url': 'http://localhost:3000/d/system_monitoring',
             'grafana_url': 'http://localhost:3000',  # 하위 호환성
-            'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
         }
         
     except Exception as e:
@@ -519,7 +519,7 @@ def get_dashboard_info():
             'org_id': '1',  # ← 추가
             'dashboard_url': 'http://localhost:3000/d/system_monitoring',
             'grafana_url': 'http://localhost:3000',  # 하위 호환성
-            'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
         }
 
 @bp.route('/grafana-dashboard/embed', methods=['GET'])
@@ -561,10 +561,10 @@ def create_grafana_embed_url(dashboard_info, selected_server):
         
         # 여러 방법으로 로그인 문제 해결 시도
         # 방법 1: 기본 인증 정보 포함 (admin:admin) - 테스트용
-        embed_url = f"http://admin:admin@{base_url.replace('http://', '')}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
+        embed_url = f"http://admin:admin@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
         
         # 방법 2: anonymous 모드 (Grafana 설정에서 허용해야 함)
-        # embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
+        # embed_url = f"{base_url}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
         
         # 서버 선택이 'all'이 아닌 경우 필터 추가
         if selected_server != 'all':
