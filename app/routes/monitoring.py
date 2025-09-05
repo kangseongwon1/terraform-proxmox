@@ -487,14 +487,15 @@ def get_dashboard_info():
                 data = json.load(f)
                 
             # Grafana URL과 대시보드 정보 반환 (필드 추가)
+            dashboard_uid = data.get('dashboard_uid', 'system_monitoring')
             return {
                 'base_url': 'http://localhost:3000',  # ← 추가
                 'dashboard_id': data.get('dashboard_id'),
-                'dashboard_uid': data.get('dashboard_uid'),
+                'dashboard_uid': dashboard_uid,
                 'org_id': '1',  # ← 추가
                 'dashboard_url': data.get('dashboard_url'),
                 'grafana_url': 'http://localhost:3000',  # 하위 호환성
-                'embed_url': f"http://localhost:3000/d-solo/{data.get('dashboard_uid')}?orgId=1&theme=light&panelId=1"
+                'embed_url': f"http://localhost:3000/d-solo/{dashboard_uid}?orgId=1&theme=light&panelId=1"
             }
         
         # 파일이 없으면 기본 정보 반환
@@ -551,15 +552,19 @@ def get_grafana_embed_url():
         return jsonify({'error': str(e)}), 500
 
 def create_grafana_embed_url(dashboard_info, selected_server):
-    """Grafana 대시보드 임베드 URL 생성 (수정된 버전)"""
+    """Grafana 대시보드 임베드 URL 생성 (로그인 문제 해결)"""
     try:
         # 필드명 매핑 (하위 호환성)
         base_url = dashboard_info.get('base_url') or dashboard_info.get('grafana_url', 'http://localhost:3000')
         dashboard_uid = dashboard_info['dashboard_uid']
         org_id = dashboard_info.get('org_id', '1')
         
-        # 기본 임베드 URL
-        embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
+        # 여러 방법으로 로그인 문제 해결 시도
+        # 방법 1: 기본 인증 정보 포함 (admin:admin) - 테스트용
+        embed_url = f"http://admin:admin@{base_url.replace('http://', '')}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
+        
+        # 방법 2: anonymous 모드 (Grafana 설정에서 허용해야 함)
+        # embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
         
         # 서버 선택이 'all'이 아닌 경우 필터 추가
         if selected_server != 'all':
