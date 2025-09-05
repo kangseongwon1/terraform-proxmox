@@ -59,6 +59,40 @@ class Config:
     SSH_PRIVATE_KEY_PATH = os.environ.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
     SSH_PUBLIC_KEY_PATH = os.environ.get('SSH_PUBLIC_KEY_PATH', '~/.ssh/id_rsa.pub')
     SSH_USER = os.environ.get('SSH_USER', 'rocky')
+    
+    # 모니터링 설정 (환경 변수)
+    GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
+    GRAFANA_USERNAME = os.environ.get('GRAFANA_USERNAME', 'admin')
+    GRAFANA_PASSWORD = os.environ.get('GRAFANA_PASSWORD', 'admin')
+    GRAFANA_ORG_ID = os.environ.get('GRAFANA_ORG_ID', '1')
+    GRAFANA_DASHBOARD_UID = os.environ.get('GRAFANA_DASHBOARD_UID', 'system_monitoring')
+    GRAFANA_ANONYMOUS_ACCESS = os.environ.get('GRAFANA_ANONYMOUS_ACCESS', 'false').lower() == 'true'
+    GRAFANA_AUTO_REFRESH = os.environ.get('GRAFANA_AUTO_REFRESH', '5s')
+    
+    PROMETHEUS_URL = os.environ.get('PROMETHEUS_URL', 'http://localhost:9090')
+    PROMETHEUS_USERNAME = os.environ.get('PROMETHEUS_USERNAME', '')
+    PROMETHEUS_PASSWORD = os.environ.get('PROMETHEUS_PASSWORD', '')
+    
+    NODE_EXPORTER_AUTO_INSTALL = os.environ.get('NODE_EXPORTER_AUTO_INSTALL', 'true').lower() == 'true'
+    NODE_EXPORTER_PORT = int(os.environ.get('NODE_EXPORTER_PORT', '9100'))
+    NODE_EXPORTER_VERSION = os.environ.get('NODE_EXPORTER_VERSION', '1.6.1')
+    
+    MONITORING_DEFAULT_TIME_RANGE = os.environ.get('MONITORING_DEFAULT_TIME_RANGE', '1h')
+    MONITORING_HEALTH_CHECK_INTERVAL = os.environ.get('MONITORING_HEALTH_CHECK_INTERVAL', '30s')
+    MONITORING_PING_TIMEOUT = os.environ.get('MONITORING_PING_TIMEOUT', '5s')
+    MONITORING_SSH_TIMEOUT = os.environ.get('MONITORING_SSH_TIMEOUT', '10s')
+    
+    ALERTS_ENABLED = os.environ.get('ALERTS_ENABLED', 'true').lower() == 'true'
+    ALERTS_EMAIL = os.environ.get('ALERTS_EMAIL', 'admin@example.com')
+    ALERTS_CPU_WARNING_THRESHOLD = float(os.environ.get('ALERTS_CPU_WARNING_THRESHOLD', '80'))
+    ALERTS_CPU_CRITICAL_THRESHOLD = float(os.environ.get('ALERTS_CPU_CRITICAL_THRESHOLD', '95'))
+    ALERTS_MEMORY_WARNING_THRESHOLD = float(os.environ.get('ALERTS_MEMORY_WARNING_THRESHOLD', '85'))
+    ALERTS_MEMORY_CRITICAL_THRESHOLD = float(os.environ.get('ALERTS_MEMORY_CRITICAL_THRESHOLD', '95'))
+    
+    SECURITY_ENABLE_HTTPS = os.environ.get('SECURITY_ENABLE_HTTPS', 'false').lower() == 'true'
+    SECURITY_ENABLE_AUTH = os.environ.get('SECURITY_ENABLE_AUTH', 'true').lower() == 'true'
+    SECURITY_SESSION_TIMEOUT = int(os.environ.get('SECURITY_SESSION_TIMEOUT', '3600'))
+    SECURITY_MAX_LOGIN_ATTEMPTS = int(os.environ.get('SECURITY_MAX_LOGIN_ATTEMPTS', '5'))
 
 class DevelopmentConfig(Config):
     """개발 환경 설정"""

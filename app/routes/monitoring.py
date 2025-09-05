@@ -11,11 +11,13 @@ from datetime import datetime, timedelta
 from app.models import Server
 from app import db
 from sqlalchemy import text
+from config_loader import get_monitoring_config
+from hybrid_config_loader import get_hybrid_config
 
 bp = Blueprint('monitoring', __name__, url_prefix='/monitoring')
 
-# 프로메테우스 설정 (개발 서버용)
-PROMETHEUS_URL = "http://localhost:9090"  # 개발 서버 IP로 변경 필요
+# 설정 로더 초기화 (하이브리드 방식)
+config = get_hybrid_config()
 
 # 메트릭 캐시 (실제 환경에서는 Redis 등을 사용)
 metrics_cache = {}
@@ -476,8 +478,12 @@ def get_grafana_dashboard():
         return jsonify({'error': str(e)}), 500
 
 def get_dashboard_info():
-    """대시보드 정보 파일에서 정보 읽기 (수정된 버전)"""
+    """대시보드 정보 파일에서 정보 읽기 (config 파일 사용)"""
     try:
+        # config 파일에서 Grafana 설정 가져오기
+        grafana_config = config.get_grafana_config()
+        
+        # 대시보드 정보 파일도 확인 (우선순위: config 파일 > 대시보드 파일)
         import json
         import os
         
@@ -486,40 +492,39 @@ def get_dashboard_info():
             with open(dashboard_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 
-            # Grafana URL과 대시보드 정보 반환 (필드 추가)
-            dashboard_uid = data.get('dashboard_uid', 'system_monitoring')
-            return {
-                'base_url': 'http://localhost:3000',  # ← 추가
-                'dashboard_id': data.get('dashboard_id'),
-                'dashboard_uid': dashboard_uid,
-                'org_id': '1',  # ← 추가
-                'dashboard_url': data.get('dashboard_url'),
-                'grafana_url': 'http://localhost:3000',  # 하위 호환성
-                'embed_url': f"http://localhost:3000/d/{dashboard_uid}?orgId=1&theme=light&kiosk=tv"
-            }
+            # 대시보드 파일의 정보를 config 파일 설정과 병합
+            dashboard_uid = data.get('dashboard_uid', grafana_config['dashboard_uid'])
+            dashboard_id = data.get('dashboard_id', grafana_config['dashboard_id'])
+            dashboard_url = data.get('dashboard_url', grafana_config['dashboard_url'])
+        else:
+            # 대시보드 파일이 없으면 config 파일 설정 사용
+            dashboard_uid = grafana_config['dashboard_uid']
+            dashboard_id = grafana_config['dashboard_id']
+            dashboard_url = grafana_config['dashboard_url']
         
-        # 파일이 없으면 기본 정보 반환
+        # 최종 대시보드 정보 반환
         return {
-            'base_url': 'http://localhost:3000',  # ← 추가
-            'dashboard_id': '1',
-            'dashboard_uid': 'system_monitoring',
-            'org_id': '1',  # ← 추가
-            'dashboard_url': 'http://localhost:3000/d/system_monitoring',
-            'grafana_url': 'http://localhost:3000',  # 하위 호환성
-            'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            'base_url': grafana_config['base_url'],
+            'dashboard_id': dashboard_id,
+            'dashboard_uid': dashboard_uid,
+            'org_id': grafana_config['org_id'],
+            'dashboard_url': dashboard_url,
+            'grafana_url': grafana_config['base_url'],  # 하위 호환성
+            'embed_url': f"{grafana_config['base_url']}/d/{dashboard_uid}?orgId={grafana_config['org_id']}&theme=light&kiosk=tv"
         }
         
     except Exception as e:
         print(f"대시보드 정보 읽기 오류: {e}")
-        # 오류 시 기본 정보 반환
+        # 오류 시 config 파일 기본 설정 반환
+        grafana_config = config.get_grafana_config()
         return {
-            'base_url': 'http://localhost:3000',  # ← 추가
-            'dashboard_id': '1',
-            'dashboard_uid': 'system_monitoring',
-            'org_id': '1',  # ← 추가
-            'dashboard_url': 'http://localhost:3000/d/system_monitoring',
-            'grafana_url': 'http://localhost:3000',  # 하위 호환성
-            'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            'base_url': grafana_config['base_url'],
+            'dashboard_id': grafana_config['dashboard_id'],
+            'dashboard_uid': grafana_config['dashboard_uid'],
+            'org_id': grafana_config['org_id'],
+            'dashboard_url': grafana_config['dashboard_url'],
+            'grafana_url': grafana_config['base_url'],
+            'embed_url': f"{grafana_config['base_url']}/d/{grafana_config['dashboard_uid']}?orgId={grafana_config['org_id']}&theme=light&kiosk=tv"
         }
 
 @bp.route('/grafana-dashboard/embed', methods=['GET'])
@@ -551,31 +556,96 @@ def get_grafana_embed_url():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def create_grafana_embed_url(dashboard_info, selected_server):
-    """Grafana 대시보드 임베드 URL 생성 (로그인 문제 해결)"""
+@bp.route('/config', methods=['GET'])
+@login_required
+def get_monitoring_config_api():
+    """모니터링 설정 조회 API"""
     try:
+        all_config = config.get_all_config()
+        return jsonify({
+            'success': True,
+            'data': all_config
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/config', methods=['POST'])
+@login_required
+def update_monitoring_config_api():
+    """모니터링 설정 업데이트 API"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '설정 데이터가 없습니다.'}), 400
+        
+        # 설정 업데이트 (실제 구현에서는 더 안전한 검증 필요)
+        for section, settings in data.items():
+            if section in config.config:
+                for key, value in settings.items():
+                    config.config.set(section, key, str(value))
+        
+        # 설정 파일 저장
+        config.save_config()
+        
+        return jsonify({
+            'success': True,
+            'message': '설정이 업데이트되었습니다.'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/config-page')
+@login_required
+def monitoring_config_page():
+    """모니터링 설정 페이지"""
+    return render_template('partials/monitoring_config_content.html')
+
+def create_grafana_embed_url(dashboard_info, selected_server):
+    """Grafana 대시보드 임베드 URL 생성 (config 파일 사용)"""
+    try:
+        # config 파일에서 Grafana 설정 가져오기
+        grafana_config = config.get_grafana_config()
+        
         # 필드명 매핑 (하위 호환성)
-        base_url = dashboard_info.get('base_url') or dashboard_info.get('grafana_url', 'http://localhost:3000')
+        base_url = dashboard_info.get('base_url') or dashboard_info.get('grafana_url', grafana_config['base_url'])
         dashboard_uid = dashboard_info['dashboard_uid']
-        org_id = dashboard_info.get('org_id', '1')
+        org_id = dashboard_info.get('org_id', grafana_config['org_id'])
         
-        # 여러 방법으로 로그인 문제 해결 시도
-        # 방법 1: 기본 인증 정보 포함 (admin:admin) - 테스트용
-        embed_url = f"http://admin:admin@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
-        
-        # 방법 2: anonymous 모드 (Grafana 설정에서 허용해야 함)
-        # embed_url = f"{base_url}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
+        # config 파일 설정에 따라 인증 방식 결정
+        if grafana_config['anonymous_access']:
+            # 익명 접근 허용
+            embed_url = f"{base_url}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
+        else:
+            # 기본 인증 정보 포함
+            username = grafana_config['username']
+            password = grafana_config['password']
+            embed_url = f"http://{username}:{password}@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
         
         # 서버 선택이 'all'이 아닌 경우 필터 추가
         if selected_server != 'all':
             # Grafana 변수로 서버 필터링
             embed_url += f"&var-instance={selected_server}:9100"
         
-        # 시간 범위 설정 (최근 1시간)
-        from datetime import datetime, timedelta
-        now = datetime.now()
-        one_hour_ago = now - timedelta(hours=1)
-        embed_url += f"&from={int(one_hour_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
+        # 시간 범위 설정 (config 파일에서 설정)
+        monitoring_config = config.get_monitoring_config()
+        time_range = monitoring_config['default_time_range']
+        
+        if time_range == '1h':
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            one_hour_ago = now - timedelta(hours=1)
+            embed_url += f"&from={int(one_hour_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
+        elif time_range == '6h':
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            six_hours_ago = now - timedelta(hours=6)
+            embed_url += f"&from={int(six_hours_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
+        elif time_range == '24h':
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            one_day_ago = now - timedelta(days=1)
+            embed_url += f"&from={int(one_day_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
         
         return embed_url
         

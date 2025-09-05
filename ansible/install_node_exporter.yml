@@ -1,82 +1,63 @@
 ---
-- name: Install Node Exporter on All Monitoring Targets
-  hosts: monitoring_targets
+# Node Exporter 설치 Playbook
+- name: Node Exporter 설치 및 설정
+  hosts: "{{ target_hosts | default('all') }}"
   become: yes
+  gather_facts: yes
+  
   vars:
     node_exporter_version: "1.6.1"
-    node_exporter_user: "node_exporter"
-    node_exporter_group: "node_exporter"
-    node_exporter_dir: "/opt/node_exporter"
-    node_exporter_bin: "/usr/local/bin/node_exporter"
-    node_exporter_service: "node_exporter"
-    node_exporter_port: "9100"
-
+    node_exporter_port: 9100
+    
   tasks:
-    - name: Create node_exporter user
-      user:
-        name: "{{ node_exporter_user }}"
-        system: yes
-        shell: /sbin/nologin
-        createhome: no
-
-    - name: Create node_exporter directory
-      file:
-        path: "{{ node_exporter_dir }}"
-        state: directory
-        owner: "{{ node_exporter_user }}"
-        group: "{{ node_exporter_group }}"
-        mode: '0755'
-
-    - name: Download Node Exporter
-      get_url:
-        url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
-        dest: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
-        mode: '0644'
-
-    - name: Extract Node Exporter
-      unarchive:
-        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
-        dest: "/tmp/"
-        remote_src: yes
-        creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
-
-    - name: Copy Node Exporter binary
-      copy:
-        src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
-        dest: "{{ node_exporter_bin }}"
-        remote_src: yes
-        mode: '0755'
-        owner: "{{ node_exporter_user }}"
-        group: "{{ node_exporter_group }}"
-
-    - name: Create Node Exporter systemd service
-      template:
-        src: node_exporter.service.j2
-        dest: /etc/systemd/system/{{ node_exporter_service }}.service
-        owner: root
-        group: root
-        mode: '0644'
-      notify: restart node_exporter
-
-    - name: Enable and start Node Exporter
+    - name: Node Exporter 설치 확인
+      stat:
+        path: /opt/node_exporter/node_exporter
+      register: node_exporter_installed
+      
+    - name: Node Exporter 서비스 상태 확인
       systemd:
-        name: "{{ node_exporter_service }}"
-        enabled: yes
-        state: started
-        daemon_reload: yes
-
-    - name: Clean up temporary files
-      file:
-        path: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
-        state: absent
-
-    - name: Clean up downloaded archive
-      file:
-        path: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
-        state: absent
-
-  handlers:
-    - name: restart node_exporter
+        name: node_exporter
+      register: node_exporter_service
+      ignore_errors: yes
+      
+    - name: Node Exporter 설치 상태 출력
+      debug:
+        msg: |
+          Node Exporter 설치 상태:
+          - 바이너리 존재: {{ node_exporter_installed.stat.exists }}
+          - 서비스 상태: {{ node_exporter_service.status.ActiveState | default('unknown') }}
+          - 서비스 활성화: {{ node_exporter_service.status.UnitFileState | default('unknown') }}
+          
+    - name: Node Exporter 설치 (미설치된 경우에만)
+      include_role:
+        name: node_exporter
+      when: not node_exporter_installed.stat.exists
+      
+    - name: Node Exporter 서비스 재시작 (이미 설치된 경우)
       systemd:
-        name: "{{ node_exporter_service }}"
+        name: node_exporter
         state: restarted
+        daemon_reload: yes
+      when: node_exporter_installed.stat.exists and node_exporter_service.status.ActiveState != "active"
+      
+    - name: Node Exporter 포트 확인
+      wait_for:
+        port: "{{ node_exporter_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        timeout: 30
+      register: port_check
+      
+    - name: Node Exporter 설치 완료 알림
+      debug:
+        msg: |
+          ✅ Node Exporter 설치 완료!
+          - 서버: {{ inventory_hostname }}
+          - IP: {{ ansible_default_ipv4.address }}
+          - 포트: {{ node_exporter_port }}
+          - 메트릭 URL: http://{{ ansible_default_ipv4.address }}:{{ node_exporter_port }}/metrics
+          
+    - name: Node Exporter 설치 실패 알림
+      fail:
+        msg: "Node Exporter 포트 {{ node_exporter_port }}에 연결할 수 없습니다."
+      when: port_check.failed

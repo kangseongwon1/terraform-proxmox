@@ -406,6 +406,9 @@ class AnsibleService:
             print(f"🔧 서버 데이터: {server_data}")
             print(f"🔧 Dynamic Inventory 스크립트 사용: {self.dynamic_inventory_script}")
             
+            # 6. Node Exporter 자동 설치 (모니터링 설정이 활성화된 경우)
+            self._install_node_exporter_if_needed(server_name, server.ip_address)
+            
             # 7. 역할별 추가 변수 설정
             role_vars = extra_vars or {}
             
@@ -843,6 +846,76 @@ Return Code: {returncode}
         thread.start()
         
         return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
+
+    def _install_node_exporter_if_needed(self, server_name: str, server_ip: str) -> bool:
+        """Node Exporter 자동 설치 (모니터링 설정이 활성화된 경우)"""
+        try:
+            # 모니터링 설정 확인 (하이브리드 방식)
+            from hybrid_config_loader import get_hybrid_config
+            config = get_hybrid_config()
+            monitoring_config = config.get_monitoring_config()
+            
+            # Node Exporter 자동 설치가 비활성화된 경우 스킵
+            if not monitoring_config.get('auto_install_node_exporter', True):
+                print(f"🔧 Node Exporter 자동 설치가 비활성화됨: {server_name}")
+                return True
+            
+            print(f"🔧 Node Exporter 자동 설치 시작: {server_name} ({server_ip})")
+            
+            # Node Exporter 설치 Playbook 경로
+            node_exporter_playbook = os.path.join(self.ansible_dir, "install_node_exporter.yml")
+            
+            if not os.path.exists(node_exporter_playbook):
+                print(f"⚠️ Node Exporter 설치 Playbook이 없습니다: {node_exporter_playbook}")
+                return False
+            
+            # Node Exporter 설치 실행
+            extra_vars = {
+                'target_hosts': server_ip
+            }
+            
+            # Node Exporter 설치 실행 (동기)
+            success, result = self.run_playbook(
+                role='node_exporter',
+                extra_vars=extra_vars,
+                target_server=server_ip
+            )
+            
+            if success:
+                print(f"✅ Node Exporter 설치 완료: {server_name} ({server_ip})")
+                
+                # 성공 알림 생성
+                self._create_notification(
+                    f"Node Exporter 설치 완료 - {server_name}",
+                    f"서버 {server_name}에 Node Exporter가 성공적으로 설치되었습니다.\n메트릭 URL: http://{server_ip}:9100/metrics",
+                    "success"
+                )
+                return True
+            else:
+                print(f"❌ Node Exporter 설치 실패: {server_name} ({server_ip})")
+                
+                # 실패 알림 생성
+                self._create_notification(
+                    f"Node Exporter 설치 실패 - {server_name}",
+                    f"서버 {server_name}에 Node Exporter 설치 중 오류가 발생했습니다.\n오류: {result}",
+                    "error"
+                )
+                return False
+                
+        except Exception as e:
+            print(f"❌ Node Exporter 자동 설치 중 오류: {e}")
+            
+            # 오류 알림 생성
+            try:
+                self._create_notification(
+                    f"Node Exporter 설치 오류 - {server_name}",
+                    f"서버 {server_name}에 Node Exporter 설치 중 예외가 발생했습니다.\n오류: {str(e)}",
+                    "error"
+                )
+            except:
+                pass
+            
+            return False
 
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""
