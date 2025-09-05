@@ -476,7 +476,7 @@ def get_grafana_dashboard():
         return jsonify({'error': str(e)}), 500
 
 def get_dashboard_info():
-    """대시보드 정보 파일에서 정보 읽기"""
+    """대시보드 정보 파일에서 정보 읽기 (수정된 버전)"""
     try:
         import json
         import os
@@ -486,20 +486,40 @@ def get_dashboard_info():
             with open(dashboard_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 
-            # Grafana URL과 대시보드 정보 반환
+            # Grafana URL과 대시보드 정보 반환 (필드 추가)
             return {
+                'base_url': 'http://localhost:3000',  # ← 추가
                 'dashboard_id': data.get('dashboard_id'),
                 'dashboard_uid': data.get('dashboard_uid'),
+                'org_id': '1',  # ← 추가
                 'dashboard_url': data.get('dashboard_url'),
-                'grafana_url': 'http://localhost:3000',  # 설정에서 가져올 수도 있음
+                'grafana_url': 'http://localhost:3000',  # 하위 호환성
                 'embed_url': f"http://localhost:3000/d-solo/{data.get('dashboard_uid')}?orgId=1&theme=light&panelId=1"
             }
         
-        return None
+        # 파일이 없으면 기본 정보 반환
+        return {
+            'base_url': 'http://localhost:3000',  # ← 추가
+            'dashboard_id': '1',
+            'dashboard_uid': 'system_monitoring',
+            'org_id': '1',  # ← 추가
+            'dashboard_url': 'http://localhost:3000/d/system_monitoring',
+            'grafana_url': 'http://localhost:3000',  # 하위 호환성
+            'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+        }
         
     except Exception as e:
         print(f"대시보드 정보 읽기 오류: {e}")
-        return None
+        # 오류 시 기본 정보 반환
+        return {
+            'base_url': 'http://localhost:3000',  # ← 추가
+            'dashboard_id': '1',
+            'dashboard_uid': 'system_monitoring',
+            'org_id': '1',  # ← 추가
+            'dashboard_url': 'http://localhost:3000/d/system_monitoring',
+            'grafana_url': 'http://localhost:3000',  # 하위 호환성
+            'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+        }
 
 @bp.route('/grafana-dashboard/embed', methods=['GET'])
 @login_required
@@ -531,26 +551,32 @@ def get_grafana_embed_url():
         return jsonify({'error': str(e)}), 500
 
 def create_grafana_embed_url(dashboard_info, selected_server):
-    """Grafana 대시보드 임베드 URL 생성"""
+    """Grafana 대시보드 임베드 URL 생성 (수정된 버전)"""
     try:
-        base_url = dashboard_info['grafana_url']
+        # 필드명 매핑 (하위 호환성)
+        base_url = dashboard_info.get('base_url') or dashboard_info.get('grafana_url', 'http://localhost:3000')
         dashboard_uid = dashboard_info['dashboard_uid']
+        org_id = dashboard_info.get('org_id', '1')
         
         # 기본 임베드 URL
-        embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId=1&theme=light"
+        embed_url = f"{base_url}/d-solo/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh=5s"
         
         # 서버 선택이 'all'이 아닌 경우 필터 추가
         if selected_server != 'all':
-            embed_url += f"&var-server={selected_server}"
+            # Grafana 변수로 서버 필터링
+            embed_url += f"&var-instance={selected_server}:9100"
         
-        # 추가 옵션
-        embed_url += "&kiosk=tv&autofitpanels"
+        # 시간 범위 설정 (최근 1시간)
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        one_hour_ago = now - timedelta(hours=1)
+        embed_url += f"&from={int(one_hour_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
         
         return embed_url
         
     except Exception as e:
         print(f"임베드 URL 생성 오류: {e}")
-        return dashboard_info.get('dashboard_url', '')
+        return dashboard_info.get('embed_url', '')
 
 def get_actual_servers():
     """실제 DB에서 서버 목록 가져오기"""
