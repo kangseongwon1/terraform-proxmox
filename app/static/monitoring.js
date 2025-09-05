@@ -289,7 +289,7 @@ $(document).ready(function() {
         const orgId = grafanaDashboardInfo.org_id;
         
         // 기본 임베드 URL (자동 새로고침 포함)
-        let embedUrl = `${baseUrl}/d-solo/${dashboardUid}?orgId=${orgId}&theme=light&kiosk=tv&autofitpanels&refresh=5s`;
+        let embedUrl = `${baseUrl}/d/${dashboardUid}?orgId=${orgId}&theme=light&kiosk=tv&autofitpanels&refresh=5s`;
         
         // 서버별 필터링 (Grafana 변수 사용)
         if (selectedServer && selectedServer !== 'all') {
