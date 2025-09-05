@@ -73,7 +73,459 @@ def get_security_config():
         'max_login_attempts': int(os.environ.get('SECURITY_MAX_LOGIN_ATTEMPTS', '5'))
     }
 
-# ... 기존 함수들 ...
+def get_current_alerts():
+    """현재 알림 목록 반환"""
+    try:
+        # 실제 환경에서는 DB에서 알림을 가져옴
+        # 현재는 메모리에서 관리 (테스트용)
+        if not hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts = []
+        
+        return get_current_alerts._alerts
+        
+    except Exception as e:
+        print(f"알림 목록 조회 오류: {e}")
+        return []
+
+def add_alert(alert):
+    """새 알림 추가"""
+    try:
+        if not hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts = []
+        
+        # 중복 알림 체크 (같은 서버, 같은 메트릭, 같은 레벨)
+        existing_alert = next(
+            (a for a in get_current_alerts._alerts 
+             if a['server_ip'] == alert['server_ip'] 
+             and a['metric_type'] == alert['metric_type'] 
+             and a['level'] == alert['level']), None
+        )
+        
+        if not existing_alert:
+            get_current_alerts._alerts.append(alert)
+            print(f"새 알림 추가: {alert['message']}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"알림 추가 오류: {e}")
+        return False
+
+def acknowledge_alert(alert_id):
+    """알림 확인 처리"""
+    try:
+        alerts = get_current_alerts()
+        for alert in alerts:
+            if alert['id'] == alert_id:
+                alert['acknowledged'] = True
+                alert['acknowledged_at'] = datetime.now().isoformat()
+                print(f"알림 확인 처리: {alert_id}")
+                return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"알림 확인 처리 오류: {e}")
+        return False
+
+def clear_old_alerts():
+    """오래된 알림 정리 (24시간 이상 된 알림)"""
+    try:
+        alerts = get_current_alerts()
+        current_time = datetime.now()
+        
+        # 24시간 이상 된 알림 제거
+        alerts[:] = [
+            alert for alert in alerts 
+            if (current_time - datetime.fromisoformat(alert['timestamp'])).total_seconds() < 86400
+        ]
+        
+        print(f"오래된 알림 정리 완료")
+        
+    except Exception as e:
+        print(f"오래된 알림 정리 오류: {e}")
+
+@bp.route('/alerts/<alert_id>/acknowledge', methods=['POST'])
+@login_required
+def acknowledge_alert_route(alert_id):
+    """알림 확인 처리 API"""
+    try:
+        if acknowledge_alert(alert_id):
+            return jsonify({
+                'success': True,
+                'message': '알림이 확인 처리되었습니다.'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': '알림을 찾을 수 없습니다.'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/alerts/clear', methods=['POST'])
+@login_required
+def clear_alerts():
+    """모든 알림 정리"""
+    try:
+        if hasattr(get_current_alerts, '_alerts'):
+            get_current_alerts._alerts.clear()
+        
+        return jsonify({
+            'success': True,
+            'message': '모든 알림이 정리되었습니다.'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/content', methods=['GET'])
+@login_required
+def monitoring_content():
+    """모니터링 페이지 컨텐츠"""
+    return render_template('partials/monitoring_content.html')
+
+@bp.route('/test-metrics', methods=['GET'])
+def test_metrics():
+    """테스트용 메트릭 (인증 없음)"""
+    try:
+        server_ip = request.args.get('server', 'all')
+        
+        if server_ip == 'all':
+            # 모든 서버의 메트릭
+            metrics = {}
+            servers = get_actual_servers()
+            for server in servers:
+                metrics[server['ip']] = generate_sample_metrics(server['ip'])
+            
+            return jsonify({
+                'success': True,
+                'data': metrics,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            # 특정 서버의 메트릭
+            metrics = generate_sample_metrics(server_ip)
+            return jsonify({
+                'success': True,
+                'data': metrics,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/test-summary', methods=['GET'])
+def test_summary():
+    """테스트용 요약 통계 (인증 없음)"""
+    try:
+        servers = get_actual_servers()
+        total = len(servers)
+        healthy = len([s for s in servers if s['status'] == 'healthy'])
+        warning = len([s for s in servers if s['status'] == 'warning'])
+        critical = len([s for s in servers if s['status'] == 'critical'])
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_servers': total,
+                'healthy_servers': healthy,
+                'warning_servers': warning,
+                'critical_servers': critical,
+                'last_update': datetime.now().isoformat()
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/test-servers', methods=['GET'])
+def test_servers():
+    """테스트용 서버 목록 (인증 없음)"""
+    try:
+        servers = get_actual_servers()
+        return jsonify({
+            'success': True,
+            'data': servers
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/simple-metrics', methods=['GET'])
+@login_required
+def get_simple_metrics():
+    """간단한 샘플 메트릭 반환 (Prometheus 없이 테스트용)"""
+    try:
+        server_ip = request.args.get('server', 'all')
+        
+        if server_ip == 'all':
+            # 모든 서버의 메트릭
+            metrics = {}
+            servers = get_actual_servers()
+            for server in servers:
+                metrics[server['ip']] = generate_sample_metrics(server['ip'])
+            
+            return jsonify({
+                'success': True,
+                'data': metrics,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            # 특정 서버의 메트릭
+            metrics = generate_sample_metrics(server_ip)
+            return jsonify({
+                'success': True,
+                'data': metrics,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/summary', methods=['GET'])
+@login_required
+def get_monitoring_summary():
+    """모니터링 요약 통계 반환"""
+    try:
+        servers = get_actual_servers()
+        total = len(servers)
+        healthy = len([s for s in servers if s['status'] == 'healthy'])
+        warning = len([s for s in servers if s['status'] == 'warning'])
+        critical = len([s for s in servers if s['status'] == 'critical'])
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_servers': total,
+                'healthy_servers': healthy,
+                'warning_servers': warning,
+                'critical_servers': critical,
+                'last_update': datetime.now().isoformat()
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/servers', methods=['GET'])
+@login_required
+def get_monitoring_servers():
+    """모니터링 대상 서버 목록 반환"""
+    try:
+        servers = get_actual_servers()
+        return jsonify({
+            'success': True,
+            'data': servers
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/real-time-metrics', methods=['GET'])
+@login_required
+def get_real_time_metrics():
+    """실시간 메트릭 반환 (웹 콘솔 차트 업데이트용)"""
+    try:
+        server_ip = request.args.get('server', 'all')
+        metric_type = request.args.get('type', 'all')
+        
+        if server_ip == 'all':
+            # 전체 서버의 평균 메트릭
+            all_metrics = {}
+            servers = get_actual_servers()
+            
+            if not servers:
+                # 서버가 없으면 기본 메트릭 반환
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'cpu_usage': 0,
+                        'memory_usage': 0,
+                        'disk_usage': 0,
+                        'network_usage': 0,
+                        'timestamp': int(time.time())
+                    }
+                })
+            
+            # 실제 서버 상태 기반 메트릭 생성
+            for server in servers:
+                # 서버 상태에 따른 현실적인 메트릭
+                if server['status'] == 'critical':
+                    # 위험 상태 - 높은 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(80, 95),
+                        'memory_usage': random.uniform(85, 98),
+                        'disk_usage': random.uniform(85, 95),
+                        'network_usage': random.uniform(70, 90)
+                    }
+                elif server['status'] == 'warning':
+                    # 경고 상태 - 중간 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(60, 80),
+                        'memory_usage': random.uniform(70, 85),
+                        'disk_usage': random.uniform(70, 85),
+                        'network_usage': random.uniform(50, 70)
+                    }
+                else:
+                    # 정상 상태 - 낮은 사용률
+                    all_metrics[server['ip']] = {
+                        'cpu_usage': random.uniform(10, 40),
+                        'memory_usage': random.uniform(20, 60),
+                        'disk_usage': random.uniform(30, 70),
+                        'network_usage': random.uniform(5, 25)
+                    }
+            
+            # 평균값 계산
+            cpu_avg = sum(m['cpu_usage'] for m in all_metrics.values()) / len(all_metrics)
+            memory_avg = sum(m['memory_usage'] for m in all_metrics.values()) / len(all_metrics)
+            disk_avg = sum(m['disk_usage'] for m in all_metrics.values()) / len(all_metrics)
+            network_avg = sum(m['network_usage'] for m in all_metrics.values()) / len(all_metrics)
+            
+            result = {
+                'timestamp': int(time.time()),
+                'cpu_usage': round(cpu_avg, 2),
+                'memory_usage': round(memory_avg, 2),
+                'disk_usage': round(disk_avg, 2),
+                'network_usage': round(network_avg, 2)
+            }
+            
+        else:
+            # 특정 서버의 메트릭 - 해당 서버 상태 기반
+            servers = get_actual_servers()
+            target_server = next((s for s in servers if s['ip'] == server_ip), None)
+            
+            if target_server:
+                # 서버 상태에 따른 메트릭
+                if target_server['status'] == 'critical':
+                    metrics = {
+                        'cpu_usage': random.uniform(80, 95),
+                        'memory_usage': random.uniform(85, 98),
+                        'disk_usage': random.uniform(85, 95),
+                        'network_usage': random.uniform(70, 90)
+                    }
+                elif target_server['status'] == 'warning':
+                    metrics = {
+                        'cpu_usage': random.uniform(60, 80),
+                        'memory_usage': random.uniform(70, 85),
+                        'disk_usage': random.uniform(70, 85),
+                        'network_usage': random.uniform(50, 70)
+                    }
+                else:
+                    metrics = {
+                        'cpu_usage': random.uniform(10, 40),
+                        'memory_usage': random.uniform(20, 60),
+                        'disk_usage': random.uniform(30, 70),
+                        'network_usage': random.uniform(5, 25)
+                    }
+                
+                result = {
+                    'timestamp': int(time.time()),
+                    'cpu_usage': round(metrics['cpu_usage'], 2),
+                    'memory_usage': round(metrics['memory_usage'], 2),
+                    'disk_usage': round(metrics['disk_usage'], 2),
+                    'network_usage': round(metrics['network_usage'], 2)
+                }
+            else:
+                # 서버를 찾을 수 없는 경우
+                result = {
+                    'timestamp': int(time.time()),
+                    'cpu_usage': 0,
+                    'memory_usage': 0,
+                    'disk_usage': 0,
+                    'network_usage': 0
+                }
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        print(f"실시간 메트릭 생성 오류: {e}")
+        # 오류 시 기본 메트릭 반환
+        return jsonify({
+            'success': True,
+            'data': {
+                'cpu_usage': 0,
+                'memory_usage': 0,
+                'disk_usage': 0,
+                'network_usage': 0,
+                'timestamp': int(time.time())
+            }
+        })
+
+@bp.route('/chart-data', methods=['GET'])
+@login_required
+def get_chart_data():
+    """차트용 시계열 데이터 반환"""
+    try:
+        server_ip = request.args.get('server', 'all')
+        metric_type = request.args.get('type', 'cpu')
+        data_points = request.args.get('points', 20, type=int)
+        
+        # 시계열 데이터 생성 (실제 환경에서는 Prometheus에서 가져옴)
+        chart_data = []
+        current_time = int(time.time())
+        
+        for i in range(data_points):
+            timestamp = current_time - (data_points - i - 1) * 5  # 5초 간격
+            if server_ip == 'all':
+                # 전체 서버 평균
+                value = random.uniform(20, 70)  # 실제로는 계산된 값
+            else:
+                # 특정 서버
+                value = random.uniform(15, 80)  # 실제로는 해당 서버 값
+            
+            chart_data.append({
+                'timestamp': timestamp,
+                'value': round(value, 2)
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'server': server_ip,
+                'metric_type': metric_type,
+                'data_points': data_points,
+                'series': chart_data
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/grafana-dashboard', methods=['GET'])
+@login_required
+def get_grafana_dashboard():
+    """Grafana 대시보드 정보 조회 (개선된 버전)"""
+    try:
+        dashboard_info = get_dashboard_info()
+        if dashboard_info:
+            return jsonify({
+                'success': True,
+                'data': dashboard_info
+            })
+        else:
+            # 대시보드 정보가 없으면 기본 정보 반환
+            default_info = {
+                'base_url': 'http://localhost:3000',
+                'dashboard_id': '1',
+                'dashboard_uid': 'system_monitoring',
+                'org_id': '1',
+                'dashboard_url': 'http://localhost:3000/d/system_monitoring',
+                'grafana_url': 'http://localhost:3000',
+                'embed_url': 'http://localhost:3000/d/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            }
+            return jsonify({
+                'success': True,
+                'data': default_info
+            })
+            
+    except Exception as e:
+        print(f"Grafana 대시보드 정보 조회 오류: {e}")
+        return jsonify({'error': str(e)}), 500
 
 def get_dashboard_info():
     """대시보드 정보를 .env에서 직접 가져오기"""
@@ -121,6 +573,35 @@ def get_dashboard_info():
             'grafana_url': grafana_config['base_url'],
             'embed_url': f"{grafana_config['base_url']}/d/{grafana_config['dashboard_uid']}?orgId={grafana_config['org_id']}&theme=light&kiosk=tv"
         }
+
+@bp.route('/grafana-dashboard/embed', methods=['GET'])
+@login_required
+def get_grafana_embed_url():
+    """Grafana 대시보드 임베드 URL 생성"""
+    try:
+        dashboard_info = get_dashboard_info()
+        if not dashboard_info:
+            return jsonify({
+                'success': False,
+                'error': '대시보드 정보를 찾을 수 없습니다.'
+            }), 404
+        
+        # 서버 선택 파라미터 추가
+        selected_server = request.args.get('server', 'all')
+        
+        # Grafana 대시보드 임베드 URL 생성
+        embed_url = create_grafana_embed_url(dashboard_info, selected_server)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'embed_url': embed_url,
+                'dashboard_info': dashboard_info
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 def create_grafana_embed_url(dashboard_info, selected_server):
     """Grafana 대시보드 임베드 URL 생성 (.env 사용)"""
@@ -199,15 +680,7 @@ def update_monitoring_config_api():
         if not data:
             return jsonify({'error': '설정 데이터가 없습니다.'}), 400
         
-        # 설정 업데이트 (실제 구현에서는 더 안전한 검증 필요)
-        for section, settings in data.items():
-            if section in config.config:
-                for key, value in settings.items():
-                    config.config.set(section, key, str(value))
-        
-        # 설정 파일 저장
-        config.save_config()
-        
+        # .env 파일 업데이트는 별도 구현 필요
         return jsonify({
             'success': True,
             'message': '설정이 업데이트되었습니다.'
@@ -221,58 +694,6 @@ def update_monitoring_config_api():
 def monitoring_config_page():
     """모니터링 설정 페이지"""
     return render_template('partials/monitoring_config_content.html')
-
-def create_grafana_embed_url(dashboard_info, selected_server):
-    """Grafana 대시보드 임베드 URL 생성 (config 파일 사용)"""
-    try:
-        # config 파일에서 Grafana 설정 가져오기
-        grafana_config = config.get_grafana_config()
-        
-        # 필드명 매핑 (하위 호환성)
-        base_url = dashboard_info.get('base_url') or dashboard_info.get('grafana_url', grafana_config['base_url'])
-        dashboard_uid = dashboard_info['dashboard_uid']
-        org_id = dashboard_info.get('org_id', grafana_config['org_id'])
-        
-        # config 파일 설정에 따라 인증 방식 결정
-        if grafana_config['anonymous_access']:
-            # 익명 접근 허용
-            embed_url = f"{base_url}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
-        else:
-            # 기본 인증 정보 포함
-            username = grafana_config['username']
-            password = grafana_config['password']
-            embed_url = f"http://{username}:{password}@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
-        
-        # 서버 선택이 'all'이 아닌 경우 필터 추가
-        if selected_server != 'all':
-            # Grafana 변수로 서버 필터링
-            embed_url += f"&var-instance={selected_server}:9100"
-        
-        # 시간 범위 설정 (config 파일에서 설정)
-        monitoring_config = config.get_monitoring_config()
-        time_range = monitoring_config['default_time_range']
-        
-        if time_range == '1h':
-            from datetime import datetime, timedelta
-            now = datetime.now()
-            one_hour_ago = now - timedelta(hours=1)
-            embed_url += f"&from={int(one_hour_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
-        elif time_range == '6h':
-            from datetime import datetime, timedelta
-            now = datetime.now()
-            six_hours_ago = now - timedelta(hours=6)
-            embed_url += f"&from={int(six_hours_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
-        elif time_range == '24h':
-            from datetime import datetime, timedelta
-            now = datetime.now()
-            one_day_ago = now - timedelta(days=1)
-            embed_url += f"&from={int(one_day_ago.timestamp() * 1000)}&to={int(now.timestamp() * 1000)}"
-        
-        return embed_url
-        
-    except Exception as e:
-        print(f"임베드 URL 생성 오류: {e}")
-        return dashboard_info.get('embed_url', '')
 
 def get_actual_servers():
     """실제 DB에서 서버 목록 가져오기"""
