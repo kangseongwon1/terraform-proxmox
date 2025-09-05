@@ -447,7 +447,7 @@ def get_chart_data():
 @bp.route('/grafana-dashboard', methods=['GET'])
 @login_required
 def get_grafana_dashboard():
-    """Grafana 대시보드 정보 조회"""
+    """Grafana 대시보드 정보 조회 (개선된 버전)"""
     try:
         dashboard_info = get_dashboard_info()
         if dashboard_info:
@@ -456,12 +456,23 @@ def get_grafana_dashboard():
                 'data': dashboard_info
             })
         else:
+            # 대시보드 정보가 없으면 기본 정보 반환
+            default_info = {
+                'base_url': 'http://localhost:3000',
+                'dashboard_id': '1',
+                'dashboard_uid': 'system_monitoring',
+                'org_id': '1',
+                'dashboard_url': 'http://localhost:3000/d/system_monitoring',
+                'grafana_url': 'http://localhost:3000',
+                'embed_url': 'http://localhost:3000/d-solo/system_monitoring?orgId=1&theme=light&kiosk=tv'
+            }
             return jsonify({
-                'success': False,
-                'error': '대시보드 정보를 찾을 수 없습니다.'
-            }), 404
+                'success': True,
+                'data': default_info
+            })
             
     except Exception as e:
+        print(f"Grafana 대시보드 정보 조회 오류: {e}")
         return jsonify({'error': str(e)}), 500
 
 def get_dashboard_info():
