@@ -24,18 +24,32 @@ variable "servers" {
   }))
 }
 
+# Vault 설정
+variable "vault_address" {
+  description = "Vault server address"
+  type        = string
+  default     = "http://127.0.0.1:8200"
+}
 
+variable "vault_token" {
+  description = "Vault token for authentication"
+  type        = string
+  sensitive   = true
+}
 
-# variable "vault_token" {
-#   description = "Vault token for authentication"
-#   type        = string
-#   sensitive   = true
-# }
-
+# Proxmox 설정 (Vault에서 가져올 예정)
 variable "proxmox_endpoint" { type = string }
 variable "proxmox_username" { type = string }
-variable "proxmox_password" { type = string }
+variable "proxmox_password" { 
+  type = string
+  sensitive = true
+}
 variable "proxmox_node" { type = string }
+
+# VM 설정 (Vault에서 가져올 예정)
 variable "vm_username" { type = string }
-variable "vm_password" { type = string }
+variable "vm_password" { 
+  type = string
+  sensitive = true
+}
 variable "ssh_keys" { type = string }

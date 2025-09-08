@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # ========================================
-# Proxmox 서버 자동 생성 시스템 설치 스크립트
+# Proxmox 서버 자동 생성 시스템 설치 스크립트 (보안 강화 버전)
 # ========================================
+# 이 스크립트는 .env 파일의 변수를 참조하여 설치합니다.
+# 절대 민감한 정보가 하드코딩되지 않습니다.
 
 set -e  # 오류 발생 시 스크립트 중단
 
@@ -30,215 +32,235 @@ log_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
-# 시스템 확인
-check_system() {
-    log_info "시스템 요구사항을 확인합니다..."
-    
-    # OS 확인
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        log_success "Linux 시스템 감지됨"
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        log_success "macOS 시스템 감지됨"
-    else
-        log_warning "지원되지 않는 OS: $OSTYPE"
+# .env 파일 확인
+check_env_file() {
+    if [ ! -f ".env" ]; then
+        log_error ".env 파일이 없습니다!"
+        log_info "env_template.txt를 .env로 복사한 후 설정하세요:"
+        log_info "cp env_template.txt .env"
+        log_info "nano .env"
+        exit 1
     fi
     
-    # Python 버전 확인
+    log_success ".env 파일 확인 완료"
+}
+
+# .env 파일 로드
+load_env() {
+    log_info ".env 파일 로드 중..."
+    
+    # .env 파일에서 변수 로드 (주석과 빈 줄 제외)
+    export $(grep -v '^#' .env | grep -v '^$' | xargs)
+    
+    # 필수 변수 확인
+    required_vars=(
+        "PROXMOX_ENDPOINT"
+        "PROXMOX_USERNAME"
+        "PROXMOX_PASSWORD"
+        "PROXMOX_NODE"
+    )
+    
+    for var in "${required_vars[@]}"; do
+        if [ -z "${!var}" ]; then
+            log_error "필수 환경변수 $var가 설정되지 않았습니다!"
+            exit 1
+        fi
+    done
+    
+    log_success "환경변수 로드 완료"
+}
+
+# 시스템 업데이트
+update_system() {
+    log_info "시스템 업데이트 중..."
+    
+    if command -v apt &> /dev/null; then
+        sudo apt update && sudo apt upgrade -y
+    elif command -v dnf &> /dev/null; then
+        sudo dnf update -y
+    elif command -v yum &> /dev/null; then
+        sudo yum update -y
+    else
+        log_warning "지원되지 않는 패키지 매니저입니다."
+    fi
+    
+    log_success "시스템 업데이트 완료"
+}
+
+# Python 및 pip 설치
+install_python() {
+    log_info "Python 및 pip 설치 중..."
+    
     if command -v python3 &> /dev/null; then
-        PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
-        log_success "Python $PYTHON_VERSION 발견됨"
+        log_info "Python3 이미 설치됨"
     else
-        log_error "Python 3이 설치되지 않았습니다. 먼저 Python 3를 설치해주세요."
-        exit 1
+        if command -v apt &> /dev/null; then
+            sudo apt install -y python3 python3-pip python3-venv
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y python3 python3-pip python3-venv
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y python3 python3-pip
+        fi
     fi
     
-    # Git 확인
-    if command -v git &> /dev/null; then
-        log_success "Git 발견됨"
-    else
-        log_error "Git이 설치되지 않았습니다. 먼저 Git을 설치해주세요."
-        exit 1
-    fi
-}
-
-# 필요한 디렉토리 생성
-create_directories() {
-    log_info "필요한 디렉토리를 생성합니다..."
-    
-    mkdir -p projects
-    mkdir -p logs
-    mkdir -p static
-    mkdir -p templates/partials
-    
-    log_success "디렉토리 생성 완료"
-}
-
-# Python 가상환경 설정
-setup_python_env() {
-    log_info "Python 가상환경을 설정합니다..."
-    
-    # 가상환경 생성
-    if [ ! -d "venv" ]; then
-        python3 -m venv venv
-        log_success "가상환경 생성 완료"
-    else
-        log_warning "가상환경이 이미 존재합니다"
-    fi
-    
-    # 가상환경 활성화
-    source venv/bin/activate
-    
-    # pip 업그레이드
-    pip install --upgrade pip
-    
-    # Python 의존성 설치
-    if [ -f "requirements.txt" ]; then
-        log_info "Python 패키지를 설치합니다..."
-        pip install -r requirements.txt
-        log_success "Python 패키지 설치 완료"
-    else
-        log_warning "requirements.txt 파일이 없습니다"
-    fi
+    log_success "Python 설치 완료"
 }
 
 # Terraform 설치
 install_terraform() {
-    log_info "Terraform 설치를 확인합니다..."
+    log_info "Terraform 설치 중..."
     
     if command -v terraform &> /dev/null; then
-        TERRAFORM_VERSION=$(terraform --version | head -n1 | cut -d' ' -f2)
-        log_success "Terraform $TERRAFORM_VERSION 발견됨"
+        log_info "Terraform 이미 설치됨"
     else
-        log_warning "Terraform이 설치되지 않았습니다"
-        log_info "Terraform을 설치하려면 다음 명령을 실행하세요:"
-        echo "curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -"
-        echo "sudo apt-add-repository \"deb [arch=amd64] https://apt.releases.hashicorp.com \$(lsb_release -cs) main\""
-        echo "sudo apt update && sudo apt install terraform"
+        if command -v apt &> /dev/null; then
+            wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+            sudo apt update && sudo apt install -y terraform
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y dnf-plugins-core
+            sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+            sudo dnf install -y terraform
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y yum-utils
+            sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+            sudo yum install -y terraform
+        fi
     fi
+    
+    log_success "Terraform 설치 완료"
 }
 
 # Ansible 설치
 install_ansible() {
-    log_info "Ansible 설치를 확인합니다..."
+    log_info "Ansible 설치 중..."
     
     if command -v ansible &> /dev/null; then
-        ANSIBLE_VERSION=$(ansible --version | head -n1 | cut -d' ' -f2)
-        log_success "Ansible $ANSIBLE_VERSION 발견됨"
+        log_info "Ansible 이미 설치됨"
     else
-        log_warning "Ansible이 설치되지 않았습니다"
-        log_info "Ansible을 설치하려면 다음 명령을 실행하세요:"
-        echo "sudo apt install ansible"
+        if command -v apt &> /dev/null; then
+            sudo apt update
+            sudo apt install -y software-properties-common
+            sudo apt-add-repository --yes --update ppa:ansible/ansible
+            sudo apt install -y ansible
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y ansible
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y ansible
+        fi
     fi
+    
+    log_success "Ansible 설치 완료"
 }
 
-# 환경 설정 파일 생성
-setup_env_file() {
-    log_info "환경 설정 파일을 확인합니다..."
+# Python 가상환경 설정
+setup_python_venv() {
+    log_info "Python 가상환경 설정 중..."
     
-    if [ ! -f ".env" ]; then
-        if [ -f "env_template.txt" ]; then
-            cp env_template.txt .env
-            log_success ".env 파일이 생성되었습니다"
-            log_warning "⚠️  .env 파일을 수정하여 Proxmox 설정을 입력해주세요!"
-        else
-            log_error "env_template.txt 파일이 없습니다"
-        fi
-    else
-        log_success ".env 파일이 이미 존재합니다"
+    if [ ! -d "venv" ]; then
+        python3 -m venv venv
     fi
+    
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    
+    log_success "Python 가상환경 설정 완료"
 }
 
 # SSH 키 설정
 setup_ssh_keys() {
-    log_info "SSH 키를 확인합니다..."
+    log_info "SSH 키 설정 중..."
     
     if [ ! -f ~/.ssh/id_rsa ]; then
-        log_info "SSH 키를 생성합니다..."
         ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N "" -C "proxmox-manager"
-        log_success "SSH 키 생성 완료"
+        log_info "SSH 키가 생성되었습니다."
+        log_info "공개키를 Proxmox에 등록하세요:"
+        log_info "cat ~/.ssh/id_rsa.pub"
+        log_info ""
+        log_info "Proxmox 웹 UI에서:"
+        log_info "   # Proxmox 웹 UI → Datacenter → SSH Keys"
+        log_info "   # 공개키 내용을 복사하여 등록"
     else
-        log_success "SSH 키가 이미 존재합니다"
+        log_info "SSH 키가 이미 존재합니다."
     fi
     
-    # SSH 키 권한 설정
-    chmod 600 ~/.ssh/id_rsa
-    chmod 644 ~/.ssh/id_rsa.pub
+    log_success "SSH 키 설정 완료"
+}
+
+# 데이터베이스 초기화
+init_database() {
+    log_info "데이터베이스 초기화 중..."
     
-    log_info "SSH 공개키:"
-    cat ~/.ssh/id_rsa.pub
-    echo ""
-    log_warning "⚠️  이 공개키를 Proxmox에 등록해주세요!"
+    source venv/bin/activate
+    python create_tables.py
+    
+    log_success "데이터베이스 초기화 완료"
 }
 
 # Terraform 초기화
 init_terraform() {
-    log_info "Terraform을 초기화합니다..."
+    log_info "Terraform 초기화 중..."
     
-    if [ -d "terraform" ]; then
-        cd terraform
-        if [ -f "main.tf" ]; then
-            terraform init -input=false
-            log_success "Terraform 초기화 완료"
-        else
-            log_warning "terraform/main.tf 파일이 없습니다"
-        fi
-        cd ..
-    else
-        log_warning "terraform 디렉토리가 없습니다"
-    fi
-}
-
-# 권한 설정
-set_permissions() {
-    log_info "파일 권한을 설정합니다..."
+    cd terraform
+    terraform init
+    cd ..
     
-    chmod +x setup.sh
-    chmod 600 .env 2>/dev/null || true
-    
-    log_success "권한 설정 완료"
+    log_success "Terraform 초기화 완료"
 }
 
 # 설치 완료 메시지
 show_completion_message() {
+    log_success "=========================================="
+    log_success "설치가 완료되었습니다!"
+    log_success "=========================================="
+    
     echo ""
-    echo "🎉 설치가 완료되었습니다!"
-    echo ""
-    echo "📋 다음 단계를 따라주세요:"
-    echo ""
-    echo "1️⃣  환경 설정:"
-    echo "   nano .env"
-    echo "   # Proxmox 서버 정보를 입력하세요"
-    echo ""
-    echo "2️⃣  SSH 키 등록:"
-    echo "   # 위에 표시된 SSH 공개키를 Proxmox에 등록하세요"
-    echo "   # Proxmox 웹 UI → Datacenter → SSH Keys"
-    echo ""
-    echo "3️⃣  애플리케이션 실행:"
-    echo "   source venv/bin/activate"
-    echo "   python app.py"
-    echo ""
-    echo "4️⃣  웹 브라우저에서 접속:"
-    echo "   http://localhost:5000"
-    echo "   # 기본 로그인: admin / admin123!"
-    echo ""
-    echo "📚 자세한 내용은 README.md 파일을 참조하세요."
-    echo ""
-}
-
-# 메인 실행
-main() {
-    echo "🚀 Proxmox 서버 자동 생성 시스템 설치를 시작합니다..."
+    log_info "설치된 구성 요소:"
+    echo "  ✅ Python 및 Flask 애플리케이션"
+    echo "  ✅ Terraform"
+    echo "  ✅ Ansible"
     echo ""
     
-    check_system
-    create_directories
-    setup_python_env
+    log_info "다음 단계:"
+    echo "  1. Flask 애플리케이션 시작: python run.py"
+    echo "  2. 웹 브라우저에서 http://localhost:5000 접속"
+    echo "  3. .env 파일에서 추가 설정 조정"
+    echo ""
+    
+    log_info "추가 설치 옵션:"
+    echo "  - 모니터링 시스템: ./install_all.sh (Grafana, Prometheus 포함)"
+    echo "  - Vault만 설정: ./vault_setup.sh"
+    echo ""
+    
+    log_warning "SSH 키를 Proxmox에 등록하는 것을 잊지 마세요!"
+}
+
+# 메인 실행 함수
+main() {
+    log_info "Proxmox 서버 자동 생성 시스템 설치 시작..."
+    
+    # 필수 확인
+    check_env_file
+    load_env
+    
+    # 시스템 업데이트
+    update_system
+    
+    # 패키지 설치
+    install_python
     install_terraform
     install_ansible
-    setup_env_file
+    
+    # 설정
+    setup_python_venv
     setup_ssh_keys
+    
+    # 초기화
+    init_database
     init_terraform
-    set_permissions
+    
+    # 완료 메시지
     show_completion_message
 }
 
