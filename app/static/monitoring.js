@@ -310,25 +310,25 @@ $(document).ready(function() {
         if (selectedServer && selectedServer !== 'all') {
             console.log(`🔍 서버 필터링 시도: ${selectedServer}`);
             
-            // 다양한 Grafana 변수 형식 시도 (우선순위 순)
+            // Grafana에서 실제 사용하는 변수명 (var-server) 우선 사용
             const serverFilters = [
-                `&var-instance=${selectedServer}:9100`,  // 기본 형식 (Node Exporter 포트)
-                `&var-instance=${selectedServer}`,       // 포트 없이
-                `&var-server=${selectedServer}:9100`,   // server 변수명
+                `&var-server=${selectedServer}:9100`,   // Grafana에서 실제 사용하는 형식
                 `&var-server=${selectedServer}`,        // server 변수명, 포트 없이
+                `&var-instance=${selectedServer}:9100`,  // instance 변수명 (Node Exporter 포트)
+                `&var-instance=${selectedServer}`,       // instance 변수명, 포트 없이
                 `&var-host=${selectedServer}:9100`,     // host 변수명
                 `&var-host=${selectedServer}`,          // host 변수명, 포트 없이
                 `&var-target=${selectedServer}:9100`,   // target 변수명
                 `&var-target=${selectedServer}`,        // target 변수명, 포트 없이
                 `&var-node=${selectedServer}:9100`,     // node 변수명
                 `&var-node=${selectedServer}`,          // node 변수명, 포트 없이
-                `&var-job=node&var-instance=${selectedServer}:9100`, // job과 instance 조합
-                `&var-job=node&var-instance=${selectedServer}`,      // job과 instance 조합 (포트 없이)
-                `&var-datasource=prometheus&var-instance=${selectedServer}:9100`, // datasource 포함
-                `&var-datasource=prometheus&var-instance=${selectedServer}`       // datasource 포함 (포트 없이)
+                `&var-job=node&var-server=${selectedServer}:9100`, // job과 server 조합
+                `&var-job=node&var-server=${selectedServer}`,      // job과 server 조합 (포트 없이)
+                `&var-datasource=prometheus&var-server=${selectedServer}:9100`, // datasource 포함
+                `&var-datasource=prometheus&var-server=${selectedServer}`       // datasource 포함 (포트 없이)
             ];
             
-            // 첫 번째 형식 사용 (가장 일반적인 형식)
+            // 첫 번째 형식 사용 (Grafana에서 실제 사용하는 형식)
             embedUrl += serverFilters[0];
             console.log(`✅ 서버 필터링 적용: ${selectedServer} -> ${serverFilters[0]}`);
             console.log(`🔗 최종 URL: ${embedUrl}`);
@@ -440,18 +440,18 @@ $(document).ready(function() {
         const orgId = grafanaDashboardInfo.org_id;
         
         const testFormats = [
-            `&var-instance=${testServer}:9100`,
-            `&var-instance=${testServer}`,
-            `&var-server=${testServer}:9100`,
-            `&var-server=${testServer}`,
-            `&var-host=${testServer}:9100`,
-            `&var-host=${testServer}`,
-            `&var-target=${testServer}:9100`,
-            `&var-target=${testServer}`,
-            `&var-node=${testServer}:9100`,
-            `&var-node=${testServer}`,
-            `&var-job=node&var-instance=${testServer}:9100`,
-            `&var-job=node&var-instance=${testServer}`
+            `&var-server=${testServer}:9100`,   // Grafana에서 실제 사용하는 형식
+            `&var-server=${testServer}`,        // server 변수명, 포트 없이
+            `&var-instance=${testServer}:9100`,  // instance 변수명
+            `&var-instance=${testServer}`,       // instance 변수명, 포트 없이
+            `&var-host=${testServer}:9100`,     // host 변수명
+            `&var-host=${testServer}`,          // host 변수명, 포트 없이
+            `&var-target=${testServer}:9100`,   // target 변수명
+            `&var-target=${testServer}`,        // target 변수명, 포트 없이
+            `&var-node=${testServer}:9100`,     // node 변수명
+            `&var-node=${testServer}`,          // node 변수명, 포트 없이
+            `&var-job=node&var-server=${testServer}:9100`, // job과 server 조합
+            `&var-job=node&var-server=${testServer}`       // job과 server 조합 (포트 없이)
         ];
         
         testFormats.forEach((format, index) => {

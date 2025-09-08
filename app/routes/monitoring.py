@@ -522,14 +522,14 @@ def create_grafana_embed_url(dashboard_info, selected_server):
             password = grafana_config['password']
             embed_url = f"http://{username}:{password}@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
         
-        # 서버 선택이 'all'이 아닌 경우 필터 추가 - 여러 형식 시도
+        # 서버 선택이 'all'이 아닌 경우 필터 추가 - Grafana에서 실제 사용하는 형식
         if selected_server != 'all':
-            # 다양한 Grafana 변수 형식 시도
+            # Grafana에서 실제 사용하는 변수명 (var-server) 우선 사용
             server_filters = [
-                f"&var-instance={selected_server}:9100",  # 기본 형식
-                f"&var-instance={selected_server}",       # 포트 없이
-                f"&var-server={selected_server}:9100",   # server 변수명
+                f"&var-server={selected_server}:9100",   # Grafana에서 실제 사용하는 형식
                 f"&var-server={selected_server}",        # server 변수명, 포트 없이
+                f"&var-instance={selected_server}:9100",  # instance 변수명 (Node Exporter 포트)
+                f"&var-instance={selected_server}",       # instance 변수명, 포트 없이
                 f"&var-host={selected_server}:9100",     # host 변수명
                 f"&var-host={selected_server}",          # host 변수명, 포트 없이
                 f"&var-target={selected_server}:9100",   # target 변수명
@@ -538,7 +538,7 @@ def create_grafana_embed_url(dashboard_info, selected_server):
                 f"&var-node={selected_server}"           # node 변수명, 포트 없이
             ]
             
-            # 첫 번째 형식만 사용 (실제로는 Grafana 대시보드 설정에 따라 조정 필요)
+            # 첫 번째 형식 사용 (Grafana에서 실제 사용하는 형식)
             embed_url += server_filters[0]
             print(f"서버 필터링 적용: {selected_server} -> {server_filters[0]}")
         
