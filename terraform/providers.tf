@@ -27,11 +27,4 @@ provider "vault" {
   token   = var.vault_token
 }
 
-# Vault에서 민감한 정보 가져오기
-data "vault_generic_secret" "proxmox_credentials" {
-  path = "secret/proxmox"
-}
-
-data "vault_generic_secret" "vm_credentials" {
-  path = "secret/vm"
-}
+# Vault 데이터 소스는 main.tf에서 관리
