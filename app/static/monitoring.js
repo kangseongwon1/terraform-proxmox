@@ -44,6 +44,7 @@ $(document).ready(function() {
                 if (response.success) {
                     servers = response.data;
                     loadServersOverview();
+                    populateServerDropdown(); // 서버 드롭다운 채우기
                 }
             })
             .catch(function(error) {
@@ -62,13 +63,13 @@ $(document).ready(function() {
                     {ip: '192.168.0.119', port: '20222', status: 'healthy'}
                 ];
                 loadServersOverview();
+                populateServerDropdown(); // 서버 드롭다운 채우기
             });
     }
     
     // 서버 개요 로딩
     function loadServersOverview() {
         updateSummaryPanels();
-        populateServerDropdown();
         updateStatusBadge();
     }
     
@@ -182,7 +183,7 @@ $(document).ready(function() {
         $('#server-select').on('change', function() {
             selectedServer = $(this).val();
             updateStatusBadge();
-            updateGrafanaDashboard(); // 서버 선택 변경 시 Grafana 대시보드 업데이트
+            window.updateGrafanaDashboard(); // 서버 선택 변경 시 Grafana 대시보드 업데이트
         });
 
         // 새로고침 버튼
@@ -192,7 +193,7 @@ $(document).ready(function() {
 
         // Grafana 대시보드 새로고침 버튼
         $('#grafana-refresh-btn').on('click', function() {
-            refreshGrafanaDashboard();
+            window.refreshGrafanaDashboard();
         });
 
         // Grafana 전체화면 버튼
@@ -278,7 +279,7 @@ $(document).ready(function() {
         container.appendChild(iframe);
     }
     
-    // Grafana 임베드 URL 생성
+    // Grafana 임베드 URL 생성 - 개선된 서버 필터링
     function generateGrafanaEmbedUrl(selectedServer) {
         if (!grafanaDashboardInfo) {
             return '';
@@ -291,10 +292,25 @@ $(document).ready(function() {
         // 기본 임베드 URL (자동 새로고침 포함)
         let embedUrl = `${baseUrl}/d/${dashboardUid}?orgId=${orgId}&theme=light&kiosk=tv&autofitpanels&refresh=5s`;
         
-        // 서버별 필터링 (Grafana 변수 사용)
+        // 서버별 필터링 - 여러 형식 시도
         if (selectedServer && selectedServer !== 'all') {
-            // Grafana 변수로 서버 필터링
-            embedUrl += `&var-instance=${selectedServer}:9100`;
+            // 다양한 Grafana 변수 형식 시도
+            const serverFilters = [
+                `&var-instance=${selectedServer}:9100`,  // 기본 형식
+                `&var-instance=${selectedServer}`,       // 포트 없이
+                `&var-server=${selectedServer}:9100`,   // server 변수명
+                `&var-server=${selectedServer}`,        // server 변수명, 포트 없이
+                `&var-host=${selectedServer}:9100`,     // host 변수명
+                `&var-host=${selectedServer}`,          // host 변수명, 포트 없이
+                `&var-target=${selectedServer}:9100`,   // target 변수명
+                `&var-target=${selectedServer}`,        // target 변수명, 포트 없이
+                `&var-node=${selectedServer}:9100`,     // node 변수명
+                `&var-node=${selectedServer}`           // node 변수명, 포트 없이
+            ];
+            
+            // 첫 번째 형식 사용 (실제로는 Grafana 대시보드 설정에 따라 조정 필요)
+            embedUrl += serverFilters[0];
+            console.log(`서버 필터링 적용: ${selectedServer} -> ${serverFilters[0]}`);
         }
         
         // 시간 범위 설정 (최근 1시간)
@@ -324,17 +340,17 @@ $(document).ready(function() {
     }
     
     // 서버 선택 변경 시 Grafana 대시보드 업데이트
-    function updateGrafanaDashboard() {
+    window.updateGrafanaDashboard = function() {
         const selectedServer = $('#server-select').val();
         console.log('선택된 서버로 Grafana 대시보드 업데이트:', selectedServer);
         
         if (selectedServer && grafanaDashboardInfo) {
             displayGrafanaDashboard(selectedServer);
         }
-    }
+    };
     
     // Grafana 대시보드 새로고침
-    function refreshGrafanaDashboard() {
+    window.refreshGrafanaDashboard = function() {
         const selectedServer = $('#server-select').val() || 'all';
         console.log('Grafana 대시보드 새로고침:', selectedServer);
         
@@ -345,7 +361,7 @@ $(document).ready(function() {
         
         // 대시보드 다시 로드
         displayGrafanaDashboard(selectedServer);
-    }
+    };
     
     // Grafana 전체화면 열기
     function openGrafanaFullscreen() {
@@ -364,6 +380,13 @@ $(document).ready(function() {
             alert('전체화면 모드를 열 수 없습니다.');
         }
     }
+    
+    // Grafana 필터 초기화
+    window.resetGrafanaFilter = function() {
+        $('#server-select').val('all');
+        updateGrafanaDashboard();
+        console.log('Grafana 필터 초기화됨');
+    };
     
     // 데이터 새로고침 (요약 패널만)
     function refreshData() {

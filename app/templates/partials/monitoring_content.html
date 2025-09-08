@@ -97,6 +97,39 @@
         </div>
     </div>
 
+    <!-- 서버 선택 제어 패널 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-filter me-2"></i>서버 필터링
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <label for="server-select" class="form-label">모니터링할 서버 선택:</label>
+                            <select class="form-select" id="server-select" onchange="updateGrafanaDashboard()">
+                                <option value="all">🖥️ 전체 서버</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="refreshGrafanaDashboard()">
+                                    <i class="fas fa-sync-alt me-1"></i>새로고침
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetGrafanaFilter()">
+                                    <i class="fas fa-undo me-1"></i>필터 초기화
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Grafana 대시보드 임베드 영역 -->
     <div class="row">
         <div class="col-12">

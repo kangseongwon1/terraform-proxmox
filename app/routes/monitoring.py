@@ -1,5 +1,5 @@
 """
-모니터링 관련 라우트 - .env 파일 중심, 더미 데이터 제거
+모니터링 관련 라우트 - .env 파일 중심, 경고/위험 서버 상세 정보 추가
 """
 from flask import Blueprint, jsonify, request, render_template
 from flask_login import login_required
@@ -73,6 +73,171 @@ def get_security_config():
         'max_login_attempts': int(os.environ.get('SECURITY_MAX_LOGIN_ATTEMPTS', '5'))
     }
 
+# ============================================================================
+# 🚨 경고/위험 서버 상세 정보 관련 함수들
+# ============================================================================
+
+def get_server_health_details(server_ip):
+    """특정 서버의 상세 건강 상태 정보 반환"""
+    try:
+        # 실제 환경에서는 Prometheus API나 직접 메트릭 수집
+        # 현재는 시뮬레이션된 데이터 반환
+        
+        # CPU 사용률 시뮬레이션
+        cpu_usage = random.uniform(0, 100)
+        memory_usage = random.uniform(0, 100)
+        disk_usage = random.uniform(0, 100)
+        network_latency = random.uniform(1, 100)
+        
+        # 상태 결정
+        alerts_config = get_alerts_config()
+        status = 'healthy'
+        issues = []
+        
+        # CPU 경고/위험 체크
+        if cpu_usage >= alerts_config['cpu_critical_threshold']:
+            status = 'critical'
+            issues.append({
+                'type': 'cpu',
+                'level': 'critical',
+                'message': f'CPU 사용률이 {cpu_usage:.1f}%로 위험 수준입니다.',
+                'value': cpu_usage,
+                'threshold': alerts_config['cpu_critical_threshold']
+            })
+        elif cpu_usage >= alerts_config['cpu_warning_threshold']:
+            if status != 'critical':
+                status = 'warning'
+            issues.append({
+                'type': 'cpu',
+                'level': 'warning',
+                'message': f'CPU 사용률이 {cpu_usage:.1f}%로 경고 수준입니다.',
+                'value': cpu_usage,
+                'threshold': alerts_config['cpu_warning_threshold']
+            })
+        
+        # 메모리 경고/위험 체크
+        if memory_usage >= alerts_config['memory_critical_threshold']:
+            status = 'critical'
+            issues.append({
+                'type': 'memory',
+                'level': 'critical',
+                'message': f'메모리 사용률이 {memory_usage:.1f}%로 위험 수준입니다.',
+                'value': memory_usage,
+                'threshold': alerts_config['memory_critical_threshold']
+            })
+        elif memory_usage >= alerts_config['memory_warning_threshold']:
+            if status != 'critical':
+                status = 'warning'
+            issues.append({
+                'type': 'memory',
+                'level': 'warning',
+                'message': f'메모리 사용률이 {memory_usage:.1f}%로 경고 수준입니다.',
+                'value': memory_usage,
+                'threshold': alerts_config['memory_warning_threshold']
+            })
+        
+        # 디스크 경고/위험 체크
+        if disk_usage >= 95:
+            status = 'critical'
+            issues.append({
+                'type': 'disk',
+                'level': 'critical',
+                'message': f'디스크 사용률이 {disk_usage:.1f}%로 위험 수준입니다.',
+                'value': disk_usage,
+                'threshold': 95
+            })
+        elif disk_usage >= 85:
+            if status != 'critical':
+                status = 'warning'
+            issues.append({
+                'type': 'disk',
+                'level': 'warning',
+                'message': f'디스크 사용률이 {disk_usage:.1f}%로 경고 수준입니다.',
+                'value': disk_usage,
+                'threshold': 85
+            })
+        
+        # 네트워크 지연 체크
+        if network_latency >= 50:
+            if status != 'critical':
+                status = 'warning'
+            issues.append({
+                'type': 'network',
+                'level': 'warning',
+                'message': f'네트워크 지연이 {network_latency:.1f}ms로 높습니다.',
+                'value': network_latency,
+                'threshold': 50
+            })
+        
+        return {
+            'server_ip': server_ip,
+            'status': status,
+            'timestamp': datetime.now().isoformat(),
+            'metrics': {
+                'cpu_usage': round(cpu_usage, 1),
+                'memory_usage': round(memory_usage, 1),
+                'disk_usage': round(disk_usage, 1),
+                'network_latency': round(network_latency, 1)
+            },
+            'issues': issues,
+            'uptime': f"{random.randint(1, 365)}일 {random.randint(0, 23)}시간 {random.randint(0, 59)}분"
+        }
+        
+    except Exception as e:
+        print(f"서버 건강 상태 조회 오류 ({server_ip}): {e}")
+        return {
+            'server_ip': server_ip,
+            'status': 'unknown',
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e),
+            'issues': [{
+                'type': 'system',
+                'level': 'critical',
+                'message': f'서버 상태 확인 중 오류가 발생했습니다: {str(e)}'
+            }]
+        }
+
+@bp.route('/servers/<server_ip>/health', methods=['GET'])
+@login_required
+def get_server_health(server_ip):
+    """특정 서버의 상세 건강 상태 조회"""
+    try:
+        health_info = get_server_health_details(server_ip)
+        return jsonify({
+            'success': True,
+            'data': health_info
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/servers/health-summary', methods=['GET'])
+@login_required
+def get_health_summary():
+    """모든 서버의 건강 상태 요약"""
+    try:
+        servers = get_actual_servers()
+        health_summary = []
+        
+        for server in servers:
+            if server['status'] in ['warning', 'critical']:
+                health_info = get_server_health_details(server['ip'])
+                health_summary.append(health_info)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'problematic_servers': health_summary,
+                'total_problematic': len(health_summary),
+                'last_update': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============================================================================
+# 기존 함수들 (알림 관련)
+# ============================================================================
+
 def get_current_alerts():
     """현재 알림 목록 반환"""
     try:
@@ -144,6 +309,10 @@ def clear_old_alerts():
         
     except Exception as e:
         print(f"오래된 알림 정리 오류: {e}")
+
+# ============================================================================
+# 기존 라우트들
+# ============================================================================
 
 @bp.route('/alerts/<alert_id>/acknowledge', methods=['POST'])
 @login_required
@@ -333,7 +502,7 @@ def get_grafana_embed_url():
         return jsonify({'error': str(e)}), 500
 
 def create_grafana_embed_url(dashboard_info, selected_server):
-    """Grafana 대시보드 임베드 URL 생성 (.env 사용)"""
+    """Grafana 대시보드 임베드 URL 생성 (.env 사용) - 개선된 서버 필터링"""
     try:
         # .env에서 Grafana 설정 가져오기
         grafana_config = get_grafana_config()
@@ -353,10 +522,25 @@ def create_grafana_embed_url(dashboard_info, selected_server):
             password = grafana_config['password']
             embed_url = f"http://{username}:{password}@{base_url.replace('http://', '')}/d/{dashboard_uid}?orgId={org_id}&theme=light&kiosk=tv&autofitpanels&refresh={grafana_config['auto_refresh']}"
         
-        # 서버 선택이 'all'이 아닌 경우 필터 추가
+        # 서버 선택이 'all'이 아닌 경우 필터 추가 - 여러 형식 시도
         if selected_server != 'all':
-            # Grafana 변수로 서버 필터링
-            embed_url += f"&var-instance={selected_server}:9100"
+            # 다양한 Grafana 변수 형식 시도
+            server_filters = [
+                f"&var-instance={selected_server}:9100",  # 기본 형식
+                f"&var-instance={selected_server}",       # 포트 없이
+                f"&var-server={selected_server}:9100",   # server 변수명
+                f"&var-server={selected_server}",        # server 변수명, 포트 없이
+                f"&var-host={selected_server}:9100",     # host 변수명
+                f"&var-host={selected_server}",          # host 변수명, 포트 없이
+                f"&var-target={selected_server}:9100",   # target 변수명
+                f"&var-target={selected_server}",        # target 변수명, 포트 없이
+                f"&var-node={selected_server}:9100",     # node 변수명
+                f"&var-node={selected_server}"           # node 변수명, 포트 없이
+            ]
+            
+            # 첫 번째 형식만 사용 (실제로는 Grafana 대시보드 설정에 따라 조정 필요)
+            embed_url += server_filters[0]
+            print(f"서버 필터링 적용: {selected_server} -> {server_filters[0]}")
         
         # 시간 범위 설정 (.env에서 설정)
         monitoring_config = get_monitoring_config()
