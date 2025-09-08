@@ -80,34 +80,60 @@ sleep 15
 
 # 8. Vault 상태 확인
 log_info "8. Vault 상태 확인 중..."
-if docker exec vault-dev vault status; then
-    log_success "Vault 정상 실행 중"
+if docker exec vault-dev vault status | grep -q "Version"; then
+    log_success "Vault 컨테이너 정상 실행 중"
 else
-    log_error "Vault 실행 실패"
+    log_error "Vault 컨테이너 실행 실패"
     exit 1
 fi
 
 # 9. Vault 초기화 (최초 1회)
 log_info "9. Vault 초기화 중..."
-if ! docker exec vault-dev vault status | grep -q "Initialized"; then
+if docker exec vault-dev vault status | grep -q "Initialized.*false"; then
     log_info "Vault 초기화 실행 중..."
     docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 > vault_init.txt
+    
+    if [ $? -ne 0 ]; then
+        log_error "Vault 초기화 실패"
+        exit 1
+    fi
     
     # Unseal 키 추출
     UNSEAL_KEY=$(grep 'Unseal Key 1:' vault_init.txt | awk '{print $NF}')
     ROOT_TOKEN=$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')
     
+    log_info "Unseal 키: $UNSEAL_KEY"
+    log_info "Root 토큰: $ROOT_TOKEN"
+    
     # Vault 언실
+    log_info "Vault 언실 중..."
     docker exec vault-dev vault operator unseal $UNSEAL_KEY
     
+    if [ $? -ne 0 ]; then
+        log_error "Vault 언실 실패"
+        exit 1
+    fi
+    
     # Root 토큰으로 로그인
+    log_info "Vault 인증 중..."
     docker exec vault-dev vault auth $ROOT_TOKEN
+    
+    if [ $? -ne 0 ]; then
+        log_error "Vault 인증 실패"
+        exit 1
+    fi
     
     log_success "Vault 초기화 및 언실 완료"
 else
     log_info "Vault가 이미 초기화되어 있습니다."
     # 기존 토큰 사용
-    ROOT_TOKEN=$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')
+    if [ -f "vault_init.txt" ]; then
+        ROOT_TOKEN=$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')
+        log_info "기존 Root 토큰 사용: $ROOT_TOKEN"
+    else
+        log_error "vault_init.txt 파일이 없습니다. Vault를 재초기화하세요."
+        exit 1
+    fi
 fi
 
 # 10. Vault 설정
