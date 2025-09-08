@@ -661,20 +661,162 @@ def get_actual_servers():
         return []  # 더미 데이터 제거 - 빈 배열 반환
 
 def determine_server_status(server):
-    """서버 상태 결정 (실제 환경에서는 ping 또는 SSH로 확인)"""
+    """실제 서버 상태 확인 (Prometheus 연동)"""
     try:
-        # 여기서 실제 서버 상태 확인 로직 구현
-        # 예: ping, SSH 연결, HTTP 응답 등
-        
-        # 임시로 랜덤 상태 반환 (실제 환경에서는 실제 확인)
-        status_rand = random.random()
-        if status_rand < 0.8:
-            return 'healthy'
-        elif status_rand < 0.95:
-            return 'warning'
+        # IP 주소 처리
+        ip_address = server.ip_address
+        if isinstance(ip_address, list) and len(ip_address) > 0:
+            ip = ip_address[0]
+        elif isinstance(ip_address, str):
+            ip = ip_address
         else:
-            return 'critical'
-            
+            ip = '0.0.0.0'
+        
+        # 실제 서버 상태 확인
+        server_status = get_real_server_status(ip)
+        return server_status
+        
     except Exception as e:
         print(f"서버 상태 확인 오류 ({server.name}): {e}")
-        return 'unknown'
+        return 'healthy'
+
+def get_real_server_status(server_ip):
+    """실제 서버 상태 확인 (Prometheus 연동)"""
+    try:
+        # Prometheus에서 실제 메트릭 가져오기
+        prometheus_config = get_prometheus_config()
+        
+        # CPU 사용률 확인
+        cpu_usage = get_prometheus_metric(f'100 - (avg by (instance) (irate(node_cpu_seconds_total{{mode="idle", instance="{server_ip}:9100"}}[5m])) * 100)')
+        
+        # 메모리 사용률 확인
+        memory_usage = get_prometheus_metric(f'(1 - (node_memory_MemAvailable_bytes{{instance="{server_ip}:9100"}} / node_memory_MemTotal_bytes{{instance="{server_ip}:9100"}})) * 100)')
+        
+        # 디스크 사용률 확인
+        disk_usage = get_prometheus_metric(f'(1 - (node_filesystem_avail_bytes{{instance="{server_ip}:9100", mountpoint="/"}} / node_filesystem_size_bytes{{instance="{server_ip}:9100", mountpoint="/"}})) * 100)')
+        
+        # 네트워크 지연 확인 (ping)
+        network_latency = get_network_latency(server_ip)
+        
+        # 상태 결정
+        status = 'healthy'
+        
+        if cpu_usage > 90 or memory_usage > 90 or disk_usage > 90:
+            status = 'critical'
+        elif cpu_usage > 80 or memory_usage > 80 or disk_usage > 80 or network_latency > 100:
+            status = 'warning'
+        
+        return status
+        
+    except Exception as e:
+        print(f"서버 {server_ip} 상태 확인 실패: {e}")
+        return 'healthy'
+
+def get_prometheus_metric(query):
+    """Prometheus에서 메트릭 값 가져오기"""
+    try:
+        prometheus_config = get_prometheus_config()
+        url = f"{prometheus_config['url']}/api/v1/query"
+        
+        params = {'query': query}
+        
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data['status'] == 'success' and data['data']['result']:
+                return float(data['data']['result'][0]['value'][1])
+        
+        return 0
+    except Exception as e:
+        print(f"Prometheus 메트릭 가져오기 실패: {e}")
+        return 0
+
+def get_network_latency(server_ip):
+    """네트워크 지연 시간 측정"""
+    try:
+        import subprocess
+        import platform
+        
+        # OS에 따른 ping 명령어 결정
+        if platform.system().lower() == "windows":
+            cmd = ["ping", "-n", "1", server_ip]
+        else:
+            cmd = ["ping", "-c", "1", server_ip]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        
+        if result.returncode == 0:
+            # ping 결과에서 지연 시간 추출
+            output = result.stdout
+            if "time=" in output:
+                time_part = output.split("time=")[1].split()[0]
+                return float(time_part.replace("ms", ""))
+        
+        return 999  # ping 실패 시 높은 값 반환
+    except Exception as e:
+        print(f"네트워크 지연 측정 실패: {e}")
+        return 999
+
+@bp.route('/servers/<server_ip>/metrics', methods=['GET'])
+@login_required
+def get_server_metrics(server_ip):
+    """특정 서버의 실제 메트릭 정보 반환"""
+    try:
+        # 실제 서버 메트릭 가져오기
+        prometheus_config = get_prometheus_config()
+        
+        # CPU 사용률
+        cpu_usage = get_prometheus_metric(f'100 - (avg by (instance) (irate(node_cpu_seconds_total{{mode="idle", instance="{server_ip}:9100"}}[5m])) * 100)')
+        
+        # 메모리 사용률
+        memory_usage = get_prometheus_metric(f'(1 - (node_memory_MemAvailable_bytes{{instance="{server_ip}:9100"}} / node_memory_MemTotal_bytes{{instance="{server_ip}:9100"}})) * 100)')
+        
+        # 디스크 사용률
+        disk_usage = get_prometheus_metric(f'(1 - (node_filesystem_avail_bytes{{instance="{server_ip}:9100", mountpoint="/"}} / node_filesystem_size_bytes{{instance="{server_ip}:9100", mountpoint="/"}})) * 100)')
+        
+        # 네트워크 지연
+        network_latency = get_network_latency(server_ip)
+        
+        # 상태 결정
+        status = 'healthy'
+        issues = []
+        
+        if cpu_usage > 90 or memory_usage > 90 or disk_usage > 90:
+            status = 'critical'
+            if cpu_usage > 90:
+                issues.append(f'CPU 사용률 {cpu_usage:.1f}% (임계값: 90%)')
+            if memory_usage > 90:
+                issues.append(f'메모리 사용률 {memory_usage:.1f}% (임계값: 90%)')
+            if disk_usage > 90:
+                issues.append(f'디스크 사용률 {disk_usage:.1f}% (임계값: 90%)')
+        elif cpu_usage > 80 or memory_usage > 80 or disk_usage > 80 or network_latency > 100:
+            status = 'warning'
+            if cpu_usage > 80:
+                issues.append(f'CPU 사용률 {cpu_usage:.1f}% (경고값: 80%)')
+            if memory_usage > 80:
+                issues.append(f'메모리 사용률 {memory_usage:.1f}% (경고값: 80%)')
+            if disk_usage > 80:
+                issues.append(f'디스크 사용률 {disk_usage:.1f}% (경고값: 80%)')
+            if network_latency > 100:
+                issues.append(f'네트워크 지연 {network_latency:.1f}ms (경고값: 100ms)')
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'server_ip': server_ip,
+                'status': status,
+                'metrics': {
+                    'cpu_usage': cpu_usage,
+                    'memory_usage': memory_usage,
+                    'disk_usage': disk_usage,
+                    'network_latency': network_latency
+                },
+                'issues': issues,
+                'timestamp': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

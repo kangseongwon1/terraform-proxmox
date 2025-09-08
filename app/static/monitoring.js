@@ -709,15 +709,30 @@ $(document).ready(function() {
             }).join('');
         }
         
-        // 메트릭 정보 (실제 서버 상태 기반)
+        // 메트릭 정보 (실제 API에서 가져오기)
         const metrics = generateServerMetrics(server);
         let metricsHtml = '';
         if (metrics) {
             // 상태별 색상 클래스 결정
-            const getStatusColor = (status) => {
-                if (status === '위험') return 'text-danger';
-                if (status === '경고') return 'text-warning';
-                return 'text-success';
+            const getStatusColor = (value, type) => {
+                if (type === 'network_latency') {
+                    if (value > 100) return 'text-danger';
+                    if (value > 50) return 'text-warning';
+                    return 'text-success';
+                } else {
+                    if (value > 90) return 'text-danger';
+                    if (value > 80) return 'text-warning';
+                    return 'text-success';
+                }
+            };
+            
+            // 값 포맷팅
+            const formatValue = (value, type) => {
+                if (type === 'network_latency') {
+                    return `${value.toFixed(1)}ms`;
+                } else {
+                    return `${value.toFixed(1)}%`;
+                }
             };
             
             metricsHtml = `
@@ -725,25 +740,25 @@ $(document).ready(function() {
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">CPU</div>
-                            <div class="h5 ${getStatusColor(metrics.cpu_usage)}">${metrics.cpu_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.cpu_usage, 'cpu_usage')}">${formatValue(metrics.cpu_usage, 'cpu_usage')}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">메모리</div>
-                            <div class="h5 ${getStatusColor(metrics.memory_usage)}">${metrics.memory_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.memory_usage, 'memory_usage')}">${formatValue(metrics.memory_usage, 'memory_usage')}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">디스크</div>
-                            <div class="h5 ${getStatusColor(metrics.disk_usage)}">${metrics.disk_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.disk_usage, 'disk_usage')}">${formatValue(metrics.disk_usage, 'disk_usage')}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">네트워크</div>
-                            <div class="h5 ${getStatusColor(metrics.network_latency)}">${metrics.network_latency}</div>
+                            <div class="h5 ${getStatusColor(metrics.network_latency, 'network_latency')}">${formatValue(metrics.network_latency, 'network_latency')}</div>
                         </div>
                     </div>
                 </div>
@@ -785,57 +800,122 @@ $(document).ready(function() {
         `;
     }
     
-    // 서버 문제점 생성 (실제 서버 상태 기반)
+    // 서버 문제점 생성 (실제 메트릭 기반)
     function generateServerIssues(server) {
         const issues = [];
         
-        // 서버 상태에 따른 문제점 생성 (실제 상태 기반)
-        if (server.status === 'critical') {
-            // 위험 상태 - 심각한 문제들
-            issues.push({
-                type: 'system',
-                level: 'critical',
-                message: '시스템이 위험 상태입니다. 즉시 점검이 필요합니다.',
-                value: 'CRITICAL',
-                threshold: 'critical'
-            });
-        } else if (server.status === 'warning') {
-            // 경고 상태 - 주의가 필요한 문제들
-            issues.push({
-                type: 'system',
-                level: 'warning',
-                message: '시스템에 주의가 필요한 상태가 감지되었습니다.',
-                value: 'WARNING',
-                threshold: 'warning'
-            });
+        // 실제 메트릭 데이터가 있으면 사용
+        if (server.metrics) {
+            const metrics = server.metrics;
+            
+            // CPU 문제점
+            if (metrics.cpu_usage > 90) {
+                issues.push({
+                    type: 'cpu',
+                    level: 'critical',
+                    message: `CPU 사용률이 90%를 초과하여 시스템이 불안정합니다.`,
+                    value: metrics.cpu_usage.toFixed(1),
+                    threshold: 90
+                });
+            } else if (metrics.cpu_usage > 80) {
+                issues.push({
+                    type: 'cpu',
+                    level: 'warning',
+                    message: `CPU 사용률이 80%를 초과하여 주의가 필요합니다.`,
+                    value: metrics.cpu_usage.toFixed(1),
+                    threshold: 80
+                });
+            }
+            
+            // 메모리 문제점
+            if (metrics.memory_usage > 90) {
+                issues.push({
+                    type: 'memory',
+                    level: 'critical',
+                    message: `메모리 사용률이 90%를 초과하여 OOM 위험이 있습니다.`,
+                    value: metrics.memory_usage.toFixed(1),
+                    threshold: 90
+                });
+            } else if (metrics.memory_usage > 80) {
+                issues.push({
+                    type: 'memory',
+                    level: 'warning',
+                    message: `메모리 사용률이 80%를 초과하여 모니터링이 필요합니다.`,
+                    value: metrics.memory_usage.toFixed(1),
+                    threshold: 80
+                });
+            }
+            
+            // 디스크 문제점
+            if (metrics.disk_usage > 90) {
+                issues.push({
+                    type: 'disk',
+                    level: 'critical',
+                    message: `디스크 사용률이 90%를 초과하여 공간 부족 위험이 있습니다.`,
+                    value: metrics.disk_usage.toFixed(1),
+                    threshold: 90
+                });
+            } else if (metrics.disk_usage > 80) {
+                issues.push({
+                    type: 'disk',
+                    level: 'warning',
+                    message: `디스크 사용률이 80%를 초과하여 주의가 필요합니다.`,
+                    value: metrics.disk_usage.toFixed(1),
+                    threshold: 80
+                });
+            }
+            
+            // 네트워크 문제점
+            if (metrics.network_latency > 100) {
+                issues.push({
+                    type: 'network',
+                    level: 'warning',
+                    message: `네트워크 지연이 100ms를 초과하여 성능 저하가 발생할 수 있습니다.`,
+                    value: metrics.network_latency.toFixed(1),
+                    threshold: 100
+                });
+            }
+        } else {
+            // 메트릭 데이터가 없으면 기본 메시지
+            if (server.status === 'critical') {
+                issues.push({
+                    type: 'system',
+                    level: 'critical',
+                    message: '시스템이 위험 상태입니다. 즉시 점검이 필요합니다.',
+                    value: 'CRITICAL',
+                    threshold: 'critical'
+                });
+            } else if (server.status === 'warning') {
+                issues.push({
+                    type: 'system',
+                    level: 'warning',
+                    message: '시스템에 주의가 필요한 상태가 감지되었습니다.',
+                    value: 'WARNING',
+                    threshold: 'warning'
+                });
+            }
         }
         
         return issues;
     }
     
-    // 서버 메트릭 생성 (실제 서버 상태 기반)
+    // 서버 메트릭 생성 (실제 API에서 가져오기)
     function generateServerMetrics(server) {
-        // 실제 서버 상태에 따른 메트릭 표시
-        if (server.status === 'critical') {
+        // 실제 메트릭 데이터가 있으면 사용, 없으면 기본값
+        if (server.metrics) {
             return {
-                cpu_usage: '위험',
-                memory_usage: '위험',
-                disk_usage: '위험',
-                network_latency: '위험'
-            };
-        } else if (server.status === 'warning') {
-            return {
-                cpu_usage: '경고',
-                memory_usage: '경고',
-                disk_usage: '경고',
-                network_latency: '경고'
+                cpu_usage: server.metrics.cpu_usage,
+                memory_usage: server.metrics.memory_usage,
+                disk_usage: server.metrics.disk_usage,
+                network_latency: server.metrics.network_latency
             };
         } else {
+            // 기본값 반환
             return {
-                cpu_usage: '정상',
-                memory_usage: '정상',
-                disk_usage: '정상',
-                network_latency: '정상'
+                cpu_usage: 0,
+                memory_usage: 0,
+                disk_usage: 0,
+                network_latency: 0
             };
         }
     }
