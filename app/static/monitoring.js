@@ -73,12 +73,35 @@ $(document).ready(function() {
         $.getJSON(SERVERS_API)
             .then(function(response) {
                 if (response.success) {
-                    const newServers = response.data;
-                    const hasChanges = updateServerStatusCache(newServers);
+                    const allServers = response.data;
+                    
+                    // Cloud-init 및 유효하지 않은 서버 필터링
+                    const validServers = allServers.filter(server => {
+                        // Cloud-init 서버 제외
+                        if (server.name && server.name.toLowerCase().includes('cloud-init')) {
+                            return false;
+                        }
+                        
+                        // IP가 0.0.0.0인 서버 제외
+                        if (server.ip === '0.0.0.0' || server.ip === '127.0.0.1') {
+                            return false;
+                        }
+                        
+                        // 이름이 없는 서버 제외
+                        if (!server.name || server.name.trim() === '') {
+                            return false;
+                        }
+                        
+                        return true;
+                    });
+                    
+                    console.log(`📊 서버 필터링 결과: ${validServers.length}개 (전체: ${allServers.length}개)`);
+                    
+                    const hasChanges = updateServerStatusCache(validServers);
                     
                     if (hasChanges) {
                         console.log('✅ 서버 상태 변경 감지됨. UI 업데이트');
-                        servers = newServers;
+                        servers = validServers; // 필터링된 서버만 사용
                         loadServersOverview();
                         populateServerDropdown();
                         lastUpdateTime = new Date();
@@ -106,7 +129,32 @@ $(document).ready(function() {
     function updateServerStatusCache(newServers) {
         let hasChanges = false;
         
-        newServers.forEach(server => {
+        // Cloud-init 및 유효하지 않은 서버 필터링
+        const validServers = newServers.filter(server => {
+            // Cloud-init 서버 제외
+            if (server.name && server.name.toLowerCase().includes('cloud-init')) {
+                console.log(`🚫 Cloud-init 서버 제외: ${server.name} (${server.ip})`);
+                return false;
+            }
+            
+            // IP가 0.0.0.0인 서버 제외
+            if (server.ip === '0.0.0.0' || server.ip === '127.0.0.1') {
+                console.log(`🚫 로컬/무효 IP 서버 제외: ${server.name} (${server.ip})`);
+                return false;
+            }
+            
+            // 이름이 없는 서버 제외
+            if (!server.name || server.name.trim() === '') {
+                console.log(`🚫 이름 없는 서버 제외: ${server.ip}`);
+                return false;
+            }
+            
+            return true;
+        });
+        
+        console.log(`📊 유효한 서버: ${validServers.length}개 (전체: ${newServers.length}개)`);
+        
+        validServers.forEach(server => {
             const serverKey = `${server.ip}_${server.vmid}`;
             const cachedStatus = serverStatusCache.get(serverKey);
             const currentStatus = server.status;
@@ -119,13 +167,13 @@ $(document).ready(function() {
         });
         
         // 새로운 서버 추가 감지
-        if (serverStatusCache.size !== newServers.length) {
+        if (serverStatusCache.size !== validServers.length) {
             console.log('🆕 새로운 서버 감지됨');
             hasChanges = true;
             
             // 캐시 초기화
             serverStatusCache.clear();
-            newServers.forEach(server => {
+            validServers.forEach(server => {
                 const serverKey = `${server.ip}_${server.vmid}`;
                 serverStatusCache.set(serverKey, server.status);
             });
@@ -665,30 +713,37 @@ $(document).ready(function() {
         const metrics = generateServerMetrics(server);
         let metricsHtml = '';
         if (metrics) {
+            // 상태별 색상 클래스 결정
+            const getStatusColor = (status) => {
+                if (status === '위험') return 'text-danger';
+                if (status === '경고') return 'text-warning';
+                return 'text-success';
+            };
+            
             metricsHtml = `
                 <div class="row mt-3">
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">CPU</div>
-                            <div class="h5 text-muted">${metrics.cpu_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.cpu_usage)}">${metrics.cpu_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">메모리</div>
-                            <div class="h5 text-muted">${metrics.memory_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.memory_usage)}">${metrics.memory_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">디스크</div>
-                            <div class="h5 text-muted">${metrics.disk_usage}</div>
+                            <div class="h5 ${getStatusColor(metrics.disk_usage)}">${metrics.disk_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">네트워크</div>
-                            <div class="h5 text-muted">${metrics.network_latency}</div>
+                            <div class="h5 ${getStatusColor(metrics.network_latency)}">${metrics.network_latency}</div>
                         </div>
                     </div>
                 </div>
@@ -763,24 +818,24 @@ $(document).ready(function() {
         // 실제 서버 상태에 따른 메트릭 표시
         if (server.status === 'critical') {
             return {
-                cpu_usage: 'N/A',
-                memory_usage: 'N/A',
-                disk_usage: 'N/A',
-                network_latency: 'N/A'
+                cpu_usage: '위험',
+                memory_usage: '위험',
+                disk_usage: '위험',
+                network_latency: '위험'
             };
         } else if (server.status === 'warning') {
             return {
-                cpu_usage: 'N/A',
-                memory_usage: 'N/A',
-                disk_usage: 'N/A',
-                network_latency: 'N/A'
+                cpu_usage: '경고',
+                memory_usage: '경고',
+                disk_usage: '경고',
+                network_latency: '경고'
             };
         } else {
             return {
-                cpu_usage: 'N/A',
-                memory_usage: 'N/A',
-                disk_usage: 'N/A',
-                network_latency: 'N/A'
+                cpu_usage: '정상',
+                memory_usage: '정상',
+                disk_usage: '정상',
+                network_latency: '정상'
             };
         }
     }
@@ -829,8 +884,8 @@ $(document).ready(function() {
             detailMessage += '⚠️ 경고 상태: 시스템에 주의가 필요한 상태가 감지되었습니다.\n';
         }
         
-        detailMessage += `\n📊 상세 메트릭은 Grafana 대시보드에서 확인하세요.\n`;
-        detailMessage += `🔗 Grafana에서 이 서버의 실시간 데이터를 확인할 수 있습니다.`;
+        detailMessage += `\n📊 현재 상태: ${server.status === 'critical' ? '위험' : server.status === 'warning' ? '경고' : '정상'}\n`;
+        detailMessage += `🔗 상세 메트릭은 Grafana 대시보드에서 확인하세요.`;
         
         alert(detailMessage);
     };
