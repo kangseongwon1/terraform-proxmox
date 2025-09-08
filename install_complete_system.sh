@@ -194,21 +194,9 @@ setup_python() {
         log_info "Python 3.12 설치 중..."
         
         if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
-            # RedHat 계열에서 Python 3.12 설치
-            log_info "RedHat 계열에서 Python 3.12 설치 중..."
-            
-            # EPEL 저장소 활성화
-            sudo $PKG_MANAGER install -y epel-release
-            
-            # Python 3.12 설치
-            sudo $PKG_MANAGER install -y python3.12 python3.12-pip python3.12-devel python3.12-venv
-            
-            if [ $? -eq 0 ]; then
-                log_success "Python 3.12 설치 완료"
-            else
-                log_warning "패키지 매니저로 Python 3.12 설치 실패, 소스에서 빌드 시도..."
-                install_python312_from_source
-            fi
+            # RedHat 계열에서 Python 3.12 설치 (소스 빌드 방식)
+            log_info "RedHat 계열에서 Python 3.12 소스 빌드 설치 중..."
+            install_python312_from_source
             
         elif [ "$PKG_MANAGER" = "apt" ]; then
             # Debian 계열에서 Python 3.12 설치
@@ -287,30 +275,71 @@ install_python312_from_source() {
     
     # 빌드 도구 설치
     if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+        log_info "빌드 도구 설치 중..."
         sudo $PKG_MANAGER groupinstall -y "Development Tools"
-        sudo $PKG_MANAGER install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel
+        sudo $PKG_MANAGER install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget gcc gcc-c++ make
     elif [ "$PKG_MANAGER" = "apt" ]; then
-        sudo apt install -y build-essential libssl-dev libbz2-dev libffi-dev zlib1g-dev libreadline-dev libsqlite3-dev
+        sudo apt install -y build-essential libssl-dev libbz2-dev libffi-dev zlib1g-dev libreadline-dev libsqlite3-dev wget
     fi
     
     # Python 3.12.7 다운로드 및 빌드
+    log_info "Python 3.12.7 다운로드 중..."
     cd /tmp
     wget https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz
-    tar xzf Python-3.12.7.tgz
-    cd Python-3.12.7
-    
-    ./configure --enable-optimizations
-    make -j $(nproc)
-    sudo make altinstall
     
     if [ $? -eq 0 ]; then
-        log_success "Python 3.12 소스 빌드 완료"
+        log_success "Python 3.12.7 다운로드 완료"
     else
-        log_error "Python 3.12 소스 빌드 실패"
+        log_error "Python 3.12.7 다운로드 실패"
         exit 1
     fi
     
-    cd -  # 원래 디렉토리로 돌아가기
+    log_info "압축 해제 중..."
+    tar xzf Python-3.12.7.tgz
+    cd Python-3.12.7
+    
+    log_info "컨피규어 실행 중..."
+    ./configure --enable-optimizations --prefix=/usr/local
+    
+    if [ $? -eq 0 ]; then
+        log_success "컨피규어 완료"
+    else
+        log_error "컨피규어 실패"
+        exit 1
+    fi
+    
+    log_info "컴파일 중... (시간이 걸릴 수 있습니다)"
+    make -j $(nproc)
+    
+    if [ $? -eq 0 ]; then
+        log_success "컴파일 완료"
+    else
+        log_error "컴파일 실패"
+        exit 1
+    fi
+    
+    log_info "설치 중..."
+    sudo make altinstall
+    
+    if [ $? -eq 0 ]; then
+        log_success "Python 3.12 소스 빌드 및 설치 완료"
+    else
+        log_error "Python 3.12 설치 실패"
+        exit 1
+    fi
+    
+    # 정리
+    cd -
+    rm -rf /tmp/Python-3.12.7*
+    
+    log_info "Python 3.12 설치 확인 중..."
+    if command -v python3.12 &> /dev/null; then
+        PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
+        log_success "Python 3.12 설치 확인: $PYTHON312_VERSION"
+    else
+        log_error "Python 3.12 설치 확인 실패"
+        exit 1
+    fi
 }
 
 # ========================================
