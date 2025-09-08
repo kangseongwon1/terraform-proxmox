@@ -22,49 +22,185 @@ $(document).ready(function() {
     let servers = [];
     let grafanaDashboardInfo = null;
     
+    // 스마트 모니터링 시스템 변수들
+    let serverStatusCache = new Map(); // 서버 상태 캐시
+    let lastUpdateTime = null; // 마지막 업데이트 시간
+    let updateInterval = 5 * 60 * 1000; // 5분 간격 (밀리초)
+    let backgroundUpdateTimer = null; // 백그라운드 업데이트 타이머
+    let isUpdating = false; // 업데이트 중 플래그
+    
     // ============================================================================
     // �� 초기화 및 메인 실행
     // ============================================================================
     init();
     
     function init() {
-        loadServersData();
+        // 스마트 모니터링 시스템 초기화
+        initSmartMonitoring();
+        
         setupEventListeners();
         initializeGrafanaDashboard(); // iframe만 사용
+    }
+    
+    // ============================================================================
+    // 🧠 스마트 모니터링 시스템
+    // ============================================================================
+    
+    // 스마트 모니터링 시스템 초기화
+    function initSmartMonitoring() {
+        console.log('🧠 스마트 모니터링 시스템 초기화');
+        
+        // 초기 서버 데이터 로딩
+        loadServersDataSmart();
+        
+        // 백그라운드 업데이트 시작
+        startBackgroundUpdate();
+        
+        // 페이지 가시성 변경 감지 (탭 전환 시 업데이트)
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    
+    // 스마트 서버 데이터 로딩
+    function loadServersDataSmart() {
+        if (isUpdating) {
+            console.log('⏳ 이미 업데이트 중입니다. 건너뜀.');
+            return;
+        }
+        
+        console.log('🔄 스마트 서버 데이터 로딩 시작');
+        isUpdating = true;
+        
+        $.getJSON(SERVERS_API)
+            .then(function(response) {
+                if (response.success) {
+                    const newServers = response.data;
+                    const hasChanges = updateServerStatusCache(newServers);
+                    
+                    if (hasChanges) {
+                        console.log('✅ 서버 상태 변경 감지됨. UI 업데이트');
+                        servers = newServers;
+                        loadServersOverview();
+                        populateServerDropdown();
+                        lastUpdateTime = new Date();
+                        updateLastUpdateTime();
+                    } else {
+                        console.log('ℹ️ 서버 상태 변경 없음. UI 업데이트 건너뜀');
+                        // 변경이 없어도 시간은 업데이트
+                        lastUpdateTime = new Date();
+                        updateLastUpdateTime();
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('❌ 서버 데이터 로딩 실패:', error);
+                // 오류 발생 시 기본값 설정
+                servers = [];
+                loadServersOverview();
+            })
+            .always(function() {
+                isUpdating = false;
+            });
+    }
+    
+    // 서버 상태 캐시 업데이트 및 변경 감지
+    function updateServerStatusCache(newServers) {
+        let hasChanges = false;
+        
+        newServers.forEach(server => {
+            const serverKey = `${server.ip}_${server.vmid}`;
+            const cachedStatus = serverStatusCache.get(serverKey);
+            const currentStatus = server.status;
+            
+            if (cachedStatus !== currentStatus) {
+                console.log(`🔄 서버 상태 변경: ${server.name} (${server.ip}) - ${cachedStatus} → ${currentStatus}`);
+                serverStatusCache.set(serverKey, currentStatus);
+                hasChanges = true;
+            }
+        });
+        
+        // 새로운 서버 추가 감지
+        if (serverStatusCache.size !== newServers.length) {
+            console.log('🆕 새로운 서버 감지됨');
+            hasChanges = true;
+            
+            // 캐시 초기화
+            serverStatusCache.clear();
+            newServers.forEach(server => {
+                const serverKey = `${server.ip}_${server.vmid}`;
+                serverStatusCache.set(serverKey, server.status);
+            });
+        }
+        
+        return hasChanges;
+    }
+    
+    // 백그라운드 업데이트 시작
+    function startBackgroundUpdate() {
+        console.log(`⏰ 백그라운드 업데이트 시작 (${updateInterval / 1000}초 간격)`);
+        
+        backgroundUpdateTimer = setInterval(() => {
+            // 페이지가 보이는 상태일 때만 업데이트
+            if (!document.hidden) {
+                loadServersDataSmart();
+            }
+        }, updateInterval);
+    }
+    
+    // 백그라운드 업데이트 중지
+    function stopBackgroundUpdate() {
+        if (backgroundUpdateTimer) {
+            clearInterval(backgroundUpdateTimer);
+            backgroundUpdateTimer = null;
+            console.log('⏹️ 백그라운드 업데이트 중지');
+        }
+    }
+    
+    // 페이지 가시성 변경 처리
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            console.log('👁️ 페이지 숨김 - 백그라운드 업데이트 일시 중지');
+            stopBackgroundUpdate();
+        } else {
+            console.log('👁️ 페이지 표시 - 백그라운드 업데이트 재시작');
+            startBackgroundUpdate();
+            
+            // 페이지가 다시 보일 때 즉시 업데이트
+            setTimeout(() => {
+                loadServersDataSmart();
+            }, 1000);
+        }
+    }
+    
+    // 수동 새로고침 (사용자 요청 시)
+    function forceRefresh() {
+        console.log('🔄 수동 새로고침 요청');
+        serverStatusCache.clear(); // 캐시 초기화
+        loadServersDataSmart();
+    }
+    
+    // 마지막 업데이트 시간 표시
+    function updateLastUpdateTime() {
+        if (lastUpdateTime) {
+            const timeString = lastUpdateTime.toLocaleString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            $('#update-time').text(timeString);
+        }
     }
     
     // ============================================================================
     // �� 서버 데이터 로딩 및 관리
     // ============================================================================
     
-    // 서버 데이터 로딩
+    // 서버 데이터 로딩 (레거시 - 스마트 버전 사용 권장)
     function loadServersData() {
-        $.getJSON(SERVERS_API)
-            .then(function(response) {
-                if (response.success) {
-                    servers = response.data;
-                    loadServersOverview();
-                    populateServerDropdown(); // 서버 드롭다운 채우기
-                }
-            })
-            .catch(function(error) {
-                console.error('서버 데이터 로딩 실패:', error);
-                // 기본 서버 목록 사용 (서버 이름 포함)
-                servers = [
-                    {ip: '192.168.0.10', port: '22', status: 'healthy', name: 'Web-Server-01', role: 'web', vmid: 100},
-                    {ip: '192.168.0.111', port: '20222', status: 'healthy', name: 'DB-Server-01', role: 'database', vmid: 101},
-                    {ip: '192.168.0.112', port: '20222', status: 'warning', name: 'App-Server-01', role: 'application', vmid: 102},
-                    {ip: '192.168.0.113', port: '20222', status: 'healthy', name: 'Cache-Server-01', role: 'cache', vmid: 103},
-                    {ip: '192.168.0.114', port: '20222', status: 'healthy', name: 'Web-Server-02', role: 'web', vmid: 104},
-                    {ip: '192.168.0.115', port: '20222', status: 'healthy', name: 'DB-Server-02', role: 'database', vmid: 105},
-                    {ip: '192.168.0.116', port: '20222', status: 'healthy', name: 'App-Server-02', role: 'application', vmid: 106},
-                    {ip: '192.168.0.117', port: '20222', status: 'critical', name: 'Monitor-Server-01', role: 'monitoring', vmid: 107},
-                    {ip: '192.168.0.118', port: '20222', status: 'healthy', name: 'Backup-Server-01', role: 'backup', vmid: 108},
-                    {ip: '192.168.0.119', port: '20222', status: 'healthy', name: 'Proxy-Server-01', role: 'proxy', vmid: 109}
-                ];
-                loadServersOverview();
-                populateServerDropdown(); // 서버 드롭다운 채우기
-            });
+        console.log('⚠️ 레거시 loadServersData 호출됨. 스마트 버전으로 리다이렉트');
+        loadServersDataSmart();
     }
     
     // 서버 개요 로딩
@@ -699,15 +835,15 @@ $(document).ready(function() {
         alert(detailMessage);
     };
     
-    // 서버 알림 새로고침
+    // 서버 알림 새로고침 (스마트 새로고침 사용)
     window.refreshServerAlerts = function() {
         console.log('🔄 서버 알림 새로고침');
-        displayServerAlerts();
+        forceRefresh();
     };
     
-    // 데이터 새로고침 (요약 패널만)
+    // 데이터 새로고침 (스마트 새로고침 사용)
     function refreshData() {
-        updateSummaryPanels();
-        updateStatusBadge();
+        console.log('🔄 수동 새로고침 요청');
+        forceRefresh();
     }
 });
