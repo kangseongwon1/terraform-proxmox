@@ -28,10 +28,26 @@ class TerraformService:
         print(f"🔧 Terraform 명령어 실행: {' '.join(command)} (cwd: {cwd})")
         
         try:
+            # 환경변수 설정 (Vault 토큰 포함)
+            env = os.environ.copy()
+            
+            # Vault 환경변수 확인 및 설정
+            vault_addr = os.environ.get('VAULT_ADDR')
+            vault_token = os.environ.get('VAULT_TOKEN')
+            tf_var_vault_token = os.environ.get('TF_VAR_vault_token')
+            tf_var_vault_address = os.environ.get('TF_VAR_vault_address')
+            
+            print(f"🔧 Vault 환경변수 확인:")
+            print(f"   VAULT_ADDR: {vault_addr}")
+            print(f"   VAULT_TOKEN: {'설정됨' if vault_token else '없음'}")
+            print(f"   TF_VAR_vault_token: {'설정됨' if tf_var_vault_token else '없음'}")
+            print(f"   TF_VAR_vault_address: {tf_var_vault_address}")
+            
             # Windows 환경에서 인코딩 문제 해결을 위해 UTF-8 명시적 지정
             result = subprocess.run(
                 command,
                 cwd=cwd,
+                env=env,  # 환경변수 전달
                 capture_output=True,
                 text=True,
                 encoding='utf-8',

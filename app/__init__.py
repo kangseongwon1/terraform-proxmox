@@ -12,9 +12,45 @@ from logging.handlers import RotatingFileHandler
 db = SQLAlchemy()
 login_manager = LoginManager()
 
+def load_vault_environment():
+    """Vault 환경변수를 .bashrc에서 로드"""
+    try:
+        import subprocess
+        
+        # .bashrc에서 Vault 환경변수 추출
+        bashrc_path = os.path.expanduser('~/.bashrc')
+        if os.path.exists(bashrc_path):
+            # bash -c "source ~/.bashrc && env" 명령어로 환경변수 추출
+            result = subprocess.run(
+                ['bash', '-c', f'source {bashrc_path} && env'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                # 환경변수 파싱
+                for line in result.stdout.split('\n'):
+                    if '=' in line and any(var in line for var in ['VAULT_', 'TF_VAR_']):
+                        key, value = line.split('=', 1)
+                        os.environ[key] = value
+                        print(f"🔧 Vault 환경변수 로드: {key}")
+                
+                print("✅ Vault 환경변수 로드 완료")
+            else:
+                print(f"⚠️ .bashrc 로드 실패: {result.stderr}")
+        else:
+            print("⚠️ .bashrc 파일을 찾을 수 없습니다")
+            
+    except Exception as e:
+        print(f"⚠️ Vault 환경변수 로드 중 오류: {e}")
+
 def create_app(config_name='development'):
     """Flask 애플리케이션 팩토리"""
     app = Flask(__name__)
+    
+    # Vault 환경변수 로드
+    load_vault_environment()
     
     # 설정 로드
     from config import config
