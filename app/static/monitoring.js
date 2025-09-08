@@ -183,7 +183,14 @@ $(document).ready(function() {
     function setupEventListeners() {
         // 서버 선택 변경
         $('#server-select').on('change', function() {
-            selectedServer = $(this).val();
+            const newSelectedServer = $(this).val();
+            console.log('🎯 서버 선택 이벤트 발생:', {
+                old: selectedServer,
+                new: newSelectedServer,
+                option: $(this).find('option:selected').text()
+            });
+            
+            selectedServer = newSelectedServer;
             updateStatusBadge();
             window.updateGrafanaDashboard(); // 서버 선택 변경 시 Grafana 대시보드 업데이트
         });
@@ -235,11 +242,14 @@ $(document).ready(function() {
     // Grafana 대시보드 표시
     function displayGrafanaDashboard(selectedServer) {
         if (!grafanaDashboardInfo) {
-            console.warn('Grafana 대시보드 정보가 없습니다.');
+            console.warn('⚠️ Grafana 대시보드 정보가 없습니다.');
             return;
         }
         
-        console.log('Grafana 대시보드 표시:', selectedServer);
+        console.log('📊 Grafana 대시보드 표시 시작:', {
+            selectedServer: selectedServer,
+            dashboardInfo: grafanaDashboardInfo
+        });
         
         // 로딩 표시
         $('#grafana-loading').show();
@@ -248,7 +258,7 @@ $(document).ready(function() {
         
         // 서버별 임베드 URL 생성
         const embedUrl = generateGrafanaEmbedUrl(selectedServer);
-        console.log('생성된 임베드 URL:', embedUrl);
+        console.log('🔗 생성된 임베드 URL:', embedUrl);
         
         // iframe 생성 및 설정
         const iframe = document.createElement('iframe');
@@ -263,14 +273,14 @@ $(document).ready(function() {
         
         // iframe 로드 완료 이벤트
         iframe.onload = function() {
-            console.log('Grafana 대시보드 로드 완료');
+            console.log('✅ Grafana 대시보드 로드 완료');
             $('#grafana-loading').hide();
             $('#grafana-dashboard').show();
         };
         
         // iframe 로드 오류 이벤트
         iframe.onerror = function() {
-            console.error('Grafana 대시보드 로드 실패');
+            console.error('❌ Grafana 대시보드 로드 실패');
             $('#grafana-loading').hide();
             showGrafanaError('Grafana 대시보드를 로드할 수 없습니다.');
         };
@@ -279,6 +289,8 @@ $(document).ready(function() {
         const container = document.getElementById('grafana-dashboard');
         container.innerHTML = '';
         container.appendChild(iframe);
+        
+        console.log('🔄 iframe 교체 완료');
     }
     
     // Grafana 임베드 URL 생성 - 개선된 서버 필터링
@@ -296,9 +308,11 @@ $(document).ready(function() {
         
         // 서버별 필터링 - 여러 형식 시도
         if (selectedServer && selectedServer !== 'all') {
-            // 다양한 Grafana 변수 형식 시도
+            console.log(`🔍 서버 필터링 시도: ${selectedServer}`);
+            
+            // 다양한 Grafana 변수 형식 시도 (우선순위 순)
             const serverFilters = [
-                `&var-instance=${selectedServer}:9100`,  // 기본 형식
+                `&var-instance=${selectedServer}:9100`,  // 기본 형식 (Node Exporter 포트)
                 `&var-instance=${selectedServer}`,       // 포트 없이
                 `&var-server=${selectedServer}:9100`,   // server 변수명
                 `&var-server=${selectedServer}`,        // server 변수명, 포트 없이
@@ -307,12 +321,19 @@ $(document).ready(function() {
                 `&var-target=${selectedServer}:9100`,   // target 변수명
                 `&var-target=${selectedServer}`,        // target 변수명, 포트 없이
                 `&var-node=${selectedServer}:9100`,     // node 변수명
-                `&var-node=${selectedServer}`           // node 변수명, 포트 없이
+                `&var-node=${selectedServer}`,          // node 변수명, 포트 없이
+                `&var-job=node&var-instance=${selectedServer}:9100`, // job과 instance 조합
+                `&var-job=node&var-instance=${selectedServer}`,      // job과 instance 조합 (포트 없이)
+                `&var-datasource=prometheus&var-instance=${selectedServer}:9100`, // datasource 포함
+                `&var-datasource=prometheus&var-instance=${selectedServer}`       // datasource 포함 (포트 없이)
             ];
             
-            // 첫 번째 형식 사용 (실제로는 Grafana 대시보드 설정에 따라 조정 필요)
+            // 첫 번째 형식 사용 (가장 일반적인 형식)
             embedUrl += serverFilters[0];
-            console.log(`서버 필터링 적용: ${selectedServer} -> ${serverFilters[0]}`);
+            console.log(`✅ 서버 필터링 적용: ${selectedServer} -> ${serverFilters[0]}`);
+            console.log(`🔗 최종 URL: ${embedUrl}`);
+        } else {
+            console.log(`📊 전체 서버 표시 모드`);
         }
         
         // 시간 범위 설정 (최근 1시간)
@@ -347,14 +368,21 @@ $(document).ready(function() {
         const selectedOption = $('#server-select option:selected');
         const serverName = selectedOption.data('name') || selectedOption.text();
         
-        console.log('선택된 서버로 Grafana 대시보드 업데이트:', {
+        console.log('🔄 서버 선택 변경 감지:', {
             server: serverName,
             ip: selectedServer,
-            option: selectedOption.text()
+            option: selectedOption.text(),
+            grafanaInfo: grafanaDashboardInfo ? '있음' : '없음'
         });
         
         if (selectedServer && grafanaDashboardInfo) {
+            console.log('🚀 Grafana 대시보드 업데이트 시작...');
             displayGrafanaDashboard(selectedServer);
+        } else {
+            console.warn('⚠️ Grafana 대시보드 업데이트 실패:', {
+                selectedServer: selectedServer,
+                grafanaInfo: grafanaDashboardInfo
+            });
         }
     };
     
@@ -394,7 +422,45 @@ $(document).ready(function() {
     window.resetGrafanaFilter = function() {
         $('#server-select').val('all');
         updateGrafanaDashboard();
-        console.log('Grafana 필터 초기화됨');
+        console.log('🔄 Grafana 필터 초기화됨');
+    };
+    
+    // Grafana 변수 형식 테스트 (디버깅용)
+    window.testGrafanaVariables = function() {
+        if (!grafanaDashboardInfo || servers.length === 0) {
+            console.warn('⚠️ 테스트를 위한 데이터가 없습니다.');
+            return;
+        }
+        
+        const testServer = servers[0].ip;
+        console.log('🧪 Grafana 변수 형식 테스트 시작:', testServer);
+        
+        const baseUrl = grafanaDashboardInfo.base_url;
+        const dashboardUid = grafanaDashboardInfo.dashboard_uid;
+        const orgId = grafanaDashboardInfo.org_id;
+        
+        const testFormats = [
+            `&var-instance=${testServer}:9100`,
+            `&var-instance=${testServer}`,
+            `&var-server=${testServer}:9100`,
+            `&var-server=${testServer}`,
+            `&var-host=${testServer}:9100`,
+            `&var-host=${testServer}`,
+            `&var-target=${testServer}:9100`,
+            `&var-target=${testServer}`,
+            `&var-node=${testServer}:9100`,
+            `&var-node=${testServer}`,
+            `&var-job=node&var-instance=${testServer}:9100`,
+            `&var-job=node&var-instance=${testServer}`
+        ];
+        
+        testFormats.forEach((format, index) => {
+            const testUrl = `${baseUrl}/d/${dashboardUid}?orgId=${orgId}&theme=light&kiosk=tv${format}`;
+            console.log(`📋 테스트 ${index + 1}: ${format}`);
+            console.log(`🔗 URL: ${testUrl}`);
+        });
+        
+        console.log('💡 위 URL들을 브라우저에서 직접 테스트해보세요!');
     };
     
     // 데이터 새로고침 (요약 패널만)
