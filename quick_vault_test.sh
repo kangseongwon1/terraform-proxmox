@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 간단한 Vault Docker 테스트 스크립트
+# 간단한 Vault Docker Compose 테스트 스크립트
 # 빠른 테스트를 위한 최소한의 기능만 테스트합니다.
 
 set -e
@@ -16,15 +16,22 @@ log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-echo "🧪 Vault Docker 빠른 테스트 시작..."
+echo "🧪 Vault Docker Compose 빠른 테스트 시작..."
 echo ""
 
-# 1. Docker 확인
-log_info "1. Docker 확인 중..."
+# 1. Docker 및 Docker Compose 확인
+log_info "1. Docker 및 Docker Compose 확인 중..."
 if command -v docker &> /dev/null; then
     log_success "Docker 설치됨: $(docker --version)"
 else
     log_error "Docker가 설치되지 않았습니다!"
+    exit 1
+fi
+
+if command -v docker-compose &> /dev/null; then
+    log_success "Docker Compose 설치됨: $(docker-compose --version)"
+else
+    log_error "Docker Compose가 설치되지 않았습니다!"
     exit 1
 fi
 
@@ -37,57 +44,99 @@ else
     exit 1
 fi
 
-# 3. 기존 Vault 컨테이너 정리
-log_info "3. 기존 Vault 컨테이너 정리 중..."
-docker stop vault 2>/dev/null || true
-docker rm vault 2>/dev/null || true
-docker volume rm vault-data 2>/dev/null || true
+# 3. Vault 설정 파일 확인
+log_info "3. Vault 설정 파일 확인 중..."
+if [ -f "vault-dev.hcl" ]; then
+    log_success "vault-dev.hcl 파일 존재"
+else
+    log_error "vault-dev.hcl 파일이 없습니다!"
+    exit 1
+fi
 
-# 4. Vault 컨테이너 실행
-log_info "4. Vault 컨테이너 실행 중..."
-docker volume create vault-data
-docker run -d \
-    --name vault \
-    --cap-add=IPC_LOCK \
-    -p 8200:8200 \
-    -v vault-data:/vault/data \
-    -e VAULT_DEV_ROOT_TOKEN_ID=root \
-    -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
-    vault:latest
+if [ -f "docker-compose.vault.yml" ]; then
+    log_success "docker-compose.vault.yml 파일 존재"
+else
+    log_error "docker-compose.vault.yml 파일이 없습니다!"
+    exit 1
+fi
 
-# 5. Vault 초기화 대기
-log_info "5. Vault 초기화 대기 중..."
-sleep 10
+# 4. 기존 Vault 컨테이너 정리
+log_info "4. 기존 Vault 컨테이너 정리 중..."
+docker-compose -f docker-compose.vault.yml down 2>/dev/null || true
+docker stop vault-dev 2>/dev/null || true
+docker rm vault-dev 2>/dev/null || true
 
-# 6. Vault 상태 확인
-log_info "6. Vault 상태 확인 중..."
-if docker exec vault vault status; then
+# 5. Vault 데이터 디렉토리 생성
+log_info "5. Vault 데이터 디렉토리 생성 중..."
+mkdir -p vault-data
+
+# 6. Vault Docker Compose 실행
+log_info "6. Vault Docker Compose 실행 중..."
+docker-compose -f docker-compose.vault.yml up -d
+
+# 7. Vault 초기화 대기
+log_info "7. Vault 초기화 대기 중..."
+sleep 15
+
+# 8. Vault 상태 확인
+log_info "8. Vault 상태 확인 중..."
+if docker exec vault-dev vault status; then
     log_success "Vault 정상 실행 중"
 else
     log_error "Vault 실행 실패"
     exit 1
 fi
 
-# 7. Vault 설정
-log_info "7. Vault 설정 중..."
+# 9. Vault 초기화 (최초 1회)
+log_info "9. Vault 초기화 중..."
+if ! docker exec vault-dev vault status | grep -q "Initialized"; then
+    log_info "Vault 초기화 실행 중..."
+    docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 > vault_init.txt
+    
+    # Unseal 키 추출
+    UNSEAL_KEY=$(grep 'Unseal Key 1:' vault_init.txt | awk '{print $NF}')
+    ROOT_TOKEN=$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')
+    
+    # Vault 언실
+    docker exec vault-dev vault operator unseal $UNSEAL_KEY
+    
+    # Root 토큰으로 로그인
+    docker exec vault-dev vault auth $ROOT_TOKEN
+    
+    log_success "Vault 초기화 및 언실 완료"
+else
+    log_info "Vault가 이미 초기화되어 있습니다."
+    # 기존 토큰 사용
+    ROOT_TOKEN=$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')
+fi
+
+# 10. Vault 설정
+log_info "10. Vault 설정 중..."
 export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN="root"
+export VAULT_TOKEN="$ROOT_TOKEN"
 
 # KV v2 엔진 활성화
-docker exec vault vault secrets enable -path=secret kv-v2
+docker exec vault-dev vault secrets enable -path=secret kv-v2
 
 # 테스트 시크릿 저장
-docker exec vault vault kv put secret/test key1=value1 key2=value2
+docker exec vault-dev vault kv put secret/test key1=value1 key2=value2
 
 # 테스트 시크릿 조회
-log_info "8. 테스트 시크릿 조회 중..."
-docker exec vault vault kv get secret/test
+log_info "11. 테스트 시크릿 조회 중..."
+docker exec vault-dev vault kv get secret/test
 
-log_success "✅ Vault Docker 테스트 완료!"
+log_success "✅ Vault Docker Compose 테스트 완료!"
 echo ""
 log_info "🌐 Vault 웹 UI: http://127.0.0.1:8200"
-log_info "🔑 토큰: root"
+log_info "🔑 토큰: $ROOT_TOKEN"
 echo ""
-log_info "🛑 Vault 중지: docker stop vault"
-log_info "🔄 Vault 재시작: docker start vault"
-log_info "🗑️  Vault 제거: docker stop vault && docker rm vault"
+log_info "🔧 관리 명령어:"
+log_info "  - 상태 확인: docker exec vault-dev vault status"
+log_info "  - 서비스 중지: docker-compose -f docker-compose.vault.yml down"
+log_info "  - 서비스 시작: docker-compose -f docker-compose.vault.yml up -d"
+log_info "  - 서비스 재시작: docker-compose -f docker-compose.vault.yml restart"
+echo ""
+log_info "📁 중요 파일:"
+log_info "  - vault_init.txt: 초기화 정보 (안전하게 보관하세요)"
+log_info "  - vault-dev.hcl: Vault 설정 파일"
+log_info "  - docker-compose.vault.yml: Docker Compose 설정"
