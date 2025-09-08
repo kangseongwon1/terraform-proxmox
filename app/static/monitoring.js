@@ -49,18 +49,18 @@ $(document).ready(function() {
             })
             .catch(function(error) {
                 console.error('서버 데이터 로딩 실패:', error);
-                // 기본 서버 목록 사용
+                // 기본 서버 목록 사용 (서버 이름 포함)
                 servers = [
-                    {ip: '192.168.0.10', port: '22', status: 'healthy'},
-                    {ip: '192.168.0.111', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.112', port: '20222', status: 'warning'},
-                    {ip: '192.168.0.113', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.114', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.115', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.116', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.117', port: '20222', status: 'critical'},
-                    {ip: '192.168.0.118', port: '20222', status: 'healthy'},
-                    {ip: '192.168.0.119', port: '20222', status: 'healthy'}
+                    {ip: '192.168.0.10', port: '22', status: 'healthy', name: 'Web-Server-01', role: 'web', vmid: 100},
+                    {ip: '192.168.0.111', port: '20222', status: 'healthy', name: 'DB-Server-01', role: 'database', vmid: 101},
+                    {ip: '192.168.0.112', port: '20222', status: 'warning', name: 'App-Server-01', role: 'application', vmid: 102},
+                    {ip: '192.168.0.113', port: '20222', status: 'healthy', name: 'Cache-Server-01', role: 'cache', vmid: 103},
+                    {ip: '192.168.0.114', port: '20222', status: 'healthy', name: 'Web-Server-02', role: 'web', vmid: 104},
+                    {ip: '192.168.0.115', port: '20222', status: 'healthy', name: 'DB-Server-02', role: 'database', vmid: 105},
+                    {ip: '192.168.0.116', port: '20222', status: 'healthy', name: 'App-Server-02', role: 'application', vmid: 106},
+                    {ip: '192.168.0.117', port: '20222', status: 'critical', name: 'Monitor-Server-01', role: 'monitoring', vmid: 107},
+                    {ip: '192.168.0.118', port: '20222', status: 'healthy', name: 'Backup-Server-01', role: 'backup', vmid: 108},
+                    {ip: '192.168.0.119', port: '20222', status: 'healthy', name: 'Proxy-Server-01', role: 'proxy', vmid: 109}
                 ];
                 loadServersOverview();
                 populateServerDropdown(); // 서버 드롭다운 채우기
@@ -110,7 +110,7 @@ $(document).ready(function() {
         }
     }
     
-    // 서버 드롭다운 채우기
+    // 서버 드롭다운 채우기 - 서버 이름 기반
     function populateServerDropdown() {
         try {
             console.log('populateServerDropdown 호출됨');
@@ -127,13 +127,15 @@ $(document).ready(function() {
             // 전체 서버 옵션 추가
             select.append('<option value="all">🖥️ 전체 서버</option>');
             
-            // 개별 서버 옵션 추가
+            // 개별 서버 옵션 추가 (서버 이름 기반)
             if (servers.length > 0) {
                 servers.forEach(server => {
-                    const option = `<option value="${server.ip}">${server.ip}:${server.port}</option>`;
+                    // 서버 이름과 IP를 함께 표시
+                    const displayName = `${server.name} (${server.ip})`;
+                    const option = `<option value="${server.ip}" data-name="${server.name}">${displayName}</option>`;
                     select.append(option);
                 });
-                console.log(`${servers.length}개 서버 옵션 추가됨`);
+                console.log(`${servers.length}개 서버 옵션 추가됨 (이름 기반)`);
             } else {
                 // 서버가 없을 때 기본 옵션 추가
                 select.append('<option value="none" disabled>서버가 없습니다</option>');
@@ -342,7 +344,14 @@ $(document).ready(function() {
     // 서버 선택 변경 시 Grafana 대시보드 업데이트
     window.updateGrafanaDashboard = function() {
         const selectedServer = $('#server-select').val();
-        console.log('선택된 서버로 Grafana 대시보드 업데이트:', selectedServer);
+        const selectedOption = $('#server-select option:selected');
+        const serverName = selectedOption.data('name') || selectedOption.text();
+        
+        console.log('선택된 서버로 Grafana 대시보드 업데이트:', {
+            server: serverName,
+            ip: selectedServer,
+            option: selectedOption.text()
+        });
         
         if (selectedServer && grafanaDashboardInfo) {
             displayGrafanaDashboard(selectedServer);

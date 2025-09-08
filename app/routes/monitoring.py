@@ -644,7 +644,7 @@ def get_actual_servers():
                     'ip': ip,
                     'port': port,
                     'status': status,
-                    'name': server.name,
+                    'name': server.name or f"Server-{server.vmid}",  # 이름이 없으면 VMID 사용
                     'role': server.role,
                     'vmid': server.vmid
                 })
