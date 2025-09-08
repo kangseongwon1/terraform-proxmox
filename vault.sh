@@ -204,9 +204,13 @@ configure_vault() {
 set_environment() {
     log_info "7. 환경변수 설정 중..."
     
-    # 환경변수 설정
+    # Vault 환경변수 설정
     export VAULT_ADDR="http://127.0.0.1:8200"
     export VAULT_TOKEN="$ROOT_TOKEN"
+    
+    # Terraform 환경변수 설정 (TF_VAR_ 접두사 사용)
+    export TF_VAR_vault_token="$ROOT_TOKEN"
+    export TF_VAR_vault_address="http://127.0.0.1:8200"
     
     # terraform.tfvars.json 업데이트
     if [ -f "terraform/terraform.tfvars.json" ]; then
@@ -224,6 +228,11 @@ set_environment() {
     fi
     
     log_success "환경변수 설정 완료"
+    log_info "설정된 환경변수:"
+    echo "  VAULT_ADDR: $VAULT_ADDR"
+    echo "  VAULT_TOKEN: $VAULT_TOKEN"
+    echo "  TF_VAR_vault_token: $TF_VAR_vault_token"
+    echo "  TF_VAR_vault_address: $TF_VAR_vault_address"
 }
 
 # 8. Terraform 테스트
@@ -300,6 +309,8 @@ show_completion() {
     log_info "🔄 Terraform 사용:"
     echo "  export VAULT_ADDR='$VAULT_ADDR'"
     echo "  export VAULT_TOKEN='$ROOT_TOKEN'"
+    echo "  export TF_VAR_vault_token='$ROOT_TOKEN'"
+    echo "  export TF_VAR_vault_address='$VAULT_ADDR'"
     echo "  cd terraform && terraform plan"
     echo ""
     

@@ -97,15 +97,18 @@ docker-compose -f docker-compose.vault.yml restart
 
 ### **Terraform 사용:**
 ```bash
-# 환경변수 설정
+# 환경변수 설정 (TF_VAR_ 접두사 사용)
 export VAULT_ADDR="http://127.0.0.1:8200"
 export VAULT_TOKEN="$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')"
+export TF_VAR_vault_token="$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')"
+export TF_VAR_vault_address="http://127.0.0.1:8200"
 
-# Terraform 실행
+# Terraform 실행 (Enter a value를 묻지 않음)
 cd terraform
 terraform plan
 terraform apply
 ```
+
 
 ## 🌐 웹 UI 접속
 
