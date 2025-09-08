@@ -180,29 +180,137 @@ install_essential_packages() {
 # ========================================
 
 setup_python() {
-    log_step "3. Python 환경 설정 중..."
+    log_step "3. Python 3.12 설치 및 환경 설정 중..."
     
-    # Python 버전 확인
-    PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-    log_info "Python 버전: $PYTHON_VERSION"
+    # 현재 Python 버전 확인
+    CURRENT_PYTHON=$(python3 --version 2>&1 | awk '{print $2}')
+    log_info "현재 Python 버전: $CURRENT_PYTHON"
     
-    # pip 업그레이드
-    python3 -m pip install --upgrade pip
+    # Python 3.12 설치 확인
+    if command -v python3.12 &> /dev/null; then
+        PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
+        log_info "Python 3.12 이미 설치됨: $PYTHON312_VERSION"
+    else
+        log_info "Python 3.12 설치 중..."
+        
+        if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+            # RedHat 계열에서 Python 3.12 설치
+            log_info "RedHat 계열에서 Python 3.12 설치 중..."
+            
+            # EPEL 저장소 활성화
+            sudo $PKG_MANAGER install -y epel-release
+            
+            # Python 3.12 설치
+            sudo $PKG_MANAGER install -y python3.12 python3.12-pip python3.12-devel python3.12-venv
+            
+            if [ $? -eq 0 ]; then
+                log_success "Python 3.12 설치 완료"
+            else
+                log_warning "패키지 매니저로 Python 3.12 설치 실패, 소스에서 빌드 시도..."
+                install_python312_from_source
+            fi
+            
+        elif [ "$PKG_MANAGER" = "apt" ]; then
+            # Debian 계열에서 Python 3.12 설치
+            log_info "Debian 계열에서 Python 3.12 설치 중..."
+            
+            # deadsnakes PPA 추가 (Ubuntu)
+            sudo apt update
+            sudo apt install -y software-properties-common
+            sudo add-apt-repository -y ppa:deadsnakes/ppa
+            sudo apt update
+            sudo apt install -y python3.12 python3.12-pip python3.12-venv python3.12-dev
+            
+            if [ $? -eq 0 ]; then
+                log_success "Python 3.12 설치 완료"
+            else
+                log_warning "패키지 매니저로 Python 3.12 설치 실패, 소스에서 빌드 시도..."
+                install_python312_from_source
+            fi
+        fi
+    fi
     
-    # 가상환경 생성 (선택사항)
+    # Python 3.12 확인
+    if command -v python3.12 &> /dev/null; then
+        PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
+        log_success "Python 3.12 사용 가능: $PYTHON312_VERSION"
+    else
+        log_error "Python 3.12 설치 실패"
+        exit 1
+    fi
+    
+    # 가상환경 생성 (Python 3.12 사용)
     if [ ! -d "venv" ]; then
-        log_info "Python 가상환경 생성 중..."
-        python3 -m venv venv
+        log_info "Python 3.12로 가상환경 생성 중..."
+        python3.12 -m venv venv
+        
+        if [ $? -eq 0 ]; then
+            log_success "가상환경 생성 완료"
+        else
+            log_error "가상환경 생성 실패"
+            exit 1
+        fi
+    else
+        log_info "기존 가상환경 사용"
     fi
     
     # 가상환경 활성화
+    log_info "가상환경 활성화 중..."
     source venv/bin/activate
+    
+    # pip 업그레이드
+    log_info "pip 업그레이드 중..."
+    python -m pip install --upgrade pip
+    
+    if [ $? -eq 0 ]; then
+        log_success "pip 업그레이드 완료"
+    else
+        log_warning "pip 업그레이드 실패 (계속 진행)"
+    fi
     
     # Python 패키지 설치
     log_info "Python 패키지 설치 중..."
     pip install -r requirements.txt
     
-    log_success "Python 환경 설정 완료"
+    if [ $? -eq 0 ]; then
+        log_success "Python 패키지 설치 완료"
+    else
+        log_error "Python 패키지 설치 실패"
+        exit 1
+    fi
+    
+    log_success "Python 3.12 환경 설정 완료"
+}
+
+install_python312_from_source() {
+    log_info "소스에서 Python 3.12 빌드 중..."
+    
+    # 빌드 도구 설치
+    if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+        sudo $PKG_MANAGER groupinstall -y "Development Tools"
+        sudo $PKG_MANAGER install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel
+    elif [ "$PKG_MANAGER" = "apt" ]; then
+        sudo apt install -y build-essential libssl-dev libbz2-dev libffi-dev zlib1g-dev libreadline-dev libsqlite3-dev
+    fi
+    
+    # Python 3.12.7 다운로드 및 빌드
+    cd /tmp
+    wget https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz
+    tar xzf Python-3.12.7.tgz
+    cd Python-3.12.7
+    
+    ./configure --enable-optimizations
+    make -j $(nproc)
+    sudo make altinstall
+    
+    if [ $? -eq 0 ]; then
+        log_success "Python 3.12 소스 빌드 완료"
+    else
+        log_error "Python 3.12 소스 빌드 실패"
+        exit 1
+    fi
+    
+    cd -  # 원래 디렉토리로 돌아가기
 }
 
 # ========================================
