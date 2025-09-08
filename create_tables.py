@@ -74,55 +74,13 @@ def create_tables():
             )
         ''')
         
-        # 기본 관리자 사용자 생성
-        cursor.execute('''
-            INSERT OR IGNORE INTO users (username, password_hash, name, email, role, is_active)
-            VALUES ('admin', 'pbkdf2:sha256:600000$admin123!', 'Administrator', 'admin@example.com', 'admin', 1)
-        ''')
-        
-        # 샘플 서버 데이터 추가
-        sample_servers = [
-            ('web-server-01', 100, 'running', '192.168.1.100', 'web', 'web-group', 'ubuntu', 2, 4096),
-            ('db-server-01', 101, 'stopped', '192.168.1.101', 'database', 'db-group', 'centos', 4, 8192),
-            ('app-server-01', 102, 'running', '192.168.1.102', 'application', 'app-group', 'ubuntu', 2, 4096)
-        ]
-        
-        for server in sample_servers:
-            cursor.execute('''
-                INSERT OR IGNORE INTO servers 
-                (name, vmid, status, ip_address, role, firewall_group, os_type, cpu, memory)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', server)
-        
-        # 샘플 알림 데이터 추가
-        sample_notifications = [
-            ('server', '서버 시작', 'web-server-01이 성공적으로 시작되었습니다.', None, 'success', None),
-            ('system', '시스템 업데이트', '새로운 보안 패치가 적용되었습니다.', None, 'info', None),
-            ('user', '사용자 로그인', '관리자가 시스템에 로그인했습니다.', None, 'info', 'admin')
-        ]
-        
-        for notification in sample_notifications:
-            cursor.execute('''
-                INSERT OR IGNORE INTO notifications 
-                (type, title, message, details, severity, user_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', notification)
-        
         conn.commit()
-        print("✅ 테이블 생성 및 샘플 데이터 추가 완료!")
+        print("✅ 테이블 생성 완료!")
         
-        # 생성된 데이터 확인
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        print(f"👥 사용자 수: {user_count}")
-        
-        cursor.execute("SELECT COUNT(*) FROM servers")
-        server_count = cursor.fetchone()[0]
-        print(f"🖥️ 서버 수: {server_count}")
-        
-        cursor.execute("SELECT COUNT(*) FROM notifications")
-        notification_count = cursor.fetchone()[0]
-        print(f"🔔 알림 수: {notification_count}")
+        # 생성된 테이블 확인
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        print(f"📋 생성된 테이블: {[table[0] for table in tables]}")
         
         conn.close()
         
