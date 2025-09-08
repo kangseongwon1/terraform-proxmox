@@ -116,7 +116,7 @@ if docker exec vault-dev vault status | grep -q "Initialized.*false"; then
     
     # Root 토큰으로 로그인
     log_info "Vault 인증 중..."
-    docker exec vault-dev vault auth $ROOT_TOKEN
+    docker exec vault-dev vault login $ROOT_TOKEN
     
     if [ $? -ne 0 ]; then
         log_error "Vault 인증 실패"

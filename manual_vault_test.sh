@@ -68,7 +68,7 @@ echo ""
 
 # 5. Vault 인증
 log_info "5. Vault 인증 중..."
-docker exec vault-dev vault auth $ROOT_TOKEN
+docker exec vault-dev vault login $ROOT_TOKEN
 
 if [ $? -eq 0 ]; then
     log_success "Vault 인증 완료"

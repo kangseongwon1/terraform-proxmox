@@ -204,7 +204,7 @@ init_vault() {
     export VAULT_TOKEN="$ROOT_TOKEN"
     
     # Root 토큰으로 로그인
-    docker exec vault-dev vault auth $ROOT_TOKEN
+    docker exec vault-dev vault login $ROOT_TOKEN
     
     log_success "Vault 인증 완료"
 }
