@@ -20,13 +20,13 @@ DEBUG=true
 # ========================================
 
 # Proxmox 서버 주소 (예: https://192.168.1.100:8006)
-PROXMOX_ENDPOINT=https://prox.dmcmedia.co.kr:8006
+PROXMOX_ENDPOINT=https://prox.xxxxx.co.kr:8006
 
 # Proxmox 사용자명 (예: root@pam)
 PROXMOX_USERNAME=root@pam
 
 # Proxmox 비밀번호 (Vault에서 관리 권장)
-PROXMOX_PASSWORD="YzaxdJOA2j9Itv8S"
+PROXMOX_PASSWORD="xxxxxxxxxxxxxxxxxxxx"
 
 # Proxmox 노드명 (예: pve)
 PROXMOX_NODE=prox
