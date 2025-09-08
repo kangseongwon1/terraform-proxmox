@@ -48,7 +48,6 @@ cat vault_init.txt | grep "Root Token"
 nano terraform/terraform.tfvars.json
 
 # 3. vault_token 값을 실제 토큰으로 변경
-# "vault_token": "hvs.~~~~~~~~"
 
 # 4. Terraform 계획 실행
 cd terraform
