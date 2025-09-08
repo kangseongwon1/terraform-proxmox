@@ -97,6 +97,14 @@ $(document).ready(function() {
             $('#warning-servers').text(warning);
             $('#critical-servers').text(critical);
             
+            // 경고/위험 서버가 있으면 상세 정보 패널 표시
+            if (warning > 0 || critical > 0) {
+                $('#server-alerts-panel').show();
+                displayServerAlerts();
+            } else {
+                $('#server-alerts-panel').hide();
+            }
+            
             // 상태별 배지 색상 업데이트
             updateStatusBadge();
             
@@ -461,6 +469,266 @@ $(document).ready(function() {
         });
         
         console.log('💡 위 URL들을 브라우저에서 직접 테스트해보세요!');
+    };
+    
+    // ============================================================================
+    // 🚨 경고/위험 서버 상세 정보 관리
+    // ============================================================================
+    
+    // 경고/위험 서버 상세 정보 표시
+    function displayServerAlerts() {
+        try {
+            console.log('🚨 경고/위험 서버 상세 정보 표시 시작');
+            
+            const problematicServers = servers.filter(s => s.status === 'warning' || s.status === 'critical');
+            const container = $('#server-alerts-container');
+            container.empty();
+            
+            if (problematicServers.length === 0) {
+                container.html('<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>모든 서버가 정상 상태입니다.</div>');
+                return;
+            }
+            
+            problematicServers.forEach(server => {
+                const serverAlertCard = createServerAlertCard(server);
+                container.append(serverAlertCard);
+            });
+            
+            console.log(`✅ ${problematicServers.length}개 서버의 경고/위험 정보 표시 완료`);
+            
+        } catch (error) {
+            console.error('❌ 경고/위험 서버 상세 정보 표시 오류:', error);
+            $('#server-alerts-container').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>서버 정보를 불러올 수 없습니다.</div>');
+        }
+    }
+    
+    // 서버 경고 카드 생성
+    function createServerAlertCard(server) {
+        const statusClass = server.status === 'critical' ? 'danger' : 'warning';
+        const statusIcon = server.status === 'critical' ? 'fa-times-circle' : 'fa-exclamation-triangle';
+        const statusText = server.status === 'critical' ? '위험' : '경고';
+        
+        // 서버 상태에 따른 문제점 시뮬레이션
+        const issues = generateServerIssues(server);
+        
+        let issuesHtml = '';
+        if (issues && issues.length > 0) {
+            issuesHtml = issues.map(issue => {
+                const issueClass = issue.level === 'critical' ? 'danger' : 'warning';
+                return `
+                    <div class="alert alert-${issueClass} alert-sm mb-2">
+                        <i class="fas fa-${getIssueIcon(issue.type)} me-2"></i>
+                        <strong>${issue.type.toUpperCase()}:</strong> ${issue.message}
+                        <span class="badge bg-${issueClass} ms-2">${issue.value}${getIssueUnit(issue.type)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 메트릭 정보 시뮬레이션
+        const metrics = generateServerMetrics(server);
+        let metricsHtml = '';
+        if (metrics) {
+            metricsHtml = `
+                <div class="row mt-3">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h6 text-muted">CPU</div>
+                            <div class="h5 text-${metrics.cpu_usage > 80 ? 'danger' : metrics.cpu_usage > 60 ? 'warning' : 'success'}">${metrics.cpu_usage}%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h6 text-muted">메모리</div>
+                            <div class="h5 text-${metrics.memory_usage > 85 ? 'danger' : metrics.memory_usage > 70 ? 'warning' : 'success'}">${metrics.memory_usage}%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h6 text-muted">디스크</div>
+                            <div class="h5 text-${metrics.disk_usage > 85 ? 'danger' : metrics.disk_usage > 70 ? 'warning' : 'success'}">${metrics.disk_usage}%</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h6 text-muted">네트워크</div>
+                            <div class="h5 text-${metrics.network_latency > 50 ? 'warning' : 'success'}">${metrics.network_latency}ms</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="card border-${statusClass} mb-3">
+                <div class="card-header bg-${statusClass} text-white">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="mb-0">
+                                <i class="fas ${statusIcon} me-2"></i>
+                                ${server.name} (${server.ip}) - ${statusText} 상태
+                            </h6>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-sm btn-light" onclick="showServerDetail('${server.ip}')">
+                                <i class="fas fa-info-circle me-1"></i>상세보기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    ${issuesHtml}
+                    ${metricsHtml}
+                    <div class="mt-2 text-muted small">
+                        <i class="fas fa-clock me-1"></i>
+                        마지막 업데이트: ${new Date().toLocaleString()}
+                        <span class="ms-3"><i class="fas fa-server me-1"></i>역할: ${server.role || 'Unknown'}</span>
+                        <span class="ms-3"><i class="fas fa-hashtag me-1"></i>VMID: ${server.vmid || 'N/A'}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 서버 문제점 생성 (시뮬레이션)
+    function generateServerIssues(server) {
+        const issues = [];
+        
+        // 서버 상태에 따른 문제점 생성
+        if (server.status === 'critical') {
+            // 위험 상태 - 심각한 문제들
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'cpu',
+                    level: 'critical',
+                    message: 'CPU 사용률이 95%를 초과하여 시스템이 불안정합니다.',
+                    value: Math.floor(Math.random() * 10) + 95,
+                    threshold: 95
+                });
+            }
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'memory',
+                    level: 'critical',
+                    message: '메모리 사용률이 95%를 초과하여 OOM 위험이 있습니다.',
+                    value: Math.floor(Math.random() * 5) + 95,
+                    threshold: 95
+                });
+            }
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'disk',
+                    level: 'critical',
+                    message: '디스크 사용률이 95%를 초과하여 공간 부족 위험이 있습니다.',
+                    value: Math.floor(Math.random() * 5) + 95,
+                    threshold: 95
+                });
+            }
+        } else if (server.status === 'warning') {
+            // 경고 상태 - 주의가 필요한 문제들
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'cpu',
+                    level: 'warning',
+                    message: 'CPU 사용률이 80%를 초과하여 주의가 필요합니다.',
+                    value: Math.floor(Math.random() * 15) + 80,
+                    threshold: 80
+                });
+            }
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'memory',
+                    level: 'warning',
+                    message: '메모리 사용률이 85%를 초과하여 모니터링이 필요합니다.',
+                    value: Math.floor(Math.random() * 10) + 85,
+                    threshold: 85
+                });
+            }
+            if (Math.random() > 0.5) {
+                issues.push({
+                    type: 'network',
+                    level: 'warning',
+                    message: '네트워크 지연이 50ms를 초과하여 성능 저하가 발생할 수 있습니다.',
+                    value: Math.floor(Math.random() * 30) + 50,
+                    threshold: 50
+                });
+            }
+        }
+        
+        return issues;
+    }
+    
+    // 서버 메트릭 생성 (시뮬레이션)
+    function generateServerMetrics(server) {
+        return {
+            cpu_usage: Math.floor(Math.random() * 100),
+            memory_usage: Math.floor(Math.random() * 100),
+            disk_usage: Math.floor(Math.random() * 100),
+            network_latency: Math.floor(Math.random() * 100)
+        };
+    }
+    
+    // 이슈 타입별 아이콘 반환
+    function getIssueIcon(type) {
+        const icons = {
+            'cpu': 'microchip',
+            'memory': 'memory',
+            'disk': 'hdd',
+            'network': 'network-wired',
+            'system': 'exclamation-triangle'
+        };
+        return icons[type] || 'exclamation-triangle';
+    }
+    
+    // 이슈 타입별 단위 반환
+    function getIssueUnit(type) {
+        const units = {
+            'cpu': '%',
+            'memory': '%',
+            'disk': '%',
+            'network': 'ms',
+            'system': ''
+        };
+        return units[type] || '';
+    }
+    
+    // 서버 상세 정보 표시 (모달)
+    window.showServerDetail = function(serverIp) {
+        const server = servers.find(s => s.ip === serverIp);
+        if (!server) {
+            alert('서버 정보를 찾을 수 없습니다.');
+            return;
+        }
+        
+        // 간단한 알림으로 서버 정보 표시 (실제로는 모달을 구현할 수 있음)
+        const issues = generateServerIssues(server);
+        const metrics = generateServerMetrics(server);
+        
+        let detailMessage = `서버: ${server.name} (${server.ip})\n`;
+        detailMessage += `상태: ${server.status}\n`;
+        detailMessage += `역할: ${server.role}\n`;
+        detailMessage += `VMID: ${server.vmid}\n\n`;
+        
+        if (issues.length > 0) {
+            detailMessage += '문제점:\n';
+            issues.forEach(issue => {
+                detailMessage += `- ${issue.type.toUpperCase()}: ${issue.message}\n`;
+            });
+        }
+        
+        detailMessage += `\n현재 메트릭:\n`;
+        detailMessage += `- CPU: ${metrics.cpu_usage}%\n`;
+        detailMessage += `- 메모리: ${metrics.memory_usage}%\n`;
+        detailMessage += `- 디스크: ${metrics.disk_usage}%\n`;
+        detailMessage += `- 네트워크: ${metrics.network_latency}ms`;
+        
+        alert(detailMessage);
+    };
+    
+    // 서버 알림 새로고침
+    window.refreshServerAlerts = function() {
+        console.log('🔄 서버 알림 새로고침');
+        displayServerAlerts();
     };
     
     // 데이터 새로고침 (요약 패널만)
