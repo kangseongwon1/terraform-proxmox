@@ -1,15 +1,46 @@
-- become: true
+---
+- name: 서버 역할 설정 및 Node Exporter 설치
+  become: true
   hosts: all
   gather_facts: true
   vars:
     ansible_verbosity: 2
-  tasks:
+    # 기본 변수들
+    nginx_user: "www-data"
+    nginx_port: 80
+    mysql_root_password: "{{ ansible_mysql_root_password | default('root1234') }}"
+    mysql_database: "app_db"
+    java_version: "11"
+    tomcat_port: 8080
+    elasticsearch_port: 9200
+    ftp_user: "ftpuser"
+    ftp_password: "{{ ansible_ftp_password | default('ftppass123') }}"
+    
+  pre_tasks:
     - name: Ensure Python is available (Rocky/RHEL)
       raw: test -x /usr/bin/python3 || (dnf install -y python3 python3-pip)
       changed_when: false
+      when: ansible_os_family == "RedHat"
 
-    - name: Gather facts
+    - name: Ensure Python is available (Debian/Ubuntu)
+      raw: test -x /usr/bin/python3 || (apt update && apt install -y python3 python3-pip)
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Gather facts after Python installation
       setup:
 
   roles:
-    - "{{ role }}"
+    - name: "{{ role }}"
+      when: role is defined and role != ""
+    - name: node_exporter  # 모든 서버에 Node Exporter 설치
+      
+  post_tasks:
+    - name: 역할 설정 완료 알림
+      debug:
+        msg: |
+          ✅ 서버 역할 설정 완료!
+          - 서버: {{ inventory_hostname }}
+          - IP: {{ ansible_default_ipv4.address }}
+          - 역할: {{ role | default('미지정') }}
+          - Node Exporter: http://{{ ansible_default_ipv4.address }}:9100/metrics

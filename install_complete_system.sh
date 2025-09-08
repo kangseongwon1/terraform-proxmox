@@ -61,6 +61,7 @@ pre_validation() {
         "docker-compose.vault.yml"
         "vault-dev.hcl"
         "create_tables.py"
+        "update_prometheus_targets.py"
     )
     
     MISSING_FILES=()
@@ -194,9 +195,18 @@ setup_python() {
         log_info "Python 3.12 설치 중..."
         
         if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
-            # RedHat 계열에서 Python 3.12 설치 (소스 빌드 방식)
-            log_info "RedHat 계열에서 Python 3.12 소스 빌드 설치 중..."
-            install_python312_from_source
+    # RedHat 계열에서 Python 3.12 설치 (소스 빌드 방식)
+    log_info "RedHat 계열에서 Python 3.12 소스 빌드 설치 중..."
+    
+    # 사용자 계정으로 설치 시도
+    log_info "사용자 계정으로 Python 3.12 설치 시도 중..."
+    install_python312_from_source
+    
+    # 설치 실패 시 sudo 권한으로 재시도
+    if [ $? -ne 0 ]; then
+        log_warning "사용자 계정 설치 실패, sudo 권한으로 재시도..."
+        install_python312_from_source_sudo
+    fi
             
         elif [ "$PKG_MANAGER" = "apt" ]; then
             # Debian 계열에서 Python 3.12 설치
@@ -230,7 +240,16 @@ setup_python() {
     # 가상환경 생성 (Python 3.12 사용)
     if [ ! -d "venv" ]; then
         log_info "Python 3.12로 가상환경 생성 중..."
-        python3.12 -m venv venv
+        
+        # Python 3.12 경로 확인
+        if command -v python3.12 &> /dev/null; then
+            PYTHON312_PATH=$(which python3.12)
+            log_info "Python 3.12 경로: $PYTHON312_PATH"
+            $PYTHON312_PATH -m venv venv
+        else
+            log_error "Python 3.12를 찾을 수 없습니다"
+            exit 1
+        fi
         
         if [ $? -eq 0 ]; then
             log_success "가상환경 생성 완료"
@@ -282,16 +301,25 @@ install_python312_from_source() {
         sudo apt install -y build-essential libssl-dev libbz2-dev libffi-dev zlib1g-dev libreadline-dev libsqlite3-dev wget
     fi
     
-    # Python 3.12.7 다운로드 및 빌드
-    log_info "Python 3.12.7 다운로드 중..."
-    cd /tmp
-    wget https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz
+    # 사용자 홈 디렉토리에 Python 설치
+    PYTHON_INSTALL_DIR="$HOME/python3.12"
+    PYTHON_BUILD_DIR="$HOME/python-build"
     
-    if [ $? -eq 0 ]; then
-        log_success "Python 3.12.7 다운로드 완료"
+    log_info "Python 3.12.7 다운로드 중..."
+    mkdir -p "$PYTHON_BUILD_DIR"
+    cd "$PYTHON_BUILD_DIR"
+    
+    if [ ! -f "Python-3.12.7.tgz" ]; then
+        wget https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz
+        
+        if [ $? -eq 0 ]; then
+            log_success "Python 3.12.7 다운로드 완료"
+        else
+            log_error "Python 3.12.7 다운로드 실패"
+            exit 1
+        fi
     else
-        log_error "Python 3.12.7 다운로드 실패"
-        exit 1
+        log_info "Python 3.12.7 이미 다운로드됨"
     fi
     
     log_info "압축 해제 중..."
@@ -299,7 +327,95 @@ install_python312_from_source() {
     cd Python-3.12.7
     
     log_info "컨피규어 실행 중..."
-    ./configure --enable-optimizations --prefix=/usr/local
+    ./configure --enable-optimizations --prefix="$PYTHON_INSTALL_DIR"
+    
+    if [ $? -eq 0 ]; then
+        log_success "컨피규어 완료"
+    else
+        log_error "컨피규어 실패"
+        exit 1
+    fi
+    
+    log_info "컴파일 중... (시간이 걸릴 수 있습니다)"
+    make -j $(nproc)
+    
+    if [ $? -eq 0 ]; then
+        log_success "컴파일 완료"
+    else
+        log_error "컴파일 실패"
+        exit 1
+    fi
+    
+    log_info "설치 중..."
+    make install
+    
+    if [ $? -eq 0 ]; then
+        log_success "Python 3.12 소스 빌드 및 설치 완료"
+    else
+        log_error "Python 3.12 설치 실패"
+        exit 1
+    fi
+    
+    # PATH에 Python 3.12 추가
+    log_info "PATH 설정 중..."
+    echo "export PATH=\"$PYTHON_INSTALL_DIR/bin:\$PATH\"" >> ~/.bashrc
+    export PATH="$PYTHON_INSTALL_DIR/bin:$PATH"
+    
+    # 정리 (권한 문제 해결)
+    log_info "빌드 파일 정리 중..."
+    cd "$HOME"
+    rm -rf "$PYTHON_BUILD_DIR"
+    
+    log_info "Python 3.12 설치 확인 중..."
+    if command -v python3.12 &> /dev/null; then
+        PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
+        log_success "Python 3.12 설치 확인: $PYTHON312_VERSION"
+        log_info "Python 3.12 경로: $(which python3.12)"
+    else
+        log_error "Python 3.12 설치 확인 실패"
+        exit 1
+    fi
+}
+
+install_python312_from_source_sudo() {
+    log_info "sudo 권한으로 Python 3.12 소스 빌드 중..."
+    
+    # 빌드 도구 설치
+    if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+        log_info "빌드 도구 설치 중..."
+        sudo $PKG_MANAGER groupinstall -y "Development Tools"
+        sudo $PKG_MANAGER install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget gcc gcc-c++ make
+    elif [ "$PKG_MANAGER" = "apt" ]; then
+        sudo apt install -y build-essential libssl-dev libbz2-dev libffi-dev zlib1g-dev libreadline-dev libsqlite3-dev wget
+    fi
+    
+    # /tmp 대신 사용자 홈 디렉토리 사용
+    PYTHON_BUILD_DIR="$HOME/python-build"
+    PYTHON_INSTALL_DIR="/usr/local"
+    
+    log_info "Python 3.12.7 다운로드 중..."
+    mkdir -p "$PYTHON_BUILD_DIR"
+    cd "$PYTHON_BUILD_DIR"
+    
+    if [ ! -f "Python-3.12.7.tgz" ]; then
+        wget https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz
+        
+        if [ $? -eq 0 ]; then
+            log_success "Python 3.12.7 다운로드 완료"
+        else
+            log_error "Python 3.12.7 다운로드 실패"
+            exit 1
+        fi
+    else
+        log_info "Python 3.12.7 이미 다운로드됨"
+    fi
+    
+    log_info "압축 해제 중..."
+    tar xzf Python-3.12.7.tgz
+    cd Python-3.12.7
+    
+    log_info "컨피규어 실행 중..."
+    ./configure --enable-optimizations --prefix="$PYTHON_INSTALL_DIR"
     
     if [ $? -eq 0 ]; then
         log_success "컨피규어 완료"
@@ -328,14 +444,16 @@ install_python312_from_source() {
         exit 1
     fi
     
-    # 정리
-    cd -
-    rm -rf /tmp/Python-3.12.7*
+    # 정리 (권한 문제 해결)
+    log_info "빌드 파일 정리 중..."
+    cd "$HOME"
+    sudo rm -rf "$PYTHON_BUILD_DIR"
     
     log_info "Python 3.12 설치 확인 중..."
     if command -v python3.12 &> /dev/null; then
         PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
         log_success "Python 3.12 설치 확인: $PYTHON312_VERSION"
+        log_info "Python 3.12 경로: $(which python3.12)"
     else
         log_error "Python 3.12 설치 확인 실패"
         exit 1
@@ -656,6 +774,18 @@ install_monitoring() {
         else
             log_warning "Grafana 설정 실패 (계속 진행)"
         fi
+    fi
+    
+    # Prometheus 타겟 업데이트 스크립트 권한 설정
+    if [ -f "update_prometheus_targets.py" ]; then
+        log_info "Prometheus 타겟 업데이트 스크립트 설정 중..."
+        chmod +x update_prometheus_targets.py
+        
+        # PyYAML 설치 확인 (스크립트 실행에 필요)
+        source venv/bin/activate
+        pip install PyYAML requests
+        
+        log_success "Prometheus 타겟 업데이트 스크립트 설정 완료"
     fi
     
     log_success "모니터링 시스템 설치 완료"

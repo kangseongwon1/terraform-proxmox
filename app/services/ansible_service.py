@@ -40,7 +40,6 @@ class AnsibleService:
         # 정적 인벤토리 파일 경로 (다중 서버 동시 실행용)
         self.inventory_file = os.path.join(self.ansible_dir, "inventory.ini")
         self.playbook_file = os.path.join(self.ansible_dir, "role_playbook.yml")
-        self.single_server_playbook = os.path.join(self.ansible_dir, "single_server_playbook.yml")
         self.role_playbook = os.path.join(self.ansible_dir, "role_playbook.yml")
         self.simple_test_playbook = os.path.join(self.ansible_dir, "simple_test_playbook.yml")
         self.minimal_test_playbook = os.path.join(self.ansible_dir, "minimal_test_playbook.yml")
@@ -49,7 +48,7 @@ class AnsibleService:
         print(f"🔧 Ansible 디렉토리: {self.ansible_dir}")
         print(f"🔧 Dynamic Inventory 스크립트: {self.dynamic_inventory_script}")
         print(f"🔧 Playbook 파일: {self.playbook_file}")
-        print(f"🔧 Single Server Playbook 파일: {self.single_server_playbook}")
+        print(f"🔧 Role Playbook 파일: {self.role_playbook}")
         
         # 파일 존재 확인
         if not os.path.exists(self.playbook_file):
@@ -57,10 +56,10 @@ class AnsibleService:
         else:
             print(f"✅ 플레이북 파일 확인됨: {self.playbook_file}")
         
-        if not os.path.exists(self.single_server_playbook):
-            print(f"⚠️ Single Server 플레이북 파일이 존재하지 않습니다: {self.single_server_playbook}")
+        if not os.path.exists(self.role_playbook):
+            print(f"⚠️ Role 플레이북 파일이 존재하지 않습니다: {self.role_playbook}")
         else:
-            print(f"✅ Single Server 플레이북 파일 확인됨: {self.single_server_playbook}")
+            print(f"✅ Role 플레이북 파일 확인됨: {self.role_playbook}")
         
         if not os.path.exists(self.dynamic_inventory_script):
             print(f"⚠️ Dynamic Inventory 스크립트가 존재하지 않습니다: {self.dynamic_inventory_script}")
@@ -298,7 +297,7 @@ class AnsibleService:
                 command = [
                 'ansible-playbook',
                     '-i', self.dynamic_inventory_script,
-                    self.single_server_playbook,
+                    self.role_playbook,
                     '--extra-vars', json.dumps(extra_vars),
                     '--limit', target_server,
                     '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s'
@@ -672,6 +671,27 @@ class AnsibleService:
         except Exception as e:
             return False, f"Ansible 설치 확인 중 오류: {str(e)}"
 
+    def _update_prometheus_target(self, server_ip: str) -> None:
+        """Prometheus에 Node Exporter 타겟 추가"""
+        try:
+            import subprocess
+            
+            print(f"🔧 Prometheus 타겟 업데이트 중: {server_ip}")
+            
+            # update_prometheus_targets.py 스크립트 실행
+            result = subprocess.run([
+                'python3', 'update_prometheus_targets.py', 'add', server_ip, '9100'
+            ], capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                print(f"✅ Prometheus 타겟 추가 성공: {server_ip}:9100")
+            else:
+                print(f"⚠️ Prometheus 타겟 추가 실패: {server_ip}:9100")
+                print(f"   오류: {result.stderr}")
+                
+        except Exception as e:
+            print(f"⚠️ Prometheus 타겟 업데이트 중 오류: {e}")
+
     def _update_tfvars_role(self, server_name: str, role: str) -> bool:
         """terraform.tfvars.json에서 서버 역할 업데이트"""
         try:
@@ -717,19 +737,23 @@ class AnsibleService:
                     env = os.environ.copy()
                     env['TARGET_SERVER_IP'] = server.ip_address
                     
-                    # 역할 변수 설정
+                    # 역할 변수 설정 (환경 변수에서 가져오기)
                     role_vars = extra_vars or {}
                     role_vars['target_server'] = server.ip_address
                     role_vars['role'] = role
                     role_vars['nginx_user'] = 'www-data'
                     role_vars['nginx_port'] = 80
-                    role_vars['mysql_root_password'] = 'root1234'
+                    role_vars['mysql_root_password'] = os.environ.get('ANSIBLE_MYSQL_ROOT_PASSWORD', 'root1234')
                     role_vars['mysql_database'] = 'app_db'
                     role_vars['java_version'] = '11'
                     role_vars['tomcat_port'] = 8080
                     role_vars['elasticsearch_port'] = 9200
                     role_vars['ftp_user'] = 'ftpuser'
-                    role_vars['ftp_password'] = 'ftppass123'
+                    role_vars['ftp_password'] = os.environ.get('ANSIBLE_FTP_PASSWORD', 'ftppass123')
+                    
+                    # Ansible에서 사용할 환경 변수들
+                    role_vars['ansible_mysql_root_password'] = os.environ.get('ANSIBLE_MYSQL_ROOT_PASSWORD', 'root1234')
+                    role_vars['ansible_ftp_password'] = os.environ.get('ANSIBLE_FTP_PASSWORD', 'ftppass123')
                     
                     # Ansible 명령어 구성
                     command = [
@@ -747,6 +771,10 @@ class AnsibleService:
                     returncode, stdout, stderr = self._run_ansible_command(command, env=env)
                     print(f"🔧 Ansible 실행 완료: returncode={returncode}")
                     print(f"🔧 Ansible stdout 길이: {len(stdout) if stdout else 0}")
+                    
+                    # Ansible 실행 성공 시 Prometheus 타겟 업데이트
+                    if returncode == 0:
+                        self._update_prometheus_target(server.ip_address)
                     print(f"🔧 Ansible stderr 길이: {len(stderr) if stderr else 0}")
                     
                     # 상세 로그 출력 (전체)

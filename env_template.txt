@@ -195,8 +195,8 @@ VAULT_TOKEN=root
 # Ansible 비밀번호 설정 (Vault 사용 시 필요)
 # ========================================
 
-# MySQL Root 비밀번호 (Ansible에서 사용)
-ANSIBLE_MYSQL_ROOT_PASSWORD=default_mysql_pass
+# MySQL 루트 비밀번호 (Ansible에서 사용)
+ANSIBLE_MYSQL_ROOT_PASSWORD=default_mysql_root_pass
 
 # FTP 비밀번호 (Ansible에서 사용)
 ANSIBLE_FTP_PASSWORD=default_ftp_pass
