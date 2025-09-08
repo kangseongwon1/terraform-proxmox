@@ -241,13 +241,17 @@ setup_python() {
     if [ ! -d "venv" ]; then
         log_info "Python 3.12로 가상환경 생성 중..."
         
-        # Python 3.12 경로 확인
-        if command -v python3.12 &> /dev/null; then
-            PYTHON312_PATH=$(which python3.12)
-            log_info "Python 3.12 경로: $PYTHON312_PATH"
-            $PYTHON312_PATH -m venv venv
+        # Python 경로 확인 (python 명령어 우선, 없으면 python3.12)
+        if command -v python &> /dev/null; then
+            PYTHON_PATH=$(which python)
+            log_info "Python 경로: $PYTHON_PATH"
+            python -m venv venv
+        elif command -v python3.12 &> /dev/null; then
+            PYTHON_PATH=$(which python3.12)
+            log_info "Python 3.12 경로: $PYTHON_PATH"
+            python3.12 -m venv venv
         else
-            log_error "Python 3.12를 찾을 수 없습니다"
+            log_error "Python을 찾을 수 없습니다"
             exit 1
         fi
         
@@ -267,7 +271,18 @@ setup_python() {
     
     # pip 업그레이드
     log_info "pip 업그레이드 중..."
-    python -m pip install --upgrade pip
+    
+    # 가상환경에서 Python 명령어 확인
+    if command -v python &> /dev/null; then
+        python -m pip install --upgrade pip
+    elif command -v python3 &> /dev/null; then
+        python3 -m pip install --upgrade pip
+    elif command -v python3.12 &> /dev/null; then
+        python3.12 -m pip install --upgrade pip
+    else
+        log_error "Python 명령어를 찾을 수 없습니다"
+        exit 1
+    fi
     
     if [ $? -eq 0 ]; then
         log_success "pip 업그레이드 완료"
@@ -361,6 +376,11 @@ install_python312_from_source() {
     echo "export PATH=\"$PYTHON_INSTALL_DIR/bin:\$PATH\"" >> ~/.bashrc
     export PATH="$PYTHON_INSTALL_DIR/bin:$PATH"
     
+    # python 심볼릭 링크 생성 (python3.12 -> python)
+    log_info "python 심볼릭 링크 생성 중..."
+    ln -sf "$PYTHON_INSTALL_DIR/bin/python3.12" "$PYTHON_INSTALL_DIR/bin/python"
+    ln -sf "$PYTHON_INSTALL_DIR/bin/python3.12" "$PYTHON_INSTALL_DIR/bin/python3"
+    
     # 정리 (권한 문제 해결)
     log_info "빌드 파일 정리 중..."
     cd "$HOME"
@@ -371,6 +391,13 @@ install_python312_from_source() {
         PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
         log_success "Python 3.12 설치 확인: $PYTHON312_VERSION"
         log_info "Python 3.12 경로: $(which python3.12)"
+        
+        # python 명령어 확인
+        if command -v python &> /dev/null; then
+            log_success "python 명령어 사용 가능: $(which python)"
+        else
+            log_warning "python 명령어를 찾을 수 없습니다"
+        fi
     else
         log_error "Python 3.12 설치 확인 실패"
         exit 1
@@ -444,6 +471,11 @@ install_python312_from_source_sudo() {
         exit 1
     fi
     
+    # python 심볼릭 링크 생성 (python3.12 -> python)
+    log_info "python 심볼릭 링크 생성 중..."
+    sudo ln -sf "$PYTHON_INSTALL_DIR/bin/python3.12" "$PYTHON_INSTALL_DIR/bin/python"
+    sudo ln -sf "$PYTHON_INSTALL_DIR/bin/python3.12" "$PYTHON_INSTALL_DIR/bin/python3"
+    
     # 정리 (권한 문제 해결)
     log_info "빌드 파일 정리 중..."
     cd "$HOME"
@@ -454,6 +486,13 @@ install_python312_from_source_sudo() {
         PYTHON312_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
         log_success "Python 3.12 설치 확인: $PYTHON312_VERSION"
         log_info "Python 3.12 경로: $(which python3.12)"
+        
+        # python 명령어 확인
+        if command -v python &> /dev/null; then
+            log_success "python 명령어 사용 가능: $(which python)"
+        else
+            log_warning "python 명령어를 찾을 수 없습니다"
+        fi
     else
         log_error "Python 3.12 설치 확인 실패"
         exit 1
