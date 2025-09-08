@@ -97,17 +97,20 @@ docker-compose -f docker-compose.vault.yml restart
 
 ### **Terraform 사용:**
 ```bash
-# 환경변수 설정 (TF_VAR_ 접두사 사용)
-export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN="$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')"
-export TF_VAR_vault_token="$(grep 'Root Token:' vault_init.txt | awk '{print $NF}')"
-export TF_VAR_vault_address="http://127.0.0.1:8200"
+# 환경변수는 자동으로 .bashrc에 영구 저장됨
+# 새 터미널 세션에서는 자동으로 적용됨
 
 # Terraform 실행 (Enter a value를 묻지 않음)
 cd terraform
 terraform plan
 terraform apply
 ```
+
+### **환경변수 영구 저장 기능:**
+- ✅ **자동 .bashrc 저장**: 환경변수가 .bashrc에 영구 저장됨
+- ✅ **기존 환경변수 교체**: 기존 Vault 환경변수를 자동으로 제거하고 새로 설정
+- ✅ **새 세션 자동 적용**: 새 터미널 세션에서 자동으로 환경변수 적용
+- ✅ **source .bashrc 자동 실행**: 현재 세션에도 즉시 적용
 
 
 ## 🌐 웹 UI 접속
