@@ -525,7 +525,7 @@ $(document).ready(function() {
             }).join('');
         }
         
-        // 메트릭 정보 시뮬레이션
+        // 메트릭 정보 (실제 서버 상태 기반)
         const metrics = generateServerMetrics(server);
         let metricsHtml = '';
         if (metrics) {
@@ -534,27 +534,31 @@ $(document).ready(function() {
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">CPU</div>
-                            <div class="h5 text-${metrics.cpu_usage > 80 ? 'danger' : metrics.cpu_usage > 60 ? 'warning' : 'success'}">${metrics.cpu_usage}%</div>
+                            <div class="h5 text-muted">${metrics.cpu_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">메모리</div>
-                            <div class="h5 text-${metrics.memory_usage > 85 ? 'danger' : metrics.memory_usage > 70 ? 'warning' : 'success'}">${metrics.memory_usage}%</div>
+                            <div class="h5 text-muted">${metrics.memory_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">디스크</div>
-                            <div class="h5 text-${metrics.disk_usage > 85 ? 'danger' : metrics.disk_usage > 70 ? 'warning' : 'success'}">${metrics.disk_usage}%</div>
+                            <div class="h5 text-muted">${metrics.disk_usage}</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <div class="h6 text-muted">네트워크</div>
-                            <div class="h5 text-${metrics.network_latency > 50 ? 'warning' : 'success'}">${metrics.network_latency}ms</div>
+                            <div class="h5 text-muted">${metrics.network_latency}</div>
                         </div>
                     </div>
+                </div>
+                <div class="alert alert-info mt-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>참고:</strong> 상세 메트릭은 Grafana 대시보드에서 확인하세요.
                 </div>
             `;
         }
@@ -590,82 +594,59 @@ $(document).ready(function() {
         `;
     }
     
-    // 서버 문제점 생성 (시뮬레이션)
+    // 서버 문제점 생성 (실제 서버 상태 기반)
     function generateServerIssues(server) {
         const issues = [];
         
-        // 서버 상태에 따른 문제점 생성
+        // 서버 상태에 따른 문제점 생성 (실제 상태 기반)
         if (server.status === 'critical') {
             // 위험 상태 - 심각한 문제들
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'cpu',
-                    level: 'critical',
-                    message: 'CPU 사용률이 95%를 초과하여 시스템이 불안정합니다.',
-                    value: Math.floor(Math.random() * 10) + 95,
-                    threshold: 95
-                });
-            }
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'memory',
-                    level: 'critical',
-                    message: '메모리 사용률이 95%를 초과하여 OOM 위험이 있습니다.',
-                    value: Math.floor(Math.random() * 5) + 95,
-                    threshold: 95
-                });
-            }
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'disk',
-                    level: 'critical',
-                    message: '디스크 사용률이 95%를 초과하여 공간 부족 위험이 있습니다.',
-                    value: Math.floor(Math.random() * 5) + 95,
-                    threshold: 95
-                });
-            }
+            issues.push({
+                type: 'system',
+                level: 'critical',
+                message: '시스템이 위험 상태입니다. 즉시 점검이 필요합니다.',
+                value: 'CRITICAL',
+                threshold: 'critical'
+            });
         } else if (server.status === 'warning') {
             // 경고 상태 - 주의가 필요한 문제들
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'cpu',
-                    level: 'warning',
-                    message: 'CPU 사용률이 80%를 초과하여 주의가 필요합니다.',
-                    value: Math.floor(Math.random() * 15) + 80,
-                    threshold: 80
-                });
-            }
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'memory',
-                    level: 'warning',
-                    message: '메모리 사용률이 85%를 초과하여 모니터링이 필요합니다.',
-                    value: Math.floor(Math.random() * 10) + 85,
-                    threshold: 85
-                });
-            }
-            if (Math.random() > 0.5) {
-                issues.push({
-                    type: 'network',
-                    level: 'warning',
-                    message: '네트워크 지연이 50ms를 초과하여 성능 저하가 발생할 수 있습니다.',
-                    value: Math.floor(Math.random() * 30) + 50,
-                    threshold: 50
-                });
-            }
+            issues.push({
+                type: 'system',
+                level: 'warning',
+                message: '시스템에 주의가 필요한 상태가 감지되었습니다.',
+                value: 'WARNING',
+                threshold: 'warning'
+            });
         }
         
         return issues;
     }
     
-    // 서버 메트릭 생성 (시뮬레이션)
+    // 서버 메트릭 생성 (실제 서버 상태 기반)
     function generateServerMetrics(server) {
-        return {
-            cpu_usage: Math.floor(Math.random() * 100),
-            memory_usage: Math.floor(Math.random() * 100),
-            disk_usage: Math.floor(Math.random() * 100),
-            network_latency: Math.floor(Math.random() * 100)
-        };
+        // 실제 서버 상태에 따른 메트릭 표시
+        if (server.status === 'critical') {
+            return {
+                cpu_usage: 'N/A',
+                memory_usage: 'N/A',
+                disk_usage: 'N/A',
+                network_latency: 'N/A'
+            };
+        } else if (server.status === 'warning') {
+            return {
+                cpu_usage: 'N/A',
+                memory_usage: 'N/A',
+                disk_usage: 'N/A',
+                network_latency: 'N/A'
+            };
+        } else {
+            return {
+                cpu_usage: 'N/A',
+                memory_usage: 'N/A',
+                disk_usage: 'N/A',
+                network_latency: 'N/A'
+            };
+        }
     }
     
     // 이슈 타입별 아이콘 반환
@@ -700,27 +681,20 @@ $(document).ready(function() {
             return;
         }
         
-        // 간단한 알림으로 서버 정보 표시 (실제로는 모달을 구현할 수 있음)
-        const issues = generateServerIssues(server);
-        const metrics = generateServerMetrics(server);
-        
+        // 실제 서버 정보만 표시
         let detailMessage = `서버: ${server.name} (${server.ip})\n`;
         detailMessage += `상태: ${server.status}\n`;
-        detailMessage += `역할: ${server.role}\n`;
-        detailMessage += `VMID: ${server.vmid}\n\n`;
+        detailMessage += `역할: ${server.role || 'Unknown'}\n`;
+        detailMessage += `VMID: ${server.vmid || 'N/A'}\n\n`;
         
-        if (issues.length > 0) {
-            detailMessage += '문제점:\n';
-            issues.forEach(issue => {
-                detailMessage += `- ${issue.type.toUpperCase()}: ${issue.message}\n`;
-            });
+        if (server.status === 'critical') {
+            detailMessage += '⚠️ 위험 상태: 시스템이 위험 상태입니다. 즉시 점검이 필요합니다.\n';
+        } else if (server.status === 'warning') {
+            detailMessage += '⚠️ 경고 상태: 시스템에 주의가 필요한 상태가 감지되었습니다.\n';
         }
         
-        detailMessage += `\n현재 메트릭:\n`;
-        detailMessage += `- CPU: ${metrics.cpu_usage}%\n`;
-        detailMessage += `- 메모리: ${metrics.memory_usage}%\n`;
-        detailMessage += `- 디스크: ${metrics.disk_usage}%\n`;
-        detailMessage += `- 네트워크: ${metrics.network_latency}ms`;
+        detailMessage += `\n📊 상세 메트릭은 Grafana 대시보드에서 확인하세요.\n`;
+        detailMessage += `🔗 Grafana에서 이 서버의 실시간 데이터를 확인할 수 있습니다.`;
         
         alert(detailMessage);
     };
