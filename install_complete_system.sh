@@ -1289,18 +1289,66 @@ start_services() {
         fi
     fi
     
-    # Flask 애플리케이션 시작 (백그라운드)
-    log_info "Flask 애플리케이션 시작 중..."
-    nohup python3 run.py > app.log 2>&1 &
-    FLASK_PID=$!
-    echo $FLASK_PID > flask.pid
+    # Flask 애플리케이션 systemd 서비스 등록
+    log_info "Flask 애플리케이션 systemd 서비스 등록 중..."
     
-    # 서비스 시작 확인
-    sleep 5
-    if ps -p $FLASK_PID > /dev/null; then
-        log_success "Flask 애플리케이션 시작 완료 (PID: $FLASK_PID)"
+    # 현재 디렉토리 경로 가져오기
+    APP_DIR=$(pwd)
+    VENV_PYTHON="$APP_DIR/venv/bin/python"
+    
+    # 가상환경 Python 경로 확인
+    if [ ! -f "$VENV_PYTHON" ]; then
+        log_warning "가상환경을 찾을 수 없습니다. 시스템 Python 사용"
+        VENV_PYTHON=$(which python3)
     else
-        log_warning "Flask 애플리케이션 시작 실패"
+        log_info "가상환경 Python 사용: $VENV_PYTHON"
+    fi
+    
+    # systemd 서비스 파일 생성
+    sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
+[Unit]
+Description=Proxmox Manager Flask Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=$USER
+Group=$USER
+WorkingDirectory=$APP_DIR
+Environment=PATH=$PATH
+Environment=PYTHONPATH=$APP_DIR
+ExecStart=$VENV_PYTHON run.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 보안 설정
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$APP_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # 서비스 등록 및 시작
+    log_info "Flask 애플리케이션 서비스 시작 중..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable proxmox-manager
+    sudo systemctl start proxmox-manager
+    
+    # 서비스 상태 확인
+    sleep 3
+    if sudo systemctl is-active --quiet proxmox-manager; then
+        log_success "Flask 애플리케이션 서비스 시작 완료"
+        log_info "서비스 상태: $(sudo systemctl is-active proxmox-manager)"
+    else
+        log_warning "Flask 애플리케이션 서비스 시작 실패"
+        log_info "서비스 로그 확인: sudo journalctl -u proxmox-manager -n 20"
     fi
     
     log_success "서비스 시작 완료"
@@ -1339,19 +1387,28 @@ show_completion_info() {
     echo "  🔐 Vault: http://$(hostname -I | awk '{print $1}'):8200"
     
     echo ""
-    echo -e "${CYAN}🔧 관리 명령어:${NC}"
-    echo "  서비스 상태 확인: ps aux | grep -E '(python|docker)'"
-    echo "  Flask 로그 확인: tail -f app.log"
-    echo "  Vault 상태 확인: docker exec vault-dev vault status"
-    echo "  서비스 중지: kill \$(cat flask.pid) && docker-compose -f docker-compose.vault.yml down"
+    echo -e "${CYAN}🔧 서비스 관리 명령어:${NC}"
+    echo "  Flask 애플리케이션:"
+    echo "    상태 확인: sudo systemctl status proxmox-manager"
+    echo "    시작: sudo systemctl start proxmox-manager"
+    echo "    중지: sudo systemctl stop proxmox-manager"
+    echo "    재시작: sudo systemctl restart proxmox-manager"
+    echo "    로그 확인: sudo journalctl -u proxmox-manager -f"
+    echo ""
+    echo "  모니터링 서비스:"
+    echo "    Prometheus: sudo systemctl status prometheus"
+    echo "    Grafana: sudo systemctl status grafana-server"
+    echo ""
+    echo "  Vault 서비스:"
+    echo "    상태 확인: docker exec vault-dev vault status"
+    echo "    중지: docker-compose -f docker-compose.vault.yml down"
     
     echo ""
     echo -e "${CYAN}📁 중요 파일:${NC}"
     echo "  환경설정: .env"
     echo "  데이터베이스: instance/proxmox_manager.db"
     echo "  Vault 초기화: vault_init.txt"
-    echo "  Flask 로그: app.log"
-    echo "  서비스 PID: flask.pid"
+    echo "  Flask 서비스: /etc/systemd/system/proxmox-manager.service"
     
     echo ""
     echo -e "${YELLOW}⚠️  다음 단계:${NC}"
