@@ -35,10 +35,38 @@ check_docker() {
     fi
     
     if ! command -v docker-compose &> /dev/null; then
-        log_error "Docker Compose가 설치되지 않았습니다!"
-        log_info "Docker Compose 설치 방법:"
-        log_info "sudo dnf install -y docker-compose"
-        exit 1
+        log_warning "Docker Compose가 설치되지 않았습니다. 설치를 시도합니다..."
+        
+        # Docker Compose 설치 시도
+        if command -v dnf &> /dev/null; then
+            # Rocky 8에서 Docker Compose 설치
+            log_info "EPEL에서 Docker Compose 설치 시도 중..."
+            sudo dnf install -y epel-release
+            sudo dnf install -y docker-compose
+            
+            # 실패 시 바이너리 직접 설치
+            if ! command -v docker-compose &> /dev/null; then
+                log_info "패키지 설치 실패, 바이너리 직접 설치 중..."
+                COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4)
+                COMPOSE_VERSION=${COMPOSE_VERSION#v}
+                
+                sudo curl -L "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+            fi
+        elif command -v apt &> /dev/null; then
+            sudo apt install -y docker-compose
+        fi
+        
+        # 재확인
+        if ! command -v docker-compose &> /dev/null; then
+            log_error "Docker Compose 설치에 실패했습니다!"
+            log_info "수동 설치 방법:"
+            log_info "sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose"
+            log_info "sudo chmod +x /usr/local/bin/docker-compose"
+            exit 1
+        else
+            log_success "Docker Compose 설치 완료"
+        fi
     fi
     
     if ! sudo systemctl is-active --quiet docker; then
