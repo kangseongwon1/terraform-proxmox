@@ -279,16 +279,26 @@ configure_vault() {
     
     # .env 파일에 Vault 토큰 업데이트
     log_info ".env 파일에 Vault 토큰 업데이트 중..."
-    if [ -f "../.env" ]; then
+    
+    # .env 파일 경로 확인 (현재 디렉토리 또는 상위 디렉토리)
+    ENV_FILE=""
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
+    elif [ -f "../.env" ]; then
+        ENV_FILE="../.env"
+    fi
+    
+    if [ -n "$ENV_FILE" ]; then
         # 현재 ROOT_TOKEN을 .env 파일에 업데이트
-        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" ../.env
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" "$ENV_FILE"
         log_success ".env 파일에 Vault 토큰 업데이트 완료: $ROOT_TOKEN"
+        log_info "업데이트된 파일: $ENV_FILE"
         
         # 환경변수도 즉시 업데이트
         export VAULT_TOKEN="$ROOT_TOKEN"
         export TF_VAR_vault_token="$ROOT_TOKEN"
     else
-        log_warning ".env 파일을 찾을 수 없습니다"
+        log_warning ".env 파일을 찾을 수 없습니다 (현재 디렉토리와 상위 디렉토리 모두 확인함)"
     fi
     
     log_success "Vault 설정 완료"
@@ -389,9 +399,21 @@ set_environment() {
     
     # .env 파일에 Vault 토큰 업데이트
     log_info ".env 파일에 Vault 토큰 업데이트 중..."
-    if [ -f "../.env" ]; then
-        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" ../.env
-        log_success ".env 파일에 Vault 토큰 업데이트 완료"
+    
+    # .env 파일 경로 확인 (현재 디렉토리 또는 상위 디렉토리)
+    ENV_FILE=""
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
+    elif [ -f "../.env" ]; then
+        ENV_FILE="../.env"
+    fi
+    
+    if [ -n "$ENV_FILE" ]; then
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" "$ENV_FILE"
+        log_success ".env 파일에 Vault 토큰 업데이트 완료: $ROOT_TOKEN"
+        log_info "업데이트된 파일: $ENV_FILE"
+    else
+        log_warning ".env 파일을 찾을 수 없습니다 (현재 디렉토리와 상위 디렉토리 모두 확인함)"
     fi
     
     # .bashrc에 환경변수 영구 저장
@@ -448,8 +470,17 @@ test_terraform() {
     
     # .env 파일에서 Terraform 변수 설정
     log_info ".env 파일에서 Terraform 변수 설정 중..."
-    if [ -f "../.env" ]; then
-        source ../.env
+    
+    # .env 파일 경로 확인 (현재 디렉토리 또는 상위 디렉토리)
+    ENV_FILE=""
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
+    elif [ -f "../.env" ]; then
+        ENV_FILE="../.env"
+    fi
+    
+    if [ -n "$ENV_FILE" ]; then
+        source "$ENV_FILE"
         
         # Terraform 변수로 환경변수 설정
         export TF_VAR_proxmox_endpoint="$PROXMOX_ENDPOINT"
@@ -467,8 +498,9 @@ test_terraform() {
         fi
         
         log_success "Terraform 변수 설정 완료"
+        log_info "로드된 .env 파일: $ENV_FILE"
     else
-        log_warning ".env 파일을 찾을 수 없습니다. 기본값 사용"
+        log_warning ".env 파일을 찾을 수 없습니다 (현재 디렉토리와 상위 디렉토리 모두 확인함). 기본값 사용"
     fi
     
     # Terraform 계획 실행
