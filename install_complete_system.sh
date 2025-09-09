@@ -323,15 +323,49 @@ setup_python() {
         log_warning "pip 업그레이드 실패 (계속 진행)"
     fi
     
+    # 가상환경 활성화 및 Python 패키지 설치
+    log_info "가상환경 활성화 중..."
+    source venv/bin/activate
+    
+    # 가상환경 활성화 확인
+    if [[ "$VIRTUAL_ENV" != *"venv"* ]]; then
+        log_error "가상환경 활성화 실패"
+        exit 1
+    fi
+    
+    log_info "가상환경 활성화 완료: $VIRTUAL_ENV"
+    log_info "Python 경로: $(which python)"
+    log_info "pip 경로: $(which pip)"
+    
     # Python 패키지 설치
     log_info "Python 패키지 설치 중..."
     pip install -r requirements.txt
     
     if [ $? -eq 0 ]; then
         log_success "Python 패키지 설치 완료"
+        
+        # 설치된 패키지 확인
+        log_info "설치된 패키지 확인 중..."
+        pip list | grep -E "(dotenv|flask|requests)" || log_warning "일부 패키지가 설치되지 않았을 수 있습니다"
+        
+        # 필수 패키지 개별 확인
+        log_info "필수 패키지 개별 확인 중..."
+        python -c "import dotenv; print('✅ python-dotenv 설치됨')" 2>/dev/null || log_warning "❌ python-dotenv 누락"
+        python -c "import flask; print('✅ flask 설치됨')" 2>/dev/null || log_warning "❌ flask 누락"
+        python -c "import requests; print('✅ requests 설치됨')" 2>/dev/null || log_warning "❌ requests 누락"
     else
         log_error "Python 패키지 설치 실패"
-        exit 1
+        log_info "수동으로 필수 패키지를 설치합니다..."
+        
+        # 필수 패키지 수동 설치
+        pip install python-dotenv flask flask-sqlalchemy flask-login requests pyyaml cryptography hvac
+        
+        if [ $? -eq 0 ]; then
+            log_success "필수 패키지 수동 설치 완료"
+        else
+            log_error "필수 패키지 설치 실패"
+            exit 1
+        fi
     fi
     
     log_success "Python 3.12 환경 설정 완료"
@@ -1093,44 +1127,68 @@ EOF
     log_success "Prometheus 설치 완료"
     log_info "프로메테우스는 http://localhost:9090 에서 접근 가능합니다"
     
-    # Grafana 설정 (통합)
-    log_info "Grafana 설정 중..."
+    # Grafana 설치 (통합)
+    log_info "Grafana 설치 중..."
     
-    # Grafana 설정 파일 찾기
-    GRAFANA_CONFIG=""
-    if [ -f "/etc/grafana/grafana.ini" ]; then
-        GRAFANA_CONFIG="/etc/grafana/grafana.ini"
-    elif [ -f "/usr/local/etc/grafana/grafana.ini" ]; then
-        GRAFANA_CONFIG="/usr/local/etc/grafana/grafana.ini"
-    elif [ -f "/opt/grafana/conf/grafana.ini" ]; then
-        GRAFANA_CONFIG="/opt/grafana/conf/grafana.ini"
-    else
-        log_warning "Grafana 설정 파일을 찾을 수 없습니다. Grafana가 설치되어 있는지 확인하세요."
-        log_warning "Grafana 설정을 건너뜁니다."
-    fi
+    # Grafana 다운로드 (Linux x64)
+    GRAFANA_VERSION="10.2.0"
+    GRAFANA_URL="https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}.linux-amd64.tar.gz"
     
-    if [ -n "$GRAFANA_CONFIG" ]; then
-        log_info "Grafana 설정 파일: $GRAFANA_CONFIG"
-        
-        # 백업 생성
-        cp "$GRAFANA_CONFIG" "${GRAFANA_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
-        log_info "설정 파일 백업 완료"
-        
-        # 익명 접근 설정
-        log_info "익명 접근 설정 중..."
-        
-        # [auth.anonymous] 섹션 설정
-        if grep -q "\[auth.anonymous\]" "$GRAFANA_CONFIG"; then
-            log_info "기존 [auth.anonymous] 섹션 수정 중..."
-            sed -i '/\[auth.anonymous\]/,/^\[/ {
-                s/^enabled = .*/enabled = true/
-                s/^org_name = .*/org_name = Main Org./
-                s/^org_role = .*/org_role = Viewer/
-                s/^hide_version = .*/hide_version = false/
-            }' "$GRAFANA_CONFIG"
-        else
-            log_info "새로운 [auth.anonymous] 섹션 추가 중..."
-            cat >> "$GRAFANA_CONFIG" << 'EOF'
+    log_info "Grafana ${GRAFANA_VERSION} 다운로드 중..."
+    wget -O grafana.tar.gz ${GRAFANA_URL}
+    
+    # 압축 해제
+    log_info "압축 해제 중..."
+    tar -xzf grafana.tar.gz
+    mv grafana-${GRAFANA_VERSION} grafana_temp
+    
+    # 표준 배치 경로 준비
+    log_info "디렉토리 준비 중..."
+    sudo useradd --no-create-home --shell /bin/false grafana 2>/dev/null || true
+    sudo mkdir -p /opt/grafana
+    sudo mkdir -p /etc/grafana
+    sudo mkdir -p /var/lib/grafana
+    sudo mkdir -p /var/log/grafana
+    
+    # 바이너리 및 파일 배치
+    log_info "바이너리 배치 중..."
+    sudo cp -rf grafana_temp/* /opt/grafana/
+    sudo chown -R grafana:grafana /opt/grafana
+    sudo chown -R grafana:grafana /var/lib/grafana
+    sudo chown -R grafana:grafana /var/log/grafana
+    sudo chmod 0755 /opt/grafana/bin/grafana-server
+    
+    # Grafana 설정 파일 생성
+    log_info "Grafana 설정 파일 생성 중..."
+    sudo tee /etc/grafana/grafana.ini > /dev/null << 'EOF'
+[paths]
+data = /var/lib/grafana
+logs = /var/log/grafana
+plugins = /var/lib/grafana/plugins
+provisioning = /etc/grafana/provisioning
+
+[server]
+http_port = 3000
+domain = localhost
+root_url = http://localhost:3000/
+
+[database]
+type = sqlite3
+path = grafana.db
+
+[session]
+provider = file
+
+[log]
+mode = console file
+level = info
+
+[security]
+admin_user = admin
+admin_password = admin
+allow_embedding = true
+cookie_secure = false
+cookie_samesite = lax
 
 [auth.anonymous]
 enabled = true
@@ -1138,44 +1196,58 @@ org_name = Main Org.
 org_role = Viewer
 hide_version = false
 EOF
-        fi
-        
-        # [security] 섹션 설정
-        if grep -q "\[security\]" "$GRAFANA_CONFIG"; then
-            log_info "기존 [security] 섹션 수정 중..."
-            sed -i '/\[security\]/,/^\[/ {
-                s/^allow_embedding = .*/allow_embedding = true/
-                s/^cookie_secure = .*/cookie_secure = false/
-                s/^cookie_samesite = .*/cookie_samesite = lax/
-            }' "$GRAFANA_CONFIG"
-        else
-            log_info "새로운 [security] 섹션 추가 중..."
-            cat >> "$GRAFANA_CONFIG" << 'EOF'
+    
+    # 소유권 설정
+    sudo chown -R grafana:grafana /etc/grafana
+    
+    # systemd 유닛 생성
+    log_info "시스템 서비스 등록 중..."
+    sudo tee /etc/systemd/system/grafana-server.service > /dev/null << 'EOF'
+[Unit]
+Description=Grafana Server
+Documentation=http://docs.grafana.org
+Wants=network-online.target
+After=network-online.target
+After=postgresql.service mariadb.service mysql.service
 
-[security]
-allow_embedding = true
-cookie_secure = false
-cookie_samesite = lax
+[Service]
+Type=notify
+User=grafana
+Group=grafana
+ExecStart=/opt/grafana/bin/grafana-server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana-server.pid
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+LimitNOFILE=10000
+Environment=GF_PATHS_DATA=/var/lib/grafana
+Environment=GF_PATHS_LOGS=/var/log/grafana
+Environment=GF_PATHS_PLUGINS=/var/lib/grafana/plugins
+Environment=GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+
+[Install]
+WantedBy=multi-user.target
 EOF
-        fi
-        
-        log_success "Grafana 설정 완료"
-        log_info "Grafana 서비스 재시작 중..."
-        
-        # Grafana 서비스 재시작
-        if systemctl is-active --quiet grafana-server; then
-            sudo systemctl restart grafana-server
-            log_success "Grafana 서비스 재시작 완료"
-        elif systemctl is-active --quiet grafana; then
-            sudo systemctl restart grafana
-            log_success "Grafana 서비스 재시작 완료"
-        else
-            log_warning "Grafana 서비스를 찾을 수 없습니다. 수동으로 재시작하세요."
-        fi
-        
-        log_info "Grafana 익명 접근 설정 완료"
-        log_info "테스트 URL: http://localhost:3000/d/system_monitoring?kiosk=tv"
-    fi
+    
+    # 서비스 시작
+    log_info "Grafana 서비스 시작 중..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable grafana-server
+    sudo systemctl start grafana-server
+    
+    # 상태 확인
+    log_info "설치 완료! 상태 확인 중..."
+    sudo systemctl status grafana-server --no-pager
+    
+    # 정리
+    rm -rf grafana_temp grafana.tar.gz
+    
+    log_success "Grafana 설치 완료"
+    log_info "Grafana는 http://localhost:3000 에서 접근 가능합니다 (admin/admin)"
+    
+    # Grafana 설정 완료 (설치 과정에서 이미 설정됨)
+    log_success "Grafana 설정 완료"
+    log_info "익명 접근 및 iframe 임베딩이 이미 설정되었습니다"
+    log_info "테스트 URL: http://localhost:3000/d/system_monitoring?kiosk=tv"
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
     if [ -f "update_prometheus_targets.py" ]; then
@@ -1298,10 +1370,28 @@ start_services() {
     
     # 가상환경 Python 경로 확인
     if [ ! -f "$VENV_PYTHON" ]; then
-        log_warning "가상환경을 찾을 수 없습니다. 시스템 Python 사용"
-        VENV_PYTHON=$(which python3)
+        log_error "가상환경을 찾을 수 없습니다. Python 패키지 설치를 먼저 완료하세요."
+        log_error "가상환경 경로: $VENV_PYTHON"
+        exit 1
     else
         log_info "가상환경 Python 사용: $VENV_PYTHON"
+        
+        # 가상환경에서 필수 패키지 확인
+        log_info "가상환경 패키지 확인 중..."
+        if ! $VENV_PYTHON -c "import dotenv" 2>/dev/null; then
+            log_warning "python-dotenv가 설치되지 않았습니다. 설치 중..."
+            $VENV_PYTHON -m pip install python-dotenv
+        fi
+        
+        if ! $VENV_PYTHON -c "import flask" 2>/dev/null; then
+            log_warning "Flask가 설치되지 않았습니다. 설치 중..."
+            $VENV_PYTHON -m pip install flask flask-sqlalchemy flask-login
+        fi
+        
+        if ! $VENV_PYTHON -c "import requests" 2>/dev/null; then
+            log_warning "requests가 설치되지 않았습니다. 설치 중..."
+            $VENV_PYTHON -m pip install requests
+        fi
     fi
     
     # systemd 서비스 파일 생성
