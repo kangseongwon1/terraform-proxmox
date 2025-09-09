@@ -238,36 +238,69 @@ setup_python() {
     fi
     
     # 가상환경 생성 (Python 3.12 사용)
-    if [ ! -d "venv" ]; then
-        log_info "Python 3.12로 가상환경 생성 중..."
+    # 기존 가상환경이 Python 3.6으로 생성되었을 수 있으므로 강제 재생성
+    if [ -d "venv" ]; then
+        log_info "기존 가상환경 삭제 중..."
+        rm -rf venv
+    fi
+    
+    log_info "Python 3.12로 가상환경 생성 중..."
+    
+    # Python 경로 확인 (python 명령어 우선, 없으면 python3.12)
+    if command -v python &> /dev/null; then
+        PYTHON_PATH=$(which python)
+        PYTHON_VERSION=$(python --version 2>&1)
+        log_info "Python 경로: $PYTHON_PATH"
+        log_info "Python 버전: $PYTHON_VERSION"
         
-        # Python 경로 확인 (python 명령어 우선, 없으면 python3.12)
-        if command -v python &> /dev/null; then
-            PYTHON_PATH=$(which python)
-            log_info "Python 경로: $PYTHON_PATH"
+        # Python 3.12인지 확인
+        if [[ "$PYTHON_VERSION" == *"3.12"* ]]; then
             python -m venv venv
-        elif command -v python3.12 &> /dev/null; then
-            PYTHON_PATH=$(which python3.12)
-            log_info "Python 3.12 경로: $PYTHON_PATH"
-            python3.12 -m venv venv
         else
-            log_error "Python을 찾을 수 없습니다"
-            exit 1
+            log_warning "python 명령어가 Python 3.12가 아닙니다: $PYTHON_VERSION"
+            if command -v python3.12 &> /dev/null; then
+                PYTHON_PATH=$(which python3.12)
+                log_info "Python 3.12 경로로 재시도: $PYTHON_PATH"
+                python3.12 -m venv venv
+            else
+                log_error "Python 3.12를 찾을 수 없습니다"
+                exit 1
+            fi
         fi
-        
-        if [ $? -eq 0 ]; then
-            log_success "가상환경 생성 완료"
-        else
-            log_error "가상환경 생성 실패"
-            exit 1
-        fi
+    elif command -v python3.12 &> /dev/null; then
+        PYTHON_PATH=$(which python3.12)
+        log_info "Python 3.12 경로: $PYTHON_PATH"
+        python3.12 -m venv venv
     else
-        log_info "기존 가상환경 사용"
+        log_error "Python을 찾을 수 없습니다"
+        exit 1
+    fi
+    
+    if [ $? -eq 0 ]; then
+        log_success "가상환경 생성 완료"
+    else
+        log_error "가상환경 생성 실패"
+        exit 1
     fi
     
     # 가상환경 활성화
     log_info "가상환경 활성화 중..."
     source venv/bin/activate
+    
+    # 가상환경에서 Python 버전 확인
+    if command -v python &> /dev/null; then
+        VENV_PYTHON_VERSION=$(python --version 2>&1)
+        log_info "가상환경 Python 버전: $VENV_PYTHON_VERSION"
+        
+        if [[ "$VENV_PYTHON_VERSION" == *"3.12"* ]]; then
+            log_success "가상환경이 Python 3.12를 사용합니다"
+        else
+            log_warning "가상환경이 Python 3.12가 아닙니다: $VENV_PYTHON_VERSION"
+        fi
+    else
+        log_error "가상환경에서 python 명령어를 찾을 수 없습니다"
+        exit 1
+    fi
     
     # pip 업그레이드
     log_info "pip 업그레이드 중..."
