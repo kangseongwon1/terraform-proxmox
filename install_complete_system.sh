@@ -647,29 +647,15 @@ install_docker() {
         DOCKER_VERSION=$(docker --version)
         log_info "Docker 설치 완료: $DOCKER_VERSION"
         
-        # Docker 권한 확인
+        # Docker 권한 확인 (sudo 사용)
         log_info "Docker 권한 확인 중..."
-        if ! docker ps &> /dev/null; then
-            log_warning "Docker 권한 문제 감지. 권한 적용을 위해 newgrp 실행 중..."
-            
-            # newgrp docker로 권한 적용
-            newgrp docker << 'EOF'
-echo "Docker 그룹 권한이 적용되었습니다."
-docker ps
-EOF
-            
-            # 권한 재확인
-            if docker ps &> /dev/null; then
-                log_success "Docker 권한 문제 해결됨"
-            else
-                log_warning "Docker 권한 문제가 지속됩니다."
-                log_warning "설치 완료 후 다음 중 하나를 실행하세요:"
-                log_warning "  1. 새 터미널 세션 시작"
-                log_warning "  2. 또는 'newgrp docker' 실행"
-                log_warning "  3. 또는 로그아웃 후 재로그인"
-            fi
+        if ! sudo docker ps &> /dev/null; then
+            log_error "Docker 서비스에 접근할 수 없습니다!"
+            log_info "Docker 서비스 상태 확인 중..."
+            sudo systemctl status docker
+            exit 1
         else
-            log_success "Docker 권한 확인 완료"
+            log_success "Docker 권한 확인 완료 (sudo 사용)"
         fi
     fi
     

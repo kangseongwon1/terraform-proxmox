@@ -84,42 +84,15 @@ check_docker() {
         sudo systemctl start docker
     fi
     
-    # Docker 권한 확인 및 수정
+    # Docker 권한 확인 (sudo 사용)
     log_info "Docker 권한 확인 중..."
-    if ! docker ps &> /dev/null; then
-        log_warning "Docker 권한 문제 감지. 사용자를 docker 그룹에 추가 중..."
-        
-        # 현재 사용자를 docker 그룹에 추가
-        sudo usermod -aG docker $USER
-        
-        log_warning "⚠️  Docker 그룹 권한이 변경되었습니다."
-        log_warning "⚠️  다음 중 하나를 선택하세요:"
-        log_warning "   1. 새 터미널 세션을 시작하거나"
-        log_warning "   2. 'newgrp docker' 명령어를 실행하거나"
-        log_warning "   3. 로그아웃 후 다시 로그인하세요"
-        log_warning ""
-        log_warning "그 후 다시 이 스크립트를 실행하세요."
-        
-        # newgrp docker 실행 시도
-        log_info "newgrp docker 실행 중..."
-        newgrp docker << 'EOF'
-echo "Docker 그룹 권한이 적용되었습니다."
-docker ps
-EOF
-        
-        # 권한 재확인
-        if docker ps &> /dev/null; then
-            log_success "Docker 권한 문제 해결됨"
-        else
-            log_error "Docker 권한 문제가 지속됩니다."
-            log_info "수동 해결 방법:"
-            log_info "  1. 새 터미널 세션 시작"
-            log_info "  2. 또는 'newgrp docker' 실행"
-            log_info "  3. 또는 로그아웃 후 재로그인"
-            exit 1
-        fi
+    if ! sudo docker ps &> /dev/null; then
+        log_error "Docker 서비스에 접근할 수 없습니다!"
+        log_info "Docker 서비스 상태 확인 중..."
+        sudo systemctl status docker
+        exit 1
     else
-        log_success "Docker 권한 확인 완료"
+        log_success "Docker 권한 확인 완료 (sudo 사용)"
     fi
     
     log_success "Docker 및 Docker Compose 확인 완료"
@@ -146,15 +119,15 @@ cleanup_vault() {
     
     # Docker Compose로 실행 중인 Vault 중지
     if [ -f "docker-compose.vault.yml" ]; then
-        docker-compose -f docker-compose.vault.yml down 2>/dev/null || true
+        sudo docker-compose -f docker-compose.vault.yml down 2>/dev/null || true
     fi
     
     # 기존 Vault 컨테이너 중지 및 제거
-    docker stop vault-dev 2>/dev/null || true
-    docker rm vault-dev 2>/dev/null || true
+    sudo docker stop vault-dev 2>/dev/null || true
+    sudo docker rm vault-dev 2>/dev/null || true
     
     # 기존 Vault 볼륨 제거
-    docker volume rm vault-data 2>/dev/null || true
+    sudo docker volume rm vault-data 2>/dev/null || true
     
     log_success "기존 Vault 컨테이너 정리 완료"
 }
@@ -167,7 +140,7 @@ start_vault() {
     mkdir -p vault-data
     
     # Docker Compose로 Vault 실행
-    docker-compose -f docker-compose.vault.yml up -d
+    sudo docker-compose -f docker-compose.vault.yml up -d
     
     # Vault 초기화 대기
     log_info "Vault 초기화 대기 중..."
@@ -178,7 +151,7 @@ start_vault() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if docker exec vault-dev vault status | grep -q "Version"; then
+        if sudo docker exec vault-dev vault status | grep -q "Version"; then
             log_success "Vault 컨테이너 시작 완료"
             return 0
         fi
@@ -197,9 +170,9 @@ init_vault() {
     log_info "5. Vault 초기화 및 언실 중..."
     
     # Vault 초기화 (최초 1회)
-    if docker exec vault-dev vault status | grep -q "Initialized.*false"; then
+    if sudo docker exec vault-dev vault status | grep -q "Initialized.*false"; then
         log_info "Vault 초기화 실행 중..."
-        docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 > vault_init.txt
+        sudo docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 > vault_init.txt
         
         if [ $? -ne 0 ]; then
             log_error "Vault 초기화 실패"
@@ -217,7 +190,7 @@ init_vault() {
     
     # Vault 언실
     log_info "Vault 언실 중..."
-    docker exec vault-dev vault operator unseal $UNSEAL_KEY
+    sudo docker exec vault-dev vault operator unseal $UNSEAL_KEY
     
     if [ $? -ne 0 ]; then
         log_error "Vault 언실 실패"
@@ -226,7 +199,7 @@ init_vault() {
     
     # Root 토큰으로 로그인
     log_info "Vault 인증 중..."
-    docker exec vault-dev vault login $ROOT_TOKEN
+    sudo docker exec vault-dev vault login $ROOT_TOKEN
     
     if [ $? -ne 0 ]; then
         log_error "Vault 인증 실패"
@@ -242,7 +215,7 @@ configure_vault() {
     
     # KV v2 엔진 활성화
     log_info "KV v2 엔진 활성화 중..."
-    docker exec vault-dev vault secrets enable -path=secret kv-v2
+    sudo docker exec vault-dev vault secrets enable -path=secret kv-v2
     
     # SSH 키 읽기
     local ssh_public_key=""
@@ -256,20 +229,20 @@ configure_vault() {
     
     # Proxmox 자격증명 저장
     log_info "Proxmox 자격증명 저장 중..."
-    docker exec vault-dev vault kv put secret/proxmox \
+    sudo docker exec vault-dev vault kv put secret/proxmox \
         username="${PROXMOX_USERNAME}" \
         password="${PROXMOX_PASSWORD}"
     
     # VM 자격증명 저장
     log_info "VM 자격증명 저장 중..."
-    docker exec vault-dev vault kv put secret/vm \
+    sudo docker exec vault-dev vault kv put secret/vm \
         username="${VM_USERNAME}" \
         password="${VM_PASSWORD}"
     
     # SSH 키 저장
     if [ -n "$ssh_public_key" ]; then
         log_info "SSH 키 저장 중..."
-        docker exec vault-dev vault kv put secret/ssh \
+        sudo docker exec vault-dev vault kv put secret/ssh \
             public_key="$ssh_public_key"
     fi
     
@@ -487,10 +460,10 @@ show_completion() {
     echo ""
     
     log_info "🔧 관리 명령어:"
-    echo "  - 상태 확인: docker exec vault-dev vault status"
-    echo "  - 시크릿 조회: docker exec vault-dev vault kv get secret/proxmox"
-    echo "  - 서비스 중지: docker-compose -f docker-compose.vault.yml down"
-    echo "  - 서비스 시작: docker-compose -f docker-compose.vault.yml up -d"
+    echo "  - 상태 확인: sudo docker exec vault-dev vault status"
+    echo "  - 시크릿 조회: sudo docker exec vault-dev vault kv get secret/proxmox"
+    echo "  - 서비스 중지: sudo docker-compose -f docker-compose.vault.yml down"
+    echo "  - 서비스 시작: sudo docker-compose -f docker-compose.vault.yml up -d"
     echo ""
     
     log_info "🌐 웹 UI 접속:"
