@@ -238,9 +238,9 @@ setup_python() {
     fi
     
     # 가상환경 생성 (Python 3.12 사용)
-    # 기존 가상환경이 Python 3.6으로 생성되었을 수 있으므로 강제 재생성
+    # 재설치 시에도 문제없이 작동하도록 기존 가상환경 정리
     if [ -d "venv" ]; then
-        log_info "기존 가상환경 삭제 중..."
+        log_info "기존 가상환경 정리 중..."
         rm -rf venv
     fi
     
@@ -539,10 +539,17 @@ install_python312_from_source_sudo() {
 install_nodejs() {
     log_step "4. Node.js 설치 중..."
     
-    # Node.js 설치 확인
+    # Node.js 설치 확인 및 재설치 지원
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node --version)
-        log_info "Node.js 이미 설치됨: $NODE_VERSION"
+        NODE_MAJOR_VERSION=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
+        
+        # Node.js 18 이하인 경우 재설치 (20+ 권장)
+        if [ "$NODE_MAJOR_VERSION" -lt 20 ]; then
+            log_info "Node.js $NODE_VERSION 감지, 20 LTS로 업그레이드 중..."
+        else
+            log_info "Node.js 이미 설치됨: $NODE_VERSION"
+        fi
     else
         log_info "Node.js 설치 중..."
         
@@ -551,6 +558,25 @@ install_nodejs() {
             curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
             sudo $PKG_MANAGER install -y nodejs
         elif [ "$PKG_MANAGER" = "apt" ]; then
+            # NodeSource 저장소 추가 (Node.js 20 LTS)
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt install -y nodejs
+        fi
+    fi
+    
+    # Node.js 18 이하인 경우 재설치
+    if [ "$NODE_MAJOR_VERSION" -lt 20 ]; then
+        log_info "Node.js 20 LTS로 재설치 중..."
+        
+        if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
+            # 기존 Node.js 제거
+            sudo $PKG_MANAGER remove -y nodejs npm
+            # NodeSource 저장소 추가 (Node.js 20 LTS)
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+            sudo $PKG_MANAGER install -y nodejs
+        elif [ "$PKG_MANAGER" = "apt" ]; then
+            # 기존 Node.js 제거
+            sudo apt remove -y nodejs npm
             # NodeSource 저장소 추가 (Node.js 20 LTS)
             curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
             sudo apt install -y nodejs
@@ -640,34 +666,63 @@ install_docker() {
 install_terraform() {
     log_step "6. Terraform 설치 중..."
     
-    # Terraform 설치 확인
+    # Terraform 설치 확인 및 재설치 지원
     if command -v terraform &> /dev/null; then
         TERRAFORM_VERSION=$(terraform --version | head -n1)
         log_info "Terraform 이미 설치됨: $TERRAFORM_VERSION"
-    else
-        log_info "Terraform 설치 중..."
+        log_info "Terraform 재설치를 위해 기존 설치 제거 중..."
         
-        # 최신 버전 다운로드
-        TERRAFORM_VERSION=$(curl -s https://api.github.com/repos/hashicorp/terraform/releases/latest | grep tag_name | cut -d '"' -f 4)
-        TERRAFORM_VERSION=${TERRAFORM_VERSION#v}  # v 제거
-        
-        # 아키텍처 확인
-        ARCH=$(uname -m)
-        case $ARCH in
-            x86_64) ARCH="amd64" ;;
-            aarch64) ARCH="arm64" ;;
-            *) log_error "지원되지 않는 아키텍처: $ARCH"; exit 1 ;;
-        esac
-        
-        # 다운로드 및 설치
-        wget -O terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"
-        unzip terraform.zip
-        sudo mv terraform /usr/local/bin/
-        rm terraform.zip
-        
-        TERRAFORM_VERSION=$(terraform --version | head -n1)
-        log_info "Terraform 설치 완료: $TERRAFORM_VERSION"
+        # 기존 Terraform 제거
+        sudo rm -f /usr/local/bin/terraform
     fi
+    
+    log_info "Terraform 설치 중..."
+    
+    # 최신 버전 다운로드
+    TERRAFORM_VERSION=$(curl -s https://api.github.com/repos/hashicorp/terraform/releases/latest | grep tag_name | cut -d '"' -f 4)
+    TERRAFORM_VERSION=${TERRAFORM_VERSION#v}  # v 제거
+    
+    # 아키텍처 확인
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64) ARCH="amd64" ;;
+        aarch64) ARCH="arm64" ;;
+        *) log_error "지원되지 않는 아키텍처: $ARCH"; exit 1 ;;
+    esac
+    
+    # 다운로드 및 설치
+    wget -O terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"
+    
+    # 기존 terraform 디렉토리/파일 정리 (재설치 지원)
+    if [ -d "terraform" ]; then
+        log_info "기존 terraform 디렉토리 정리 중..."
+        rm -rf terraform
+    fi
+    
+    if [ -f "terraform" ]; then
+        log_info "기존 terraform 파일 정리 중..."
+        rm -f terraform
+    fi
+    
+    # 압축 해제
+    log_info "Terraform 압축 해제 중..."
+    unzip -o terraform.zip
+    
+    # 설치
+    if [ -f "terraform" ]; then
+        sudo mv terraform /usr/local/bin/
+        sudo chmod +x /usr/local/bin/terraform
+        log_success "Terraform 바이너리 설치 완료"
+    else
+        log_error "Terraform 바이너리를 찾을 수 없습니다"
+        exit 1
+    fi
+    
+    # 정리
+    rm -f terraform.zip
+    
+    TERRAFORM_VERSION=$(terraform --version | head -n1)
+    log_info "Terraform 설치 완료: $TERRAFORM_VERSION"
     
     log_success "Terraform 설치 완료"
 }
@@ -892,11 +947,11 @@ setup_database() {
         mkdir -p instance
     fi
     
-    # 기존 데이터베이스 백업 (있는 경우)
+    # 기존 데이터베이스 백업 (재설치 지원)
     if [ -f "instance/proxmox_manager.db" ]; then
         log_info "기존 데이터베이스 백업 중..."
         cp instance/proxmox_manager.db instance/proxmox_manager.db.backup.$(date +%Y%m%d_%H%M%S)
-        log_success "기존 데이터베이스 백업 완료"
+        log_success "데이터베이스 백업 완료"
     fi
     
     # 가상환경 활성화
@@ -1059,6 +1114,9 @@ main() {
     echo -e "${PURPLE}"
     echo "=========================================="
     echo "🚀 Proxmox Manager 완전 통합 설치 시작"
+    echo "=========================================="
+    echo "ℹ️  이 스크립트는 재설치에 안전합니다."
+    echo "ℹ️  기존 설치가 있어도 자동으로 정리하고 재설치합니다."
     echo "=========================================="
     echo -e "${NC}"
     
