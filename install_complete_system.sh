@@ -783,14 +783,10 @@ install_terraform() {
     # 다운로드 및 설치
     wget -O terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"
     
-    # 기존 terraform 디렉토리/파일 정리 (재설치 지원)
-    if [ -d "terraform" ]; then
-        log_info "기존 terraform 디렉토리 정리 중..."
-        rm -rf terraform
-    fi
-    
+    # 기존 terraform 바이너리 파일 정리 (재설치 지원)
+    # 주의: terraform/ 디렉토리는 Terraform 설정 파일이 있으므로 삭제하지 않음
     if [ -f "terraform" ]; then
-        log_info "기존 terraform 파일 정리 중..."
+        log_info "기존 terraform 바이너리 파일 정리 중..."
         rm -f terraform
     fi
     

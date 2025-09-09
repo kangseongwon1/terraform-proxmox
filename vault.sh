@@ -404,6 +404,14 @@ set_environment() {
 test_terraform() {
     log_info "8. Terraform 테스트 중..."
     
+    # terraform 디렉토리 존재 확인
+    if [ ! -d "terraform" ]; then
+        log_error "terraform 디렉토리가 존재하지 않습니다!"
+        log_info "terraform 디렉토리를 생성하고 기본 파일들을 복원하세요."
+        log_info "또는 install_complete_system.sh를 다시 실행하여 전체 시스템을 재설치하세요."
+        exit 1
+    fi
+    
     cd terraform
     
     # Terraform 초기화
