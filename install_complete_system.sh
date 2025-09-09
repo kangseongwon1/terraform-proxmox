@@ -780,23 +780,23 @@ install_terraform() {
         *) log_error "지원되지 않는 아키텍처: $ARCH"; exit 1 ;;
     esac
     
-    # 다운로드 및 설치
-    wget -O terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"
+    # 임시 디렉토리에서 다운로드 및 설치
+    TEMP_DIR=$(mktemp -d)
+    cd "$TEMP_DIR"
     
-    # 기존 terraform 바이너리 파일 정리 (재설치 지원)
-    # 주의: terraform/ 디렉토리는 Terraform 설정 파일이 있으므로 삭제하지 않음
-    if [ -f "terraform" ]; then
-        log_info "기존 terraform 바이너리 파일 정리 중..."
-        rm -f terraform
-    fi
+    # 다운로드
+    wget -O terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip"
     
     # 압축 해제
     log_info "Terraform 압축 해제 중..."
     unzip -o terraform.zip
     
+    # 원래 디렉토리로 돌아가기
+    cd - > /dev/null
+    
     # 설치
-    if [ -f "terraform" ]; then
-        sudo mv terraform /usr/local/bin/
+    if [ -f "$TEMP_DIR/terraform" ]; then
+        sudo mv "$TEMP_DIR/terraform" /usr/local/bin/
         sudo chmod +x /usr/local/bin/terraform
         log_success "Terraform 바이너리 설치 완료"
     else
@@ -804,8 +804,8 @@ install_terraform() {
         exit 1
     fi
     
-    # 정리
-    rm -f terraform.zip
+    # 임시 디렉토리 정리
+    rm -rf "$TEMP_DIR"
     
     TERRAFORM_VERSION=$(terraform --version | head -n1)
     log_info "Terraform 설치 완료: $TERRAFORM_VERSION"
