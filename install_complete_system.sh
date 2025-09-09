@@ -997,30 +997,184 @@ setup_vault() {
 install_monitoring() {
     log_step "10. 모니터링 시스템 설치 중..."
     
-    # Prometheus 설치
-    if [ -f "install_prometheus.sh" ]; then
-        log_info "Prometheus 설치 중..."
-        chmod +x install_prometheus.sh
-        ./install_prometheus.sh
-        
-        if [ $? -eq 0 ]; then
-            log_success "Prometheus 설치 완료"
-        else
-            log_warning "Prometheus 설치 실패 (계속 진행)"
-        fi
+    # Prometheus 설치 (통합)
+    log_info "Prometheus 설치 중..."
+    
+    # Prometheus 다운로드 (Linux x64)
+    PROMETHEUS_VERSION="2.47.2"
+    PROMETHEUS_URL="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+    
+    log_info "Prometheus ${PROMETHEUS_VERSION} 다운로드 중..."
+    wget -O prometheus.tar.gz ${PROMETHEUS_URL}
+    
+    # 압축 해제
+    log_info "압축 해제 중..."
+    tar -xzf prometheus.tar.gz
+    mv prometheus-${PROMETHEUS_VERSION}.linux-amd64 prometheus_temp
+    
+    # 표준 배치 경로 준비 (/opt, /etc, /var/lib)
+    log_info "디렉토리 준비 중..."
+    sudo useradd --no-create-home --shell /bin/false prometheus 2>/dev/null || true
+    sudo mkdir -p /opt/prometheus
+    sudo mkdir -p /etc/prometheus
+    sudo mkdir -p /var/lib/prometheus
+    
+    # 바이너리 및 콘솔 파일 배치 (/opt/prometheus)
+    log_info "바이너리 배치 중..."
+    sudo cp -f prometheus_temp/prometheus /opt/prometheus/
+    sudo cp -f prometheus_temp/promtool /opt/prometheus/
+    sudo cp -rf prometheus_temp/consoles /opt/prometheus/
+    sudo cp -rf prometheus_temp/console_libraries /opt/prometheus/
+    sudo chown -R prometheus:prometheus /opt/prometheus
+    sudo chmod 0755 /opt/prometheus/prometheus /opt/prometheus/promtool
+    
+    # 프로메테우스 설정 파일 생성 (/etc/prometheus/prometheus.yml)
+    log_info "프로메테우스 설정 파일 생성 중..."
+    sudo tee /etc/prometheus/prometheus.yml > /dev/null << 'EOF'
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files: []
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['192.168.0.10:9100', '192.168.0.11:9100']
+EOF
+    
+    # 소유권 설정
+    sudo chown -R prometheus:prometheus /etc/prometheus
+    sudo chown -R prometheus:prometheus /var/lib/prometheus
+    
+    # systemd 유닛 생성 (표준 경로 사용)
+    log_info "시스템 서비스 등록 중..."
+    sudo tee /etc/systemd/system/prometheus.service > /dev/null << 'EOF'
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/opt/prometheus/prometheus \
+    --config.file=/etc/prometheus/prometheus.yml \
+    --storage.tsdb.path=/var/lib/prometheus \
+    --web.console.templates=/opt/prometheus/consoles \
+    --web.console.libraries=/opt/prometheus/console_libraries \
+    --web.listen-address=0.0.0.0:9090
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # 서비스 시작
+    log_info "프로메테우스 서비스 시작 중..."
+    sudo systemctl daemon-reload
+    sudo systemctl enable prometheus
+    sudo systemctl start prometheus
+    
+    # 상태 확인
+    log_info "설치 완료! 상태 확인 중..."
+    sudo systemctl status prometheus --no-pager
+    
+    # 정리
+    rm -rf prometheus_temp prometheus.tar.gz
+    
+    log_success "Prometheus 설치 완료"
+    log_info "프로메테우스는 http://localhost:9090 에서 접근 가능합니다"
+    
+    # Grafana 설정 (통합)
+    log_info "Grafana 설정 중..."
+    
+    # Grafana 설정 파일 찾기
+    GRAFANA_CONFIG=""
+    if [ -f "/etc/grafana/grafana.ini" ]; then
+        GRAFANA_CONFIG="/etc/grafana/grafana.ini"
+    elif [ -f "/usr/local/etc/grafana/grafana.ini" ]; then
+        GRAFANA_CONFIG="/usr/local/etc/grafana/grafana.ini"
+    elif [ -f "/opt/grafana/conf/grafana.ini" ]; then
+        GRAFANA_CONFIG="/opt/grafana/conf/grafana.ini"
+    else
+        log_warning "Grafana 설정 파일을 찾을 수 없습니다. Grafana가 설치되어 있는지 확인하세요."
+        log_warning "Grafana 설정을 건너뜁니다."
     fi
     
-    # Grafana 설정
-    if [ -f "setup_grafana_anonymous.sh" ]; then
-        log_info "Grafana 설정 중..."
-        chmod +x setup_grafana_anonymous.sh
-        ./setup_grafana_anonymous.sh
+    if [ -n "$GRAFANA_CONFIG" ]; then
+        log_info "Grafana 설정 파일: $GRAFANA_CONFIG"
         
-        if [ $? -eq 0 ]; then
-            log_success "Grafana 설정 완료"
+        # 백업 생성
+        cp "$GRAFANA_CONFIG" "${GRAFANA_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+        log_info "설정 파일 백업 완료"
+        
+        # 익명 접근 설정
+        log_info "익명 접근 설정 중..."
+        
+        # [auth.anonymous] 섹션 설정
+        if grep -q "\[auth.anonymous\]" "$GRAFANA_CONFIG"; then
+            log_info "기존 [auth.anonymous] 섹션 수정 중..."
+            sed -i '/\[auth.anonymous\]/,/^\[/ {
+                s/^enabled = .*/enabled = true/
+                s/^org_name = .*/org_name = Main Org./
+                s/^org_role = .*/org_role = Viewer/
+                s/^hide_version = .*/hide_version = false/
+            }' "$GRAFANA_CONFIG"
         else
-            log_warning "Grafana 설정 실패 (계속 진행)"
+            log_info "새로운 [auth.anonymous] 섹션 추가 중..."
+            cat >> "$GRAFANA_CONFIG" << 'EOF'
+
+[auth.anonymous]
+enabled = true
+org_name = Main Org.
+org_role = Viewer
+hide_version = false
+EOF
         fi
+        
+        # [security] 섹션 설정
+        if grep -q "\[security\]" "$GRAFANA_CONFIG"; then
+            log_info "기존 [security] 섹션 수정 중..."
+            sed -i '/\[security\]/,/^\[/ {
+                s/^allow_embedding = .*/allow_embedding = true/
+                s/^cookie_secure = .*/cookie_secure = false/
+                s/^cookie_samesite = .*/cookie_samesite = lax/
+            }' "$GRAFANA_CONFIG"
+        else
+            log_info "새로운 [security] 섹션 추가 중..."
+            cat >> "$GRAFANA_CONFIG" << 'EOF'
+
+[security]
+allow_embedding = true
+cookie_secure = false
+cookie_samesite = lax
+EOF
+        fi
+        
+        log_success "Grafana 설정 완료"
+        log_info "Grafana 서비스 재시작 중..."
+        
+        # Grafana 서비스 재시작
+        if systemctl is-active --quiet grafana-server; then
+            sudo systemctl restart grafana-server
+            log_success "Grafana 서비스 재시작 완료"
+        elif systemctl is-active --quiet grafana; then
+            sudo systemctl restart grafana
+            log_success "Grafana 서비스 재시작 완료"
+        else
+            log_warning "Grafana 서비스를 찾을 수 없습니다. 수동으로 재시작하세요."
+        fi
+        
+        log_info "Grafana 익명 접근 설정 완료"
+        log_info "테스트 URL: http://localhost:3000/d/system_monitoring?kiosk=tv"
     fi
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
