@@ -547,12 +547,12 @@ install_nodejs() {
         log_info "Node.js 설치 중..."
         
         if [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
-            # NodeSource 저장소 추가
-            curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+            # NodeSource 저장소 추가 (Node.js 20 LTS)
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
             sudo $PKG_MANAGER install -y nodejs
         elif [ "$PKG_MANAGER" = "apt" ]; then
-            # NodeSource 저장소 추가
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            # NodeSource 저장소 추가 (Node.js 20 LTS)
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
             sudo apt install -y nodejs
         fi
         
@@ -560,8 +560,24 @@ install_nodejs() {
         log_info "Node.js 설치 완료: $NODE_VERSION"
     fi
     
-    # npm 업그레이드
-    sudo npm install -g npm@latest
+    # npm 버전 확인 및 업그레이드
+    NPM_VERSION=$(npm --version)
+    log_info "현재 npm 버전: $NPM_VERSION"
+    
+    # Node.js 버전에 따른 npm 업그레이드
+    NODE_MAJOR_VERSION=$(echo $NODE_VERSION | cut -d'.' -f1 | sed 's/v//')
+    
+    if [ "$NODE_MAJOR_VERSION" -ge 20 ]; then
+        log_info "Node.js 20+ 감지, npm 최신 버전으로 업그레이드 중..."
+        sudo npm install -g npm@latest
+    else
+        log_info "Node.js 18 감지, 호환되는 npm 버전으로 업그레이드 중..."
+        sudo npm install -g npm@10
+    fi
+    
+    # 업그레이드 후 npm 버전 확인
+    NEW_NPM_VERSION=$(npm --version)
+    log_info "업그레이드된 npm 버전: $NEW_NPM_VERSION"
     
     log_success "Node.js 설치 완료"
 }
