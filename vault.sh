@@ -90,7 +90,7 @@ check_docker() {
         log_warning "Docker 권한 문제 감지. Docker 소켓 권한 수정 중..."
         
         # Docker 소켓 소유자 변경
-        sudo chown root:docker /var/run/docker.sock
+        sudo chown $USER:docker /var/run/docker.sock
         sudo chmod 660 /var/run/docker.sock
         
         # 현재 사용자를 docker 그룹에 추가
