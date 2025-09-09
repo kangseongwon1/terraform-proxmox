@@ -84,6 +84,44 @@ check_docker() {
         sudo systemctl start docker
     fi
     
+    # Docker 권한 확인 및 수정
+    log_info "Docker 권한 확인 중..."
+    if ! docker ps &> /dev/null; then
+        log_warning "Docker 권한 문제 감지. 사용자를 docker 그룹에 추가 중..."
+        
+        # 현재 사용자를 docker 그룹에 추가
+        sudo usermod -aG docker $USER
+        
+        log_warning "⚠️  Docker 그룹 권한이 변경되었습니다."
+        log_warning "⚠️  다음 중 하나를 선택하세요:"
+        log_warning "   1. 새 터미널 세션을 시작하거나"
+        log_warning "   2. 'newgrp docker' 명령어를 실행하거나"
+        log_warning "   3. 로그아웃 후 다시 로그인하세요"
+        log_warning ""
+        log_warning "그 후 다시 이 스크립트를 실행하세요."
+        
+        # newgrp docker 실행 시도
+        log_info "newgrp docker 실행 중..."
+        newgrp docker << 'EOF'
+echo "Docker 그룹 권한이 적용되었습니다."
+docker ps
+EOF
+        
+        # 권한 재확인
+        if docker ps &> /dev/null; then
+            log_success "Docker 권한 문제 해결됨"
+        else
+            log_error "Docker 권한 문제가 지속됩니다."
+            log_info "수동 해결 방법:"
+            log_info "  1. 새 터미널 세션 시작"
+            log_info "  2. 또는 'newgrp docker' 실행"
+            log_info "  3. 또는 로그아웃 후 재로그인"
+            exit 1
+        fi
+    else
+        log_success "Docker 권한 확인 완료"
+    fi
+    
     log_success "Docker 및 Docker Compose 확인 완료"
 }
 

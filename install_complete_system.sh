@@ -646,6 +646,31 @@ install_docker() {
         
         DOCKER_VERSION=$(docker --version)
         log_info "Docker 설치 완료: $DOCKER_VERSION"
+        
+        # Docker 권한 확인
+        log_info "Docker 권한 확인 중..."
+        if ! docker ps &> /dev/null; then
+            log_warning "Docker 권한 문제 감지. 권한 적용을 위해 newgrp 실행 중..."
+            
+            # newgrp docker로 권한 적용
+            newgrp docker << 'EOF'
+echo "Docker 그룹 권한이 적용되었습니다."
+docker ps
+EOF
+            
+            # 권한 재확인
+            if docker ps &> /dev/null; then
+                log_success "Docker 권한 문제 해결됨"
+            else
+                log_warning "Docker 권한 문제가 지속됩니다."
+                log_warning "설치 완료 후 다음 중 하나를 실행하세요:"
+                log_warning "  1. 새 터미널 세션 시작"
+                log_warning "  2. 또는 'newgrp docker' 실행"
+                log_warning "  3. 또는 로그아웃 후 재로그인"
+            fi
+        else
+            log_success "Docker 권한 확인 완료"
+        fi
     fi
     
     # Docker Compose 설치 및 확인
