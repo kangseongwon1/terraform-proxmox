@@ -277,6 +277,20 @@ configure_vault() {
             public_key="$ssh_public_key"
     fi
     
+    # .env 파일에 Vault 토큰 업데이트
+    log_info ".env 파일에 Vault 토큰 업데이트 중..."
+    if [ -f "../.env" ]; then
+        # 현재 ROOT_TOKEN을 .env 파일에 업데이트
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" ../.env
+        log_success ".env 파일에 Vault 토큰 업데이트 완료: $ROOT_TOKEN"
+        
+        # 환경변수도 즉시 업데이트
+        export VAULT_TOKEN="$ROOT_TOKEN"
+        export TF_VAR_vault_token="$ROOT_TOKEN"
+    else
+        log_warning ".env 파일을 찾을 수 없습니다"
+    fi
+    
     log_success "Vault 설정 완료"
 }
 
@@ -372,6 +386,13 @@ set_environment() {
     # Terraform 환경변수 설정 (TF_VAR_ 접두사 사용)
     export TF_VAR_vault_token="$ROOT_TOKEN"
     export TF_VAR_vault_address="http://127.0.0.1:8200"
+    
+    # .env 파일에 Vault 토큰 업데이트
+    log_info ".env 파일에 Vault 토큰 업데이트 중..."
+    if [ -f "../.env" ]; then
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$ROOT_TOKEN|" ../.env
+        log_success ".env 파일에 Vault 토큰 업데이트 완료"
+    fi
     
     # .bashrc에 환경변수 영구 저장
     log_info ".bashrc에 환경변수 영구 저장 중..."
