@@ -39,20 +39,30 @@ check_docker() {
         
         # Docker Compose 설치 시도
         if command -v dnf &> /dev/null; then
-            # Rocky 8에서 Docker Compose 설치
-            log_info "EPEL에서 Docker Compose 설치 시도 중..."
-            sudo dnf install -y epel-release
-            sudo dnf install -y docker-compose
+            # Rocky 8에서 Docker Compose 바이너리 직접 설치
+            log_info "Rocky 8에서 Docker Compose 바이너리 직접 설치 중..."
             
-            # 실패 시 바이너리 직접 설치
-            if ! command -v docker-compose &> /dev/null; then
-                log_info "패키지 설치 실패, 바이너리 직접 설치 중..."
-                COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4)
-                COMPOSE_VERSION=${COMPOSE_VERSION#v}
-                
-                sudo curl -L "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                sudo chmod +x /usr/local/bin/docker-compose
-            fi
+            # EPEL 설치 (다른 패키지용)
+            sudo dnf install -y epel-release
+            
+            # 바이너리 직접 설치
+            log_info "최신 Docker Compose 바이너리 다운로드 중..."
+            COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4)
+            COMPOSE_VERSION=${COMPOSE_VERSION#v}
+            
+            log_info "Docker Compose 버전: $COMPOSE_VERSION"
+            
+            # 아키텍처 확인
+            ARCH=$(uname -m)
+            case $ARCH in
+                x86_64) ARCH="x86_64" ;;
+                aarch64) ARCH="aarch64" ;;
+                *) log_error "지원되지 않는 아키텍처: $ARCH"; exit 1 ;;
+            esac
+            
+            # 바이너리 다운로드 및 설치
+            sudo curl -L "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-$(uname -s)-${ARCH}" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
         elif command -v apt &> /dev/null; then
             sudo apt install -y docker-compose
         fi
