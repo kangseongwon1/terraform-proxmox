@@ -1200,7 +1200,7 @@ EOF
     # 소유권 설정
     sudo chown -R grafana:grafana /etc/grafana
     
-    # systemd 유닛 생성
+    # systemd 유닛 생성 (새로운 grafana 명령어 사용)
     log_info "시스템 서비스 등록 중..."
     sudo tee /etc/systemd/system/grafana-server.service > /dev/null << 'EOF'
 [Unit]
@@ -1214,15 +1214,18 @@ After=postgresql.service mariadb.service mysql.service
 Type=notify
 User=grafana
 Group=grafana
-ExecStart=/opt/grafana/bin/grafana-server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana-server.pid
+WorkingDirectory=/opt/grafana
+ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana-server.pid
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=20
 LimitNOFILE=10000
+Environment=GF_PATHS_HOME=/opt/grafana
 Environment=GF_PATHS_DATA=/var/lib/grafana
 Environment=GF_PATHS_LOGS=/var/log/grafana
 Environment=GF_PATHS_PLUGINS=/var/lib/grafana/plugins
 Environment=GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+Environment=GF_PATHS_CONFIG=/etc/grafana/grafana.ini
 
 [Install]
 WantedBy=multi-user.target
@@ -1394,6 +1397,11 @@ start_services() {
         fi
     fi
     
+    # 가상환경 Python 실행 권한 확인 및 설정
+    log_info "가상환경 Python 실행 권한 설정 중..."
+    chmod +x "$VENV_PYTHON"
+    chmod +x "$APP_DIR/run.py"
+    
     # systemd 서비스 파일 생성
     sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
 [Unit]
@@ -1408,17 +1416,18 @@ Group=$USER
 WorkingDirectory=$APP_DIR
 Environment=PATH=$PATH
 Environment=PYTHONPATH=$APP_DIR
+Environment=VIRTUAL_ENV=$APP_DIR/venv
 ExecStart=$VENV_PYTHON run.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# 보안 설정
+# 보안 설정 (권한 문제 해결을 위해 일부 완화)
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
 ReadWritePaths=$APP_DIR
 
 [Install]
