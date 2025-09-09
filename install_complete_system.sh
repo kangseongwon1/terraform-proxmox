@@ -918,6 +918,24 @@ setup_environment() {
     fi
     
     log_success "모든 필수 환경변수가 설정되었습니다"
+    
+    # Terraform 변수 설정
+    log_info "Terraform 변수 설정 중..."
+    export TF_VAR_proxmox_endpoint="$PROXMOX_ENDPOINT"
+    export TF_VAR_proxmox_username="$PROXMOX_USERNAME"
+    export TF_VAR_proxmox_password="$PROXMOX_PASSWORD"
+    export TF_VAR_proxmox_node="$PROXMOX_NODE"
+    export TF_VAR_vm_username="$VM_USERNAME"
+    export TF_VAR_vm_password="$VM_PASSWORD"
+    export TF_VAR_vault_address="$VAULT_ADDR"
+    export TF_VAR_vault_token="$VAULT_TOKEN"
+    
+    # SSH 공개키 설정 (파일이 존재하는 경우)
+    if [ -f "$SSH_PUBLIC_KEY_PATH" ]; then
+        export TF_VAR_ssh_keys="$(cat $SSH_PUBLIC_KEY_PATH)"
+    fi
+    
+    log_success "Terraform 변수 설정 완료"
     log_success "환경변수 설정 완료"
 }
 

@@ -22,6 +22,7 @@ variable "servers" {
     vm_username    = optional(string)  # 서버별 사용자명 (기본값은 전역 vm_username 사용)
     vm_password    = optional(string)  # 서버별 비밀번호 (기본값은 전역 vm_password 사용)
   }))
+  default = {}  # 기본값: 빈 맵 (설치 시 서버 없음)
 }
 
 # Vault 설정
@@ -38,18 +39,42 @@ variable "vault_token" {
 }
 
 # Proxmox 설정 (Vault에서 가져올 예정)
-variable "proxmox_endpoint" { type = string }
-variable "proxmox_username" { type = string }
+variable "proxmox_endpoint" { 
+  type = string
+  description = "Proxmox 서버 엔드포인트"
+  default = ""
+}
+variable "proxmox_username" { 
+  type = string
+  description = "Proxmox 사용자명"
+  default = ""
+}
 variable "proxmox_password" { 
   type = string
   sensitive = true
+  description = "Proxmox 비밀번호"
+  default = ""
 }
-variable "proxmox_node" { type = string }
+variable "proxmox_node" { 
+  type = string
+  description = "Proxmox 노드명"
+  default = ""
+}
 
 # VM 설정 (Vault에서 가져올 예정)
-variable "vm_username" { type = string }
+variable "vm_username" { 
+  type = string
+  description = "VM 기본 사용자명"
+  default = ""
+}
 variable "vm_password" { 
   type = string
   sensitive = true
+  description = "VM 기본 비밀번호"
+  default = ""
 }
-variable "ssh_keys" { type = string }
+variable "ssh_keys" { 
+  type = string
+  description = "SSH 공개키"
+  default = ""
+}

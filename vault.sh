@@ -425,6 +425,31 @@ test_terraform() {
         exit 1
     fi
     
+    # .env 파일에서 Terraform 변수 설정
+    log_info ".env 파일에서 Terraform 변수 설정 중..."
+    if [ -f "../.env" ]; then
+        source ../.env
+        
+        # Terraform 변수로 환경변수 설정
+        export TF_VAR_proxmox_endpoint="$PROXMOX_ENDPOINT"
+        export TF_VAR_proxmox_username="$PROXMOX_USERNAME"
+        export TF_VAR_proxmox_password="$PROXMOX_PASSWORD"
+        export TF_VAR_proxmox_node="$PROXMOX_NODE"
+        export TF_VAR_vm_username="$VM_USERNAME"
+        export TF_VAR_vm_password="$VM_PASSWORD"
+        export TF_VAR_vault_address="$VAULT_ADDR"
+        export TF_VAR_vault_token="$VAULT_TOKEN"
+        
+        # SSH 공개키 설정 (파일이 존재하는 경우)
+        if [ -f "$SSH_PUBLIC_KEY_PATH" ]; then
+            export TF_VAR_ssh_keys="$(cat $SSH_PUBLIC_KEY_PATH)"
+        fi
+        
+        log_success "Terraform 변수 설정 완료"
+    else
+        log_warning ".env 파일을 찾을 수 없습니다. 기본값 사용"
+    fi
+    
     # Terraform 계획 실행
     log_info "Terraform 계획 실행 중..."
     terraform plan
