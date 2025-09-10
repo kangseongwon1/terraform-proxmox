@@ -1728,6 +1728,33 @@ if ! /data/terraform-proxmox/venv/bin/python -c "import dotenv, flask, requests"
     echo "✅ 가상환경 패키지 수정 완료"
 fi
 
+# config.py import 문제 해결
+echo "🔍 config.py import 테스트 중..."
+if ! /data/terraform-proxmox/venv/bin/python -c "import sys; sys.path.insert(0, '/data/terraform-proxmox'); from config import TerraformConfig" 2>/dev/null; then
+    echo "⚠️  config.py import 문제 감지. 자동 수정 중..."
+    
+    # Python 경로 문제 해결을 위한 스크립트 생성
+    cat > /data/terraform-proxmox/test_import.py << 'PYEOF'
+import sys
+import os
+sys.path.insert(0, '/data/terraform-proxmox')
+try:
+    from config import TerraformConfig
+    print("✅ config.py import 성공")
+except ImportError as e:
+    print(f"❌ config.py import 실패: {e}")
+    sys.exit(1)
+PYEOF
+    
+    if /data/terraform-proxmox/venv/bin/python /data/terraform-proxmox/test_import.py; then
+        echo "✅ config.py import 문제 해결 완료"
+    else
+        echo "❌ config.py import 문제 해결 실패"
+    fi
+    
+    rm -f /data/terraform-proxmox/test_import.py
+fi
+
 # systemd 서비스 재시작
 echo "🔄 systemd 서비스 재시작 중..."
 systemctl daemon-reload

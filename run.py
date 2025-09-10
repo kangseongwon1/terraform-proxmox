@@ -9,10 +9,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 프로젝트 루트를 Python 경로에 추가
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Terraform 변수 자동 매핑
-from config import TerraformConfig
+try:
+    from config import TerraformConfig
+except ImportError as e:
+    print(f"❌ config.py import 실패: {e}")
+    print(f"현재 작업 디렉토리: {os.getcwd()}")
+    print(f"프로젝트 루트: {project_root}")
+    print(f"Python 경로: {sys.path}")
+    sys.exit(1)
 TerraformConfig.setup_terraform_vars()
 
 # Terraform 변수 검증
