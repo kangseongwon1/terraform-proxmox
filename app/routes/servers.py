@@ -286,14 +286,35 @@ def create_server():
                         update_task(task_id, 'failed', 'Proxmox에서 VM을 찾을 수 없습니다.')
                         return
                     
+                    # VM ID 가져오기
+                    vm_id = None
+                    try:
+                        # Terraform output에서 VM ID 가져오기
+                        terraform_output = terraform_service.output()
+                        if 'vm_ids' in terraform_output:
+                            vm_ids = terraform_output['vm_ids']
+                            if server_name in vm_ids:
+                                vm_id = vm_ids[server_name]
+                                print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
+                        
+                        # VM ID가 없으면 Proxmox API에서 조회
+                        if not vm_id:
+                            vm_exists, vm_info = proxmox_service.check_vm_exists(server_name)
+                            if vm_exists and vm_info:
+                                vm_id = vm_info.get('vmid')
+                                print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
+                    except Exception as e:
+                        print(f"⚠️ VM ID 조회 실패: {e}")
+                    
                     # IP 주소 처리 (리스트인 경우 문자열로 변환)
                     ip_address_str = ip_address
                     if isinstance(ip_address, list):
                         ip_address_str = ', '.join(ip_address) if ip_address else ''
                     
-                    # DB에 서버 정보 저장
+                    # DB에 서버 정보 저장 (VM ID 포함)
                     new_server = Server(
                         name=server_name,
+                        vmid=vm_id,  # VM ID 추가
                         ip_address=ip_address_str,  # IP 주소 추가 (문자열로 변환)
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
@@ -303,7 +324,7 @@ def create_server():
                     )
                     db.session.add(new_server)
                     db.session.commit()
-                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id})")
+                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id}, VM ID: {vm_id})")
                     
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':
@@ -549,9 +570,30 @@ def create_servers_bulk():
                             template_name = template_cache.get(template_vm_id, 'rocky-9-template')
                             os_type = classify_os_type(template_name)
                             
-                            # DB에 서버 정보 저장
+                            # VM ID 가져오기
+                            vm_id = None
+                            try:
+                                # Terraform output에서 VM ID 가져오기
+                                terraform_output = terraform_service.output()
+                                if 'vm_ids' in terraform_output:
+                                    vm_ids = terraform_output['vm_ids']
+                                    if server_name in vm_ids:
+                                        vm_id = vm_ids[server_name]
+                                        print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
+                                
+                                # VM ID가 없으면 Proxmox API에서 조회
+                                if not vm_id:
+                                    vm_exists, vm_info = proxmox_service.check_vm_exists(server_name)
+                                    if vm_exists and vm_info:
+                                        vm_id = vm_info.get('vmid')
+                                        print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
+                            except Exception as e:
+                                print(f"⚠️ VM ID 조회 실패: {e}")
+                            
+                            # DB에 서버 정보 저장 (VM ID 포함)
                             new_server = Server(
                                 name=server_name,
+                                vmid=vm_id,  # VM ID 추가
                                 ip_address=ip_address_str,  # IP 주소 추가
                                 cpu=server_data.get('cpu', 2),
                                 memory=server_data.get('memory', 2048),
@@ -1215,14 +1257,35 @@ def create():
                         update_task(task_id, 'failed', 'Proxmox에서 VM을 찾을 수 없습니다.')
                         return
                     
-                    # IP 주소 처리 (리스트인 경우 문자열로 변환)
-                    ip_address_str = ip_address
-                    if isinstance(ip_address, list):
-                        ip_address_str = ', '.join(ip_address) if ip_address else ''
+                    # VM ID 가져오기
+                    vm_id = None
+                    try:
+                        # Terraform output에서 VM ID 가져오기
+                        terraform_output = terraform_service.output()
+                        if 'vm_ids' in terraform_output:
+                            vm_ids = terraform_output['vm_ids']
+                            if server_name in vm_ids:
+                                vm_id = vm_ids[server_name]
+                                print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
+                        
+                        # VM ID가 없으면 Proxmox API에서 조회
+                        if not vm_id:
+                            vm_exists, vm_info = proxmox_service.check_vm_exists(server_name)
+                            if vm_exists and vm_info:
+                                vm_id = vm_info.get('vmid')
+                                print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
+                    except Exception as e:
+                        print(f"⚠️ VM ID 조회 실패: {e}")
                     
-                    # DB에 서버 정보 저장
+                    # 기본값 설정 (이 함수에서는 role, os_type, ip_address가 정의되지 않음)
+                    role = ''  # 기본값
+                    os_type = 'rocky'  # 기본값
+                    ip_address_str = ''  # 기본값
+                    
+                    # DB에 서버 정보 저장 (VM ID 포함)
                     new_server = Server(
                         name=server_name,
+                        vmid=vm_id,  # VM ID 추가
                         ip_address=ip_address_str,  # IP 주소 추가 (문자열로 변환)
                         role=role,  # 역할 정보 추가
                         status='stopped',  # 초기 상태는 중지됨
@@ -1232,7 +1295,7 @@ def create():
                     )
                     db.session.add(new_server)
                     db.session.commit()
-                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id})")
+                    print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id}, VM ID: {vm_id})")
                     
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':
