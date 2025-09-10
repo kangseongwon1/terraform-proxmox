@@ -109,7 +109,7 @@ def start_file_monitoring(server_name):
                                 print(f"�� 시간 차이: {file_ctime - start_time:.1f}초")
                                 print(f"�� 조건 체크: {file_ctime} > {start_time} = {file_ctime > start_time}")
                                 
-                                if file_ctime > start_time:
+                                if file_ctime > (start_time - 5):
                                     recent_backups.append(b)
                                     print(f"✅ 최근 백업 파일로 인식")
                                 else:
