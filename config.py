@@ -26,6 +26,70 @@ class VaultConfig:
             return os.environ.get(f'TF_VAR_{key.upper()}')
 
 
+class TerraformConfig:
+    """Terraform 변수 자동 매핑"""
+    
+    # 환경변수 → Terraform 변수 매핑 (.env 파일 기반)
+    MAPPINGS = {
+        'VAULT_TOKEN': 'TF_VAR_vault_token',
+        'VAULT_ADDR': 'TF_VAR_vault_address',
+        'PROXMOX_ENDPOINT': 'TF_VAR_proxmox_endpoint',
+        'PROXMOX_USERNAME': 'TF_VAR_proxmox_username',
+        'PROXMOX_PASSWORD': 'TF_VAR_proxmox_password',
+        'PROXMOX_NODE': 'TF_VAR_proxmox_node',
+        'SSH_USER': 'TF_VAR_vm_username',
+        'SSH_PUBLIC_KEY_PATH': 'TF_VAR_ssh_keys'
+    }
+    
+    @classmethod
+    def setup_terraform_vars(cls):
+        """환경변수를 Terraform 변수로 자동 매핑"""
+        for source_var, target_var in cls.MAPPINGS.items():
+            value = os.getenv(source_var)
+            if value and not os.getenv(target_var):
+                os.environ[target_var] = value
+                print(f"✅ {source_var} → {target_var}")
+    
+    @classmethod
+    def get_terraform_var(cls, var_name):
+        """Terraform 변수 가져오기"""
+        return os.getenv(f'TF_VAR_{var_name}')
+    
+    @classmethod
+    def get_all_terraform_vars(cls):
+        """모든 Terraform 변수 가져오기"""
+        return {k: v for k, v in os.environ.items() if k.startswith('TF_VAR_')}
+    
+    @classmethod
+    def validate_terraform_vars(cls):
+        """Terraform 변수 검증"""
+        required_vars = ['vault_token', 'vault_address', 'proxmox_endpoint', 'proxmox_username', 'proxmox_password']
+        missing_vars = []
+        
+        for var in required_vars:
+            if not cls.get_terraform_var(var):
+                missing_vars.append(f'TF_VAR_{var}')
+        
+        if missing_vars:
+            print(f"⚠️ 누락된 Terraform 변수: {', '.join(missing_vars)}")
+            return False
+        
+        print("✅ 모든 필수 Terraform 변수가 설정되었습니다")
+        return True
+    
+    @classmethod
+    def debug_terraform_vars(cls):
+        """Terraform 변수 디버깅 정보 출력"""
+        print("🔧 Terraform 변수 상태:")
+        for source_var, target_var in cls.MAPPINGS.items():
+            source_value = os.getenv(source_var, '❌ 없음')
+            target_value = os.getenv(target_var, '❌ 없음')
+            print(f"  {source_var}: {'✅ 설정됨' if source_value != '❌ 없음' else '❌ 없음'}")
+            print(f"  {target_var}: {'✅ 설정됨' if target_value != '❌ 없음' else '❌ 없음'}")
+            print()
+
+
+
 class Config:
     """기본 설정"""
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
