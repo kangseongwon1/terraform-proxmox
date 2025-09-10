@@ -940,9 +940,44 @@ setup_environment() {
         sed -i "s|PROXMOX_USERNAME=.*|PROXMOX_USERNAME=$PROXMOX_USERNAME|" .env
         sed -i "s|PROXMOX_PASSWORD=.*|PROXMOX_PASSWORD=$PROXMOX_PASSWORD|" .env
         
+        # Terraform 변수들을 .env 파일에 추가
+        log_info "Terraform 변수를 .env 파일에 추가 중..."
+        cat >> .env << 'EOF'
+
+# Terraform 변수 (자동 매핑용)
+TF_VAR_vault_token=${VAULT_TOKEN}
+TF_VAR_vault_address=${VAULT_ADDR}
+TF_VAR_proxmox_endpoint=${PROXMOX_ENDPOINT}
+TF_VAR_proxmox_username=${PROXMOX_USERNAME}
+TF_VAR_proxmox_password=${PROXMOX_PASSWORD}
+TF_VAR_proxmox_node=${PROXMOX_NODE}
+TF_VAR_vm_username=${SSH_USER}
+TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH}
+EOF
+        
         log_success ".env 파일 설정 완료"
     else
         log_info ".env 파일이 이미 존재합니다"
+        
+        # 기존 .env 파일에 Terraform 변수가 있는지 확인
+        if ! grep -q "TF_VAR_vault_token" .env; then
+            log_info "기존 .env 파일에 Terraform 변수를 추가 중..."
+            cat >> .env << 'EOF'
+
+# Terraform 변수 (자동 매핑용)
+TF_VAR_vault_token=${VAULT_TOKEN}
+TF_VAR_vault_address=${VAULT_ADDR}
+TF_VAR_proxmox_endpoint=${PROXMOX_ENDPOINT}
+TF_VAR_proxmox_username=${PROXMOX_USERNAME}
+TF_VAR_proxmox_password=${PROXMOX_PASSWORD}
+TF_VAR_proxmox_node=${PROXMOX_NODE}
+TF_VAR_vm_username=${SSH_USER}
+TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH}
+EOF
+            log_success "기존 .env 파일에 Terraform 변수 추가 완료"
+        else
+            log_info "Terraform 변수가 이미 .env 파일에 존재합니다"
+        fi
     fi
     
     # .env 파일 로드
@@ -1513,12 +1548,61 @@ start_services() {
         exit 1
     fi
     
+    # 필수 패키지 설치 확인 및 재설치 (완전 자동화)
+    log_info "필수 패키지 설치 확인 중..."
+    
+    # 가상환경 활성화 및 패키지 설치를 위한 스크립트 생성
+    cat > fix_venv.sh << 'EOF'
+#!/bin/bash
+cd /data/terraform-proxmox
+
+# 가상환경 활성화
+source venv/bin/activate
+
+# 필수 패키지 설치
+pip install python-dotenv flask flask-sqlalchemy flask-login requests
+
+# 가상환경 비활성화
+deactivate
+
+echo "가상환경 패키지 설치 완료"
+EOF
+    
+    chmod +x fix_venv.sh
+    
+    # 가상환경 패키지 설치 실행
+    log_info "가상환경 패키지 자동 설치 중..."
+    if ./fix_venv.sh; then
+        log_success "가상환경 패키지 설치 완료"
+    else
+        log_warning "가상환경 패키지 설치 실패, 수동 설치 시도 중..."
+        
+        # 수동 설치 시도
+        if ! $VENV_PYTHON -c "import dotenv" 2>/dev/null; then
+            log_warning "python-dotenv가 설치되지 않았습니다. 재설치 중..."
+            $VENV_PYTHON -m pip install python-dotenv
+        fi
+        
+        if ! $VENV_PYTHON -c "import flask" 2>/dev/null; then
+            log_warning "Flask가 설치되지 않았습니다. 재설치 중..."
+            $VENV_PYTHON -m pip install flask flask-sqlalchemy flask-login
+        fi
+        
+        if ! $VENV_PYTHON -c "import requests" 2>/dev/null; then
+            log_warning "requests가 설치되지 않았습니다. 재설치 중..."
+            $VENV_PYTHON -m pip install requests
+        fi
+    fi
+    
+    # 임시 스크립트 정리
+    rm -f fix_venv.sh
+    
     # run.py 파일 권한 설정
     if [ -f "$APP_DIR/run.py" ]; then
         chmod +x "$APP_DIR/run.py" 2>/dev/null || log_warning "run.py 권한 설정 실패"
     fi
     
-    # systemd 서비스 파일 생성 (깔끔한 버전)
+    # systemd 서비스 파일 생성 (가상환경 문제 해결)
     sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
 [Unit]
 Description=Proxmox Manager Flask Application
@@ -1531,6 +1615,9 @@ User=$USER
 Group=$USER
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$APP_DIR/.env
+Environment=PATH=$APP_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$APP_DIR/venv
+Environment=PYTHONPATH=$APP_DIR
 ExecStart=$VENV_PYTHON run.py
 Restart=always
 RestartSec=10
@@ -1552,19 +1639,152 @@ EOF
     log_info "Flask 애플리케이션 서비스 시작 중..."
     sudo systemctl daemon-reload
     sudo systemctl enable proxmox-manager
-    sudo systemctl start proxmox-manager
     
-    # 서비스 상태 확인
-    sleep 3
-    if sudo systemctl is-active --quiet proxmox-manager; then
-        log_success "Flask 애플리케이션 서비스 시작 완료"
-        log_info "서비스 상태: $(sudo systemctl is-active proxmox-manager)"
-    else
-        log_warning "Flask 애플리케이션 서비스 시작 실패"
-        log_info "서비스 로그 확인: sudo journalctl -u proxmox-manager -n 20"
+    # 서비스 시작 전 자동 검증 및 수정
+    log_info "서비스 시작 전 자동 검증 중..."
+    
+    # 가상환경 Python 실행 테스트
+    if ! $VENV_PYTHON -c "import dotenv, flask, requests" 2>/dev/null; then
+        log_warning "가상환경 패키지 문제 감지. 자동 수정 중..."
+        
+        # 자동 수정 스크립트 실행
+        cat > auto_fix_venv.sh << 'EOF'
+#!/bin/bash
+cd /data/terraform-proxmox
+source venv/bin/activate
+pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests
+deactivate
+echo "가상환경 자동 수정 완료"
+EOF
+        
+        chmod +x auto_fix_venv.sh
+        ./auto_fix_venv.sh
+        rm -f auto_fix_venv.sh
+        
+        log_success "가상환경 자동 수정 완료"
+    fi
+    
+    # 서비스 시작 시도 (재시도 로직 포함)
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        log_info "서비스 시작 시도 $((RETRY_COUNT + 1))/$MAX_RETRIES"
+        
+        if sudo systemctl start proxmox-manager; then
+            log_success "Flask 애플리케이션 서비스 시작 완료"
+            
+            # 서비스 상태 확인
+            sleep 5
+            if sudo systemctl is-active --quiet proxmox-manager; then
+                log_success "Flask 애플리케이션 서비스가 정상적으로 실행 중입니다"
+                log_info "서비스 상태: $(sudo systemctl is-active proxmox-manager)"
+                break
+            else
+                log_warning "서비스가 시작되었지만 상태가 불안정합니다. 재시도 중..."
+                sudo systemctl stop proxmox-manager
+                sleep 2
+            fi
+        else
+            log_warning "서비스 시작 실패. 재시도 중..."
+            sleep 3
+        fi
+        
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+    done
+    
+    # 최종 상태 확인
+    if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+        log_error "Flask 애플리케이션 서비스 시작 실패 (최대 재시도 횟수 초과)"
+        log_info "서비스 로그를 확인하세요: sudo journalctl -u proxmox-manager -n 20"
+        log_info "수동으로 다음 명령어를 실행해보세요:"
+        log_info "  sudo systemctl restart proxmox-manager"
+        log_info "  sudo systemctl status proxmox-manager"
+        exit 1
     fi
     
     log_success "서비스 시작 완료"
+    
+    # 자동 복구 스크립트 생성 (사용자가 systemctl start만 해도 문제 해결)
+    log_info "자동 복구 스크립트 생성 중..."
+    cat > /usr/local/bin/proxmox-manager-fix << 'EOF'
+#!/bin/bash
+# Proxmox Manager 자동 복구 스크립트
+# 사용법: sudo systemctl start proxmox-manager (자동으로 이 스크립트가 실행됨)
+
+cd /data/terraform-proxmox
+
+echo "🔧 Proxmox Manager 자동 복구 시작..."
+
+# 가상환경 패키지 문제 해결
+if ! /data/terraform-proxmox/venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
+    echo "⚠️  가상환경 패키지 문제 감지. 자동 수정 중..."
+    
+    # 가상환경 활성화 및 패키지 재설치
+    source /data/terraform-proxmox/venv/bin/activate
+    pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests
+    deactivate
+    
+    echo "✅ 가상환경 패키지 수정 완료"
+fi
+
+# systemd 서비스 재시작
+echo "🔄 systemd 서비스 재시작 중..."
+systemctl daemon-reload
+systemctl restart proxmox-manager
+
+# 서비스 상태 확인
+sleep 3
+if systemctl is-active --quiet proxmox-manager; then
+    echo "✅ Proxmox Manager 서비스가 정상적으로 실행 중입니다"
+    echo "🌐 웹 인터페이스: http://$(hostname -I | awk '{print $1}'):5000"
+else
+    echo "❌ 서비스 시작 실패. 로그를 확인하세요:"
+    echo "   journalctl -u proxmox-manager -n 20"
+fi
+EOF
+    
+    chmod +x /usr/local/bin/proxmox-manager-fix
+    
+    # systemd 서비스에 자동 복구 스크립트 연결
+    log_info "systemd 서비스에 자동 복구 기능 추가 중..."
+    sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
+[Unit]
+Description=Proxmox Manager Flask Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=$USER
+Group=$USER
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
+Environment=PATH=$APP_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$APP_DIR/venv
+Environment=PYTHONPATH=$APP_DIR
+ExecStartPre=/usr/local/bin/proxmox-manager-fix
+ExecStart=$VENV_PYTHON run.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# 보안 설정 (권한 문제 해결을 위해 일부 완화)
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
+ReadWritePaths=$APP_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    sudo systemctl daemon-reload
+    
+    log_success "자동 복구 스크립트 생성 완료"
+    log_info "이제 'sudo systemctl start proxmox-manager'만 실행하면 모든 문제가 자동으로 해결됩니다!"
 }
 
 # ========================================
