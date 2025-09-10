@@ -14,7 +14,7 @@ terraform {
 provider "proxmox" {
   endpoint = var.proxmox_endpoint
   username = var.proxmox_username
-  password = var.proxmox_password
+  password = data.vault_generic_secret.proxmox.data["password"]
   insecure = true
 
   ssh {

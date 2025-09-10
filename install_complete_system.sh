@@ -1518,7 +1518,7 @@ start_services() {
         chmod +x "$APP_DIR/run.py" 2>/dev/null || log_warning "run.py 권한 설정 실패"
     fi
     
-    # systemd 서비스 파일 생성
+    # systemd 서비스 파일 생성 (깔끔한 버전)
     sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
 [Unit]
 Description=Proxmox Manager Flask Application
@@ -1530,9 +1530,7 @@ Type=simple
 User=$USER
 Group=$USER
 WorkingDirectory=$APP_DIR
-Environment=PATH=$PATH
-Environment=PYTHONPATH=$APP_DIR
-Environment=VIRTUAL_ENV=$APP_DIR/venv
+EnvironmentFile=$APP_DIR/.env
 ExecStart=$VENV_PYTHON run.py
 Restart=always
 RestartSec=10

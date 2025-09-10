@@ -11,6 +11,15 @@ load_dotenv()
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Terraform 변수 자동 매핑
+from config import TerraformConfig
+TerraformConfig.setup_terraform_vars()
+
+# Terraform 변수 검증
+if not TerraformConfig.validate_terraform_vars():
+    print("⚠️ 일부 Terraform 변수가 누락되었습니다. .env 파일을 확인하세요.")
+    TerraformConfig.debug_terraform_vars()
+
 from app.main import app, db
 from app.models import User, Server, Notification, Project
 from flask_login import login_required
