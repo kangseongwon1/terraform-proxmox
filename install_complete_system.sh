@@ -1491,6 +1491,22 @@ start_services() {
         else
             log_warning "Vault 서비스 시작 실패"
         fi
+    elif [ -f "docker-compose.vault.yaml" ]; then
+        log_info "Vault 서비스 시작 중..."
+        
+        # Vault 데이터 볼륨 확인 및 생성
+        if ! docker volume ls | grep -q vault-data; then
+            log_info "Vault 데이터 볼륨 생성 중..."
+            docker volume create vault-data
+        fi
+        
+        docker-compose -f docker-compose.vault.yaml up -d
+        
+        if [ $? -eq 0 ]; then
+            log_success "Vault 서비스 시작 완료"
+        else
+            log_warning "Vault 서비스 시작 실패"
+        fi
     fi
     
     # Flask 애플리케이션 systemd 서비스 등록
