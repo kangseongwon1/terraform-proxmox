@@ -1509,6 +1509,132 @@ start_services() {
         fi
     fi
     
+    # Vault 초기화 및 Unseal 자동화
+    log_info "Vault 초기화 및 Unseal 설정 중..."
+    
+    # Vault 서비스가 완전히 시작될 때까지 대기
+    log_info "Vault 서비스 초기화 대기 중..."
+    sleep 15
+    
+    # Vault 상태 확인 및 초기화
+    if docker ps | grep -q vault-dev; then
+        log_info "Vault 상태 확인 중..."
+        
+        # Vault 초기화 상태 확인
+        VAULT_INIT_STATUS=$(docker exec vault-dev vault status 2>/dev/null | grep "Initialized" | awk '{print $2}')
+        
+        if [ "$VAULT_INIT_STATUS" = "true" ]; then
+            log_info "Vault가 이미 초기화되어 있습니다."
+            
+            # Vault Unseal 상태 확인
+            VAULT_SEALED=$(docker exec vault-dev vault status 2>/dev/null | grep "Sealed" | awk '{print $2}')
+            
+            if [ "$VAULT_SEALED" = "true" ]; then
+                log_info "Vault가 sealed 상태입니다. Unseal을 진행합니다..."
+                
+                # Unseal 키 파일 확인
+                if [ -f "/data/terraform-proxmox/vault_unseal_keys.txt" ]; then
+                    log_info "저장된 Unseal 키를 사용합니다..."
+                    UNSEAL_KEY=$(cat /data/terraform-proxmox/vault_unseal_keys.txt)
+                    
+                    # Vault Unseal 실행
+                    if docker exec vault-dev vault operator unseal "$UNSEAL_KEY" 2>/dev/null; then
+                        log_success "Vault Unseal 성공"
+                    else
+                        log_error "Vault Unseal 실패"
+                    fi
+                else
+                    log_warning "Unseal 키 파일이 없습니다. Vault를 다시 초기화합니다."
+                    
+                    # Vault 재초기화
+                    VAULT_INIT_OUTPUT=$(docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 2>/dev/null)
+                    VAULT_TOKEN=$(echo "$VAULT_INIT_OUTPUT" | grep "Initial Root Token:" | awk '{print $4}')
+                    UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
+                    
+                    # 토큰과 Unseal 키를 파일에 저장
+                    echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
+                    echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
+                    chmod 600 /data/terraform-proxmox/vault_token.txt
+                    chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+                    
+                    log_success "Vault 재초기화 완료 및 키 저장"
+                fi
+            else
+                log_success "Vault가 이미 unsealed 상태입니다."
+            fi
+            
+            # 토큰 복원
+            if [ -f "/data/terraform-proxmox/vault_token.txt" ]; then
+                VAULT_TOKEN=$(cat /data/terraform-proxmox/vault_token.txt)
+                export VAULT_TOKEN="$VAULT_TOKEN"
+                export TF_VAR_vault_token="$VAULT_TOKEN"
+                
+                # .env 파일에 토큰 업데이트
+                if [ -f ".env" ]; then
+                    sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" .env
+                    sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
+                    log_success "Vault 토큰이 .env 파일에 업데이트되었습니다."
+                fi
+            fi
+            
+            # Vault 시크릿 설정 확인
+            log_info "Vault 시크릿 설정 확인 중..."
+            
+            # Proxmox 시크릿 확인
+            if ! docker exec vault-dev vault kv get secret/proxmox 2>/dev/null | grep -q "password"; then
+                log_info "Proxmox 시크릿을 Vault에 저장 중..."
+                docker exec vault-dev vault kv put secret/proxmox username=root@pam password=YzaxdJOA2j9Itv8S
+                log_success "Proxmox 시크릿 저장 완료"
+            else
+                log_info "Proxmox 시크릿이 이미 존재합니다."
+            fi
+            
+            # VM 시크릿 확인
+            if ! docker exec vault-dev vault kv get secret/vm 2>/dev/null | grep -q "password"; then
+                log_info "VM 시크릿을 Vault에 저장 중..."
+                docker exec vault-dev vault kv put secret/vm username=rocky password=rocky123
+                log_success "VM 시크릿 저장 완료"
+            else
+                log_info "VM 시크릿이 이미 존재합니다."
+            fi
+            
+        else
+            log_info "Vault 초기화 중..."
+            # Vault 초기화
+            VAULT_INIT_OUTPUT=$(docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 2>/dev/null)
+            VAULT_TOKEN=$(echo "$VAULT_INIT_OUTPUT" | grep "Initial Root Token:" | awk '{print $4}')
+            UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
+            
+            # 토큰과 Unseal 키를 파일에 저장
+            echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
+            echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
+            chmod 600 /data/terraform-proxmox/vault_token.txt
+            chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+            
+            log_success "Vault 초기화 완료 및 키 저장"
+            
+            # 환경변수에 토큰 설정
+            export VAULT_TOKEN="$VAULT_TOKEN"
+            export TF_VAR_vault_token="$VAULT_TOKEN"
+            
+            # .env 파일에 토큰 업데이트
+            if [ -f ".env" ]; then
+                sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" .env
+                sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
+            fi
+            
+            # Vault 시크릿 설정
+            log_info "Vault 시크릿 설정 중..."
+            docker exec vault-dev vault kv put secret/proxmox username=root@pam password=YzaxdJOA2j9Itv8S
+            docker exec vault-dev vault kv put secret/vm username=rocky password=rocky123
+            log_success "Vault 시크릿 설정 완료"
+        fi
+        
+        log_success "Vault 초기화 및 Unseal 설정 완료"
+    else
+        log_warning "Vault 컨테이너가 실행되지 않았습니다."
+    fi
+    
     # Flask 애플리케이션 systemd 서비스 등록
     log_info "Flask 애플리케이션 systemd 서비스 등록 중..."
     
@@ -1941,6 +2067,54 @@ EOF
 cd /data/terraform-proxmox
 
 echo "🔧 Proxmox Manager 자동 복구 시작..."
+
+# Vault Unseal 및 토큰 복원
+echo "🔐 Vault Unseal 및 토큰 복원 중..."
+
+# Vault 상태 확인
+if docker ps | grep -q vault-dev; then
+    VAULT_SEALED=$(docker exec vault-dev vault status 2>/dev/null | grep "Sealed" | awk '{print $2}')
+    
+    if [ "$VAULT_SEALED" = "true" ]; then
+        echo "⚠️ Vault가 sealed 상태입니다. Unseal을 진행합니다..."
+        
+        # Unseal 키 파일 확인
+        if [ -f "/data/terraform-proxmox/vault_unseal_keys.txt" ]; then
+            echo "📋 저장된 Unseal 키를 사용합니다..."
+            UNSEAL_KEY=$(cat /data/terraform-proxmox/vault_unseal_keys.txt)
+            
+            # Vault Unseal 실행
+            if docker exec vault-dev vault operator unseal "$UNSEAL_KEY" 2>/dev/null; then
+                echo "✅ Vault Unseal 성공"
+            else
+                echo "❌ Vault Unseal 실패"
+            fi
+        else
+            echo "❌ Unseal 키 파일이 없습니다."
+        fi
+    else
+        echo "✅ Vault가 이미 unsealed 상태입니다."
+    fi
+    
+    # 토큰 복원
+    if [ -f "/data/terraform-proxmox/vault_token.txt" ]; then
+        VAULT_TOKEN=$(cat /data/terraform-proxmox/vault_token.txt)
+        export VAULT_TOKEN="$VAULT_TOKEN"
+        export TF_VAR_vault_token="$VAULT_TOKEN"
+        
+        # .env 파일에 토큰 업데이트
+        if [ -f "/data/terraform-proxmox/.env" ]; then
+            sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+            sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+        fi
+        
+        echo "✅ Vault 토큰 복원 완료"
+    else
+        echo "⚠️ 저장된 Vault 토큰이 없습니다."
+    fi
+else
+    echo "⚠️ Vault 컨테이너가 실행되지 않았습니다."
+fi
 
 # 가상환경 패키지 문제 해결
 if ! /data/terraform-proxmox/venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
