@@ -278,6 +278,34 @@ setup_python() {
     
     if [ $? -eq 0 ]; then
         log_success "가상환경 생성 완료"
+        
+        # 가상환경 생성 후 권한 확인 및 수정
+        log_info "가상환경 파일 권한 확인 중..."
+        if [ -f "venv/bin/python" ]; then
+            # Python 실행 파일 권한 확인
+            CURRENT_PERMS=$(ls -l venv/bin/python | awk '{print $1}')
+            log_info "Python 파일 권한: $CURRENT_PERMS"
+            
+            if [[ ! "$CURRENT_PERMS" =~ x ]]; then
+                log_info "실행 권한이 없습니다. 권한 설정 중..."
+                chmod +x venv/bin/python
+                if [ $? -eq 0 ]; then
+                    log_success "Python 파일 실행 권한 설정 완료"
+                else
+                    log_warning "Python 파일 권한 설정 실패"
+                fi
+            else
+                log_success "Python 파일에 이미 실행 권한이 있습니다"
+            fi
+            
+            # pip 실행 파일 권한도 확인
+            if [ -f "venv/bin/pip" ]; then
+                chmod +x venv/bin/pip 2>/dev/null || log_warning "pip 권한 설정 실패"
+            fi
+        else
+            log_error "가상환경 Python 파일을 찾을 수 없습니다"
+            exit 1
+        fi
     else
         log_error "가상환경 생성 실패"
         exit 1
@@ -1437,8 +1465,58 @@ start_services() {
     
     # 가상환경 Python 실행 권한 확인 및 설정
     log_info "가상환경 Python 실행 권한 설정 중..."
-    chmod +x "$VENV_PYTHON"
-    chmod +x "$APP_DIR/run.py"
+    
+    # 가상환경 Python 파일 권한 확인
+    if [ -f "$VENV_PYTHON" ]; then
+        CURRENT_PERMS=$(ls -l "$VENV_PYTHON" | awk '{print $1}')
+        log_info "현재 Python 파일 권한: $CURRENT_PERMS"
+        
+        # 실행 권한이 없는 경우에만 설정 시도
+        if [[ ! "$CURRENT_PERMS" =~ x ]]; then
+            log_info "실행 권한이 없습니다. 권한 설정 시도 중..."
+            if chmod +x "$VENV_PYTHON" 2>/dev/null; then
+                log_success "Python 파일 실행 권한 설정 완료"
+            else
+                log_warning "Python 파일 권한 설정 실패 (계속 진행)"
+                log_info "가상환경 재생성을 시도합니다..."
+                
+                # 가상환경 재생성
+                log_info "기존 가상환경 백업 중..."
+                if [ -d "venv" ]; then
+                    mv venv venv.backup.$(date +%Y%m%d_%H%M%S)
+                fi
+                
+                log_info "새 가상환경 생성 중..."
+                if command -v python3.12 &> /dev/null; then
+                    python3.12 -m venv venv
+                elif command -v python3 &> /dev/null; then
+                    python3 -m venv venv
+                else
+                    log_error "Python을 찾을 수 없습니다"
+                    exit 1
+                fi
+                
+                # 새 가상환경에서 Python 패키지 재설치
+                log_info "가상환경 활성화 및 패키지 재설치 중..."
+                source venv/bin/activate
+                pip install -r requirements.txt
+                
+                # 새 Python 경로 업데이트
+                VENV_PYTHON="$APP_DIR/venv/bin/python"
+                log_info "새 가상환경 Python 경로: $VENV_PYTHON"
+            fi
+        else
+            log_success "Python 파일에 이미 실행 권한이 있습니다"
+        fi
+    else
+        log_error "가상환경 Python 파일을 찾을 수 없습니다: $VENV_PYTHON"
+        exit 1
+    fi
+    
+    # run.py 파일 권한 설정
+    if [ -f "$APP_DIR/run.py" ]; then
+        chmod +x "$APP_DIR/run.py" 2>/dev/null || log_warning "run.py 권한 설정 실패"
+    fi
     
     # systemd 서비스 파일 생성
     sudo tee /etc/systemd/system/proxmox-manager.service > /dev/null << EOF
