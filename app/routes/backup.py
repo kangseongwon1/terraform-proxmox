@@ -95,12 +95,26 @@ def start_file_monitoring(server_name):
                             all_backups = backup_data.get('backups', [])
                             print(f"🔍 전체 백업 파일 수: {len(all_backups)}")
                             
-                            # 백업 시작 시간 이후의 백업 파일들 찾기
-                            recent_backups = [
-                                b for b in all_backups 
-                                if b.get('ctime', 0) > start_time
-                            ]
-                            
+                            print(f"🔍 백업 시작 시간: {start_time} ({datetime.fromtimestamp(start_time)})")
+                            print(f"🔍 현재 시간: {time.time()} ({datetime.now()})")
+
+                            recent_backups = []
+                            for b in all_backups:
+                                file_ctime = b.get('ctime', 0)
+                                file_name = b.get('name', '')
+                                
+                                print(f"�� 파일: {file_name}")
+                                print(f"�� 파일 ctime: {file_ctime}")
+                                print(f"�� 파일 ctime (datetime): {datetime.fromtimestamp(file_ctime) if file_ctime else 'N/A'}")
+                                print(f"�� 시간 차이: {file_ctime - start_time:.1f}초")
+                                print(f"�� 조건 체크: {file_ctime} > {start_time} = {file_ctime > start_time}")
+                                
+                                if file_ctime > start_time:
+                                    recent_backups.append(b)
+                                    print(f"✅ 최근 백업 파일로 인식")
+                                else:
+                                    print(f"❌ 오래된 백업 파일로 제외")
+
                             print(f"🔍 백업 시작 후 생성된 파일 수: {len(recent_backups)}")
                             
                             if recent_backups:
