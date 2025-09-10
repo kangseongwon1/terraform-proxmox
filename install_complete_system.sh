@@ -1889,7 +1889,7 @@ EOF
     
     # 자동 복구 스크립트 생성 (사용자가 systemctl start만 해도 문제 해결)
     log_info "자동 복구 스크립트 생성 중..."
-    cat > /usr/local/bin/proxmox-manager-fix << 'EOF'
+    sudo tee /usr/local/bin/proxmox-manager-fix > /dev/null << 'EOF'
 #!/bin/bash
 # Proxmox Manager 자동 복구 스크립트
 # 사용법: sudo systemctl start proxmox-manager (자동으로 이 스크립트가 실행됨)
@@ -2109,7 +2109,7 @@ else
 fi
 EOF
     
-    chmod +x /usr/local/bin/proxmox-manager-fix
+    sudo chmod +x /usr/local/bin/proxmox-manager-fix
     
     # systemd 서비스에 자동 복구 스크립트 연결
     log_info "systemd 서비스에 자동 복구 기능 추가 중..."
