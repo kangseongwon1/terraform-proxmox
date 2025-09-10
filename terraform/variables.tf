@@ -75,6 +75,6 @@ variable "vm_password" {
 }
 variable "ssh_keys" { 
   type = string
-  description = "SSH 공개키"
-  default = ""
+  description = "SSH 공개키 파일 경로 (예: ~/.ssh/id_rsa.pub)"
+  default = "~/.ssh/id_rsa.pub"
 }

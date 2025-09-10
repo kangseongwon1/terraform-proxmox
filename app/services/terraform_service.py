@@ -356,6 +356,21 @@ class TerraformService:
             tfvars['servers'][server_name] = server_data
             print(f"🔧 서버 설정 추가 완료: {server_name}")
             
+            # Proxmox 설정 자동 추가 (없는 경우에만)
+            if 'proxmox_endpoint' not in tfvars:
+                from config import Config
+                tfvars['proxmox_endpoint'] = Config.PROXMOX_ENDPOINT
+                tfvars['proxmox_username'] = Config.PROXMOX_USERNAME
+                tfvars['proxmox_node'] = Config.PROXMOX_NODE
+                tfvars['proxmox_datastore'] = Config.PROXMOX_DATASTORE
+                print("🔧 Proxmox 설정 자동 추가 완료")
+            
+            # VM 기본 설정 추가 (없는 경우에만)
+            if 'vm_username' not in tfvars:
+                from config import Config
+                tfvars['vm_username'] = Config.SSH_USER
+                print("🔧 VM 기본 설정 자동 추가 완료")
+            
             # 설정 저장
             result = self.save_tfvars(tfvars)
             print(f"🔧 tfvars 저장 결과: {result}")
@@ -365,6 +380,62 @@ class TerraformService:
             print(f"💥 create_server_config 실패: {e}")
             logger.error(f"서버 설정 생성 실패: {e}")
             return False
+    
+    def test_ssh_connection(self, server_name: str, ip_address: str, username: str = None) -> Tuple[bool, str]:
+        """SSH 연결 테스트"""
+        try:
+            import paramiko
+            import socket
+            
+            if username is None:
+                from config import Config
+                username = Config.SSH_USER
+            
+            # SSH 클라이언트 생성
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # SSH 키 파일 경로
+            from config import Config
+            ssh_key_path = Config.SSH_PRIVATE_KEY_PATH.replace('~', os.path.expanduser('~'))
+            
+            print(f"🔍 SSH 연결 테스트: {username}@{ip_address}")
+            print(f"🔑 SSH 키 경로: {ssh_key_path}")
+            
+            # SSH 연결 시도
+            ssh.connect(
+                hostname=ip_address,
+                username=username,
+                key_filename=ssh_key_path,
+                timeout=10,
+                banner_timeout=10
+            )
+            
+            # 간단한 명령어 실행 테스트
+            stdin, stdout, stderr = ssh.exec_command('echo "SSH 연결 성공"')
+            result = stdout.read().decode().strip()
+            
+            ssh.close()
+            
+            print(f"✅ SSH 연결 성공: {result}")
+            return True, f"SSH 연결 성공: {result}"
+            
+        except paramiko.AuthenticationException:
+            error_msg = f"SSH 인증 실패: {username}@{ip_address}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+        except paramiko.SSHException as e:
+            error_msg = f"SSH 연결 오류: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+        except socket.timeout:
+            error_msg = f"SSH 연결 시간 초과: {ip_address}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"SSH 연결 테스트 실패: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
     
     def remove_server_config(self, server_name: str) -> bool:
         """서버 설정 제거"""

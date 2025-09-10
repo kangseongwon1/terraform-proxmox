@@ -940,9 +940,23 @@ setup_environment() {
         sed -i "s|PROXMOX_USERNAME=.*|PROXMOX_USERNAME=$PROXMOX_USERNAME|" .env
         sed -i "s|PROXMOX_PASSWORD=.*|PROXMOX_PASSWORD=$PROXMOX_PASSWORD|" .env
         
-        # Terraform 변수들을 .env 파일에 추가
-        log_info "Terraform 변수를 .env 파일에 추가 중..."
-        cat >> .env << 'EOF'
+    # SSH 키 파일 경로 확인 및 생성
+    log_info "SSH 키 파일 경로 확인 중..."
+    SSH_PUBLIC_KEY_PATH_FULL=$(eval echo ${SSH_PUBLIC_KEY_PATH})
+    SSH_PRIVATE_KEY_PATH_FULL=$(eval echo ${SSH_PRIVATE_KEY_PATH})
+    
+    if [ ! -f "$SSH_PUBLIC_KEY_PATH_FULL" ]; then
+        log_warning "SSH 공개키 파일이 없습니다: $SSH_PUBLIC_KEY_PATH_FULL"
+        log_info "SSH 키 쌍을 생성합니다..."
+        ssh-keygen -t rsa -b 4096 -f "$SSH_PRIVATE_KEY_PATH_FULL" -N "" -C "proxmox-manager@$(hostname)"
+        log_success "SSH 키 쌍 생성 완료"
+    else
+        log_success "SSH 공개키 파일 확인됨: $SSH_PUBLIC_KEY_PATH_FULL"
+    fi
+    
+    # Terraform 변수들을 .env 파일에 추가
+    log_info "Terraform 변수를 .env 파일에 추가 중..."
+    cat >> .env << EOF
 
 # Terraform 변수 (자동 매핑용)
 TF_VAR_vault_token=${VAULT_TOKEN}
@@ -952,17 +966,31 @@ TF_VAR_proxmox_username=${PROXMOX_USERNAME}
 TF_VAR_proxmox_password=${PROXMOX_PASSWORD}
 TF_VAR_proxmox_node=${PROXMOX_NODE}
 TF_VAR_vm_username=${SSH_USER}
-TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH}
+TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH_FULL}
 EOF
         
         log_success ".env 파일 설정 완료"
     else
         log_info ".env 파일이 이미 존재합니다"
         
+        # SSH 키 파일 경로 확인 및 생성
+        log_info "SSH 키 파일 경로 확인 중..."
+        SSH_PUBLIC_KEY_PATH_FULL=$(eval echo ${SSH_PUBLIC_KEY_PATH})
+        SSH_PRIVATE_KEY_PATH_FULL=$(eval echo ${SSH_PRIVATE_KEY_PATH})
+        
+        if [ ! -f "$SSH_PUBLIC_KEY_PATH_FULL" ]; then
+            log_warning "SSH 공개키 파일이 없습니다: $SSH_PUBLIC_KEY_PATH_FULL"
+            log_info "SSH 키 쌍을 생성합니다..."
+            ssh-keygen -t rsa -b 4096 -f "$SSH_PRIVATE_KEY_PATH_FULL" -N "" -C "proxmox-manager@$(hostname)"
+            log_success "SSH 키 쌍 생성 완료"
+        else
+            log_success "SSH 공개키 파일 확인됨: $SSH_PUBLIC_KEY_PATH_FULL"
+        fi
+        
         # 기존 .env 파일에 Terraform 변수가 있는지 확인
         if ! grep -q "TF_VAR_vault_token" .env; then
             log_info "기존 .env 파일에 Terraform 변수를 추가 중..."
-            cat >> .env << 'EOF'
+            cat >> .env << EOF
 
 # Terraform 변수 (자동 매핑용)
 TF_VAR_vault_token=${VAULT_TOKEN}
@@ -972,7 +1000,7 @@ TF_VAR_proxmox_username=${PROXMOX_USERNAME}
 TF_VAR_proxmox_password=${PROXMOX_PASSWORD}
 TF_VAR_proxmox_node=${PROXMOX_NODE}
 TF_VAR_vm_username=${SSH_USER}
-TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH}
+TF_VAR_ssh_keys=${SSH_PUBLIC_KEY_PATH_FULL}
 EOF
             log_success "기존 .env 파일에 Terraform 변수 추가 완료"
         else
@@ -1742,7 +1770,7 @@ cd /data/terraform-proxmox
 source venv/bin/activate
 
 # 필수 패키지 설치
-pip install python-dotenv flask flask-sqlalchemy flask-login requests
+pip install python-dotenv flask flask-sqlalchemy flask-login requests paramiko
 
 # 가상환경 비활성화
 deactivate
@@ -1904,7 +1932,7 @@ if ! /data/terraform-proxmox/venv/bin/python -c "import dotenv, flask, requests"
     
     # 가상환경 활성화 및 패키지 재설치
     source /data/terraform-proxmox/venv/bin/activate
-    pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests
+    pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests paramiko
     deactivate
     
     echo "✅ 가상환경 패키지 수정 완료"

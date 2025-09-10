@@ -124,6 +124,16 @@ class Config:
     SSH_PUBLIC_KEY_PATH = os.environ.get('SSH_PUBLIC_KEY_PATH', '~/.ssh/id_rsa.pub')
     SSH_USER = os.environ.get('SSH_USER', 'rocky')
     
+    @classmethod
+    def get_ssh_public_key_path(cls):
+        """SSH 공개키 파일 경로 반환 (절대 경로)"""
+        return os.path.expanduser(cls.SSH_PUBLIC_KEY_PATH)
+    
+    @classmethod
+    def get_ssh_private_key_path(cls):
+        """SSH 개인키 파일 경로 반환 (절대 경로)"""
+        return os.path.expanduser(cls.SSH_PRIVATE_KEY_PATH)
+    
     # 모니터링 설정 (환경 변수)
     GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
     GRAFANA_USERNAME = os.environ.get('GRAFANA_USERNAME', 'admin')
