@@ -1200,6 +1200,12 @@ EOF
     # 소유권 설정
     sudo chown -R grafana:grafana /etc/grafana
     
+    # PID 파일 디렉토리 생성 및 권한 설정
+    log_info "PID 파일 디렉토리 설정 중..."
+    sudo mkdir -p /var/lib/grafana/run
+    sudo chown grafana:grafana /var/lib/grafana/run
+    sudo chmod 755 /var/lib/grafana/run
+    
     # systemd 유닛 생성 (새로운 grafana 명령어 사용)
     log_info "시스템 서비스 등록 중..."
     sudo tee /etc/systemd/system/grafana-server.service > /dev/null << 'EOF'
@@ -1215,7 +1221,7 @@ Type=notify
 User=grafana
 Group=grafana
 WorkingDirectory=/opt/grafana
-ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana-server.pid
+ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/lib/grafana/run/grafana-server.pid
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=20
