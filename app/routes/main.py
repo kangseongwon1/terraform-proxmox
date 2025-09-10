@@ -45,15 +45,28 @@ def admin():
 @login_required
 def instances_content():
     """인스턴스 콘텐츠 (기존 템플릿 호환)"""
+    # roles 변수 준비 (기존 app.py와 동일)
+    roles = {
+        'web': {'name': '웹서버', 'description': '웹 서비스 제공'},
+        'was': {'name': 'WAS', 'description': '애플리케이션 서버'},
+        'java': {'name': 'JAVA', 'description': '자바 서버'},
+        'search': {'name': '검색', 'description': '검색 서버'},
+        'ftp': {'name': 'FTP', 'description': '파일 서버'},
+        'db': {'name': 'DB', 'description': '데이터베이스 서버'}
+    }
+    
     try:
         print("🔍 /instances/content 호출됨")
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_all_vms()
         
+        # servers 변수 초기화
+        servers = {}
+        server_list = []
+        
         if result['success']:
             servers = result['data']['servers']
             # 서버 목록을 템플릿에서 사용할 수 있는 형식으로 변환
-            server_list = []
             for server_name, server_info in servers.items():
                 vm_info = {
                     'vmid': server_info.get('vmid'),
@@ -79,7 +92,6 @@ def instances_content():
                 ''')
                 db_servers = cursor.fetchall()
                 
-                server_list = []
                 for db_server in db_servers:
                     vm_info = {
                         'vmid': db_server['vmid'],
@@ -98,20 +110,10 @@ def instances_content():
                     }
                     server_list.append(vm_info)
         
-        # roles 변수 준비 (기존 app.py와 동일)
-        roles = {
-            'web': {'name': '웹서버', 'description': '웹 서비스 제공'},
-            'was': {'name': 'WAS', 'description': '애플리케이션 서버'},
-            'java': {'name': 'JAVA', 'description': '자바 서버'},
-            'search': {'name': '검색', 'description': '검색 서버'},
-            'ftp': {'name': 'FTP', 'description': '파일 서버'},
-            'db': {'name': 'DB', 'description': '데이터베이스 서버'}
-        }
-        
         return render_template('partials/instances_content.html', servers=server_list, roles=roles, server_data=servers)
     except Exception as e:
         print(f"💥 /instances/content 예외 발생: {str(e)}")
-        return render_template('partials/instances_content.html', servers=[], server_data={})
+        return render_template('partials/instances_content.html', servers=[], roles=roles, server_data={})
 
 @bp.route('/dashboard/content')
 @login_required
