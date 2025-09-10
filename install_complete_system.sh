@@ -1148,15 +1148,20 @@ EOF
     sudo mkdir -p /opt/grafana
     sudo mkdir -p /etc/grafana
     sudo mkdir -p /var/lib/grafana
+    sudo mkdir -p /var/lib/grafana/plugins
     sudo mkdir -p /var/log/grafana
+    sudo mkdir -p /var/run/grafana
     
     # 바이너리 및 파일 배치
     log_info "바이너리 배치 중..."
     sudo cp -rf grafana_temp/* /opt/grafana/
     sudo chown -R grafana:grafana /opt/grafana
     sudo chown -R grafana:grafana /var/lib/grafana
+    sudo chown -R grafana:grafana /var/lib/grafana/plugins
     sudo chown -R grafana:grafana /var/log/grafana
+    sudo chown -R grafana:grafana /var/run/grafana
     sudo chmod 0755 /opt/grafana/bin/grafana-server
+    sudo chmod 755 /var/run/grafana
     
     # Grafana 설정 파일 생성
     log_info "Grafana 설정 파일 생성 중..."
@@ -1171,6 +1176,7 @@ provisioning = /etc/grafana/provisioning
 http_port = 3000
 domain = localhost
 root_url = http://localhost:3000/
+pidfile = /var/run/grafana/grafana-server.pid
 
 [database]
 type = sqlite3
@@ -1200,13 +1206,16 @@ EOF
     # 소유권 설정
     sudo chown -R grafana:grafana /etc/grafana
     
-    # PID 파일 디렉토리 생성 및 권한 설정
-    log_info "PID 파일 디렉토리 설정 중..."
-    sudo mkdir -p /var/lib/grafana/run
-    sudo chown grafana:grafana /var/lib/grafana/run
-    sudo chmod 755 /var/lib/grafana/run
+    # PID 파일 디렉토리 권한 재확인
+    log_info "PID 파일 디렉토리 권한 재확인 중..."
+    sudo chown -R grafana:grafana /var/run/grafana
+    sudo chmod 755 /var/run/grafana
     
-    # systemd 유닛 생성 (새로운 grafana 명령어 사용)
+    # 기존 서비스 중지 (있다면)
+    log_info "기존 Grafana 서비스 중지 중..."
+    sudo systemctl stop grafana-server 2>/dev/null || true
+    
+    # systemd 유닛 생성 (표준 PID 파일 경로 사용)
     log_info "시스템 서비스 등록 중..."
     sudo tee /etc/systemd/system/grafana-server.service > /dev/null << 'EOF'
 [Unit]
@@ -1214,14 +1223,13 @@ Description=Grafana Server
 Documentation=http://docs.grafana.org
 Wants=network-online.target
 After=network-online.target
-After=postgresql.service mariadb.service mysql.service
 
 [Service]
 Type=notify
 User=grafana
 Group=grafana
 WorkingDirectory=/opt/grafana
-ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/lib/grafana/run/grafana-server.pid
+ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana/grafana-server.pid
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=20
@@ -1241,11 +1249,35 @@ EOF
     log_info "Grafana 서비스 시작 중..."
     sudo systemctl daemon-reload
     sudo systemctl enable grafana-server
-    sudo systemctl start grafana-server
     
-    # 상태 확인
-    log_info "설치 완료! 상태 확인 중..."
-    sudo systemctl status grafana-server --no-pager
+    # 서비스 시작 및 상태 확인
+    log_info "Grafana 서비스 시작 중..."
+    if sudo systemctl start grafana-server; then
+        log_success "Grafana 서비스 시작 성공"
+        
+        # 서비스 상태 확인 (최대 10초 대기)
+        log_info "서비스 상태 확인 중..."
+        for i in {1..10}; do
+            if sudo systemctl is-active --quiet grafana-server; then
+                log_success "Grafana 서비스가 정상적으로 실행 중입니다"
+                break
+            else
+                log_info "서비스 시작 대기 중... ($i/10)"
+                sleep 1
+            fi
+        done
+        
+        # 최종 상태 확인
+        if sudo systemctl is-active --quiet grafana-server; then
+            log_success "Grafana 설치 및 시작 완료"
+        else
+            log_warning "Grafana 서비스 시작에 문제가 있을 수 있습니다"
+            log_info "서비스 로그 확인: sudo journalctl -u grafana-server -n 20"
+        fi
+    else
+        log_error "Grafana 서비스 시작 실패"
+        log_info "서비스 로그 확인: sudo journalctl -u grafana-server -n 20"
+    fi
     
     # 정리
     rm -rf grafana_temp grafana.tar.gz
@@ -1503,6 +1535,8 @@ show_completion_info() {
     echo "  모니터링 서비스:"
     echo "    Prometheus: sudo systemctl status prometheus"
     echo "    Grafana: sudo systemctl status grafana-server"
+    echo "    Grafana 재시작: sudo systemctl restart grafana-server"
+    echo "    Grafana 로그: sudo journalctl -u grafana-server -f"
     echo ""
     echo "  Vault 서비스:"
     echo "    상태 확인: docker exec vault-dev vault status"
