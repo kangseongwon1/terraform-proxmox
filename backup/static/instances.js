@@ -797,21 +797,18 @@ function initializeServerForm() {
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
-    // confirm 없이 바로 삭제 진행 또는 confirmModal 사용 시 await
+    // confirm 없이 바로 삭제 진행
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
     btn.closest('tr').addClass('table-warning');
-    $('#delete-status-message').remove();
-    $('#active-server-table').before('<div id="delete-status-message" class="alert alert-warning mb-2">서버 삭제 중입니다. 완료까지 수 분 소요될 수 있습니다.</div>');
     $.post('/delete_server/' + name, function(res) {
       console.log('[instances.js] /delete_server 성공', res);
-      if (res.task_id) {
-        pollTaskStatus(res.task_id, '서버 삭제', name);
-      }
-      $('#delete-status-message').remove();
-      addSystemNotification('success', '서버 삭제', `${name} 서버 삭제를 시작합니다.`);
+      // 삭제 완료 즉시 UI 업데이트
+      btn.closest('tr').fadeOut(300, function() {
+        $(this).remove();
+      });
+      addSystemNotification('success', '서버 삭제', `${name} 서버가 삭제되었습니다.`);
     }).fail(function(xhr){
       console.error('[instances.js] /delete_server 실패', xhr);
-      $('#delete-status-message').remove();
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
       

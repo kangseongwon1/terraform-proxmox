@@ -1018,46 +1018,30 @@ def delete_server(server_name):
         if not server:
             return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
         
-        # Task 생성
-        task_id = create_task('running', 'delete_server', f'서버 {server_name} 삭제 중...')
+        print(f"🔧 서버 삭제 시작: {server_name}")
         
-        def delete_server_task():
-            try:
-                from app import create_app
-                app = create_app()
-                with app.app_context():
-                    print(f"🔧 개별 서버 삭제 작업 시작: {server_name}")
-                    
-                    # 새로운 Terraform 기반 삭제 방식 사용
-                    success_servers, failed_servers = process_bulk_delete_terraform([server_name])
-                    
-                    if success_servers and server_name in success_servers:
-                        update_task(task_id, 'completed', f'서버 {server_name} 삭제 완료')
-                        print(f"✅ 서버 삭제 완료: {server_name}")
-                    else:
-                        # 실패 원인 메시지 추출
-                        failure_reason = "알 수 없는 오류"
-                        for failed in failed_servers:
-                            if server_name in failed:
-                                failure_reason = failed.split(": ", 1)[1] if ": " in failed else failed
-                                break
-                        
-                        update_task(task_id, 'failed', f'서버 삭제 실패: {failure_reason}')
-                        print(f"💥 서버 삭제 실패: {failure_reason}")
-                        
-            except Exception as e:
-                print(f"💥 서버 삭제 작업 실패: {str(e)}")
-                update_task(task_id, 'failed', f'서버 삭제 중 오류: {str(e)}')
+        # 동기적으로 서버 삭제 실행
+        success_servers, failed_servers = process_bulk_delete_terraform([server_name])
         
-        # 백그라운드에서 서버 삭제 작업 실행
-        thread = threading.Thread(target=delete_server_task)
-        thread.start()
-        
-        return jsonify({
-            'success': True,
-            'task_id': task_id,
-            'message': f'서버 {server_name} 삭제가 시작되었습니다.'
-        })
+        if success_servers and server_name in success_servers:
+            print(f"✅ 서버 삭제 완료: {server_name}")
+            return jsonify({
+                'success': True,
+                'message': f'서버 {server_name}가 삭제되었습니다.'
+            })
+        else:
+            # 실패 원인 메시지 추출
+            failure_reason = "알 수 없는 오류"
+            for failed in failed_servers:
+                if server_name in failed:
+                    failure_reason = failed.split(": ", 1)[1] if ": " in failed else failed
+                    break
+            
+            print(f"💥 서버 삭제 실패: {failure_reason}")
+            return jsonify({
+                'success': False,
+                'error': f'서버 삭제 실패: {failure_reason}'
+            }), 500
         
     except Exception as e:
         print(f"💥 서버 삭제 실패: {str(e)}")
