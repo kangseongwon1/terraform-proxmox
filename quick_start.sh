@@ -29,6 +29,7 @@ fi
 
 # 2. 실행 권한 설정
 chmod +x install_complete_system.sh
+chmod +x ansible/dynamic_inventory.py
 
 # 3. 설치 실행
 echo -e "${BLUE}📦 Proxmox Manager 설치를 시작합니다...${NC}"

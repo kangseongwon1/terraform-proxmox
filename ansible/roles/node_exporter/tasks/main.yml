@@ -101,10 +101,3 @@
     - name: Node Exporter 설치 실패 알림
       fail:
         msg: "Node Exporter 설치에 실패했습니다."
-
-  handlers:
-    - name: restart node_exporter
-      systemd:
-        name: node_exporter
-        state: restarted
-        daemon_reload: yes
