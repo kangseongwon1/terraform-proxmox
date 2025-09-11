@@ -291,10 +291,15 @@ def create_server():
                     try:
                         # Terraform output에서 VM ID 가져오기
                         terraform_output = terraform_service.output()
+                        print(f"🔍 Terraform output 전체: {terraform_output}")
+                        
                         if 'vm_ids' in terraform_output:
-                            vm_ids = terraform_output['vm_ids']
-                            if server_name in vm_ids:
-                                vm_id = vm_ids[server_name]
+                            vm_ids_data = terraform_output['vm_ids']
+                            print(f"🔍 vm_ids 데이터: {vm_ids_data}")
+                            
+                            # Terraform output 구조: {"vm_ids": {"value": {"test1": 110}}}
+                            if 'value' in vm_ids_data and server_name in vm_ids_data['value']:
+                                vm_id = vm_ids_data['value'][server_name]
                                 print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
                         
                         # VM ID가 없으면 Proxmox API에서 조회
@@ -305,6 +310,8 @@ def create_server():
                                 print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
                     except Exception as e:
                         print(f"⚠️ VM ID 조회 실패: {e}")
+                        import traceback
+                        traceback.print_exc()
                     
                     # IP 주소 처리 (리스트인 경우 문자열로 변환)
                     ip_address_str = ip_address
@@ -575,10 +582,15 @@ def create_servers_bulk():
                             try:
                                 # Terraform output에서 VM ID 가져오기
                                 terraform_output = terraform_service.output()
+                                print(f"🔍 Terraform output 전체: {terraform_output}")
+                                
                                 if 'vm_ids' in terraform_output:
-                                    vm_ids = terraform_output['vm_ids']
-                                    if server_name in vm_ids:
-                                        vm_id = vm_ids[server_name]
+                                    vm_ids_data = terraform_output['vm_ids']
+                                    print(f"🔍 vm_ids 데이터: {vm_ids_data}")
+                                    
+                                    # Terraform output 구조: {"vm_ids": {"value": {"test1": 110}}}
+                                    if 'value' in vm_ids_data and server_name in vm_ids_data['value']:
+                                        vm_id = vm_ids_data['value'][server_name]
                                         print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
                                 
                                 # VM ID가 없으면 Proxmox API에서 조회
@@ -589,6 +601,8 @@ def create_servers_bulk():
                                         print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
                             except Exception as e:
                                 print(f"⚠️ VM ID 조회 실패: {e}")
+                                import traceback
+                                traceback.print_exc()
                             
                             # DB에 서버 정보 저장 (VM ID 포함)
                             new_server = Server(
@@ -1246,10 +1260,15 @@ def create():
                     try:
                         # Terraform output에서 VM ID 가져오기
                         terraform_output = terraform_service.output()
+                        print(f"🔍 Terraform output 전체: {terraform_output}")
+                        
                         if 'vm_ids' in terraform_output:
-                            vm_ids = terraform_output['vm_ids']
-                            if server_name in vm_ids:
-                                vm_id = vm_ids[server_name]
+                            vm_ids_data = terraform_output['vm_ids']
+                            print(f"🔍 vm_ids 데이터: {vm_ids_data}")
+                            
+                            # Terraform output 구조: {"vm_ids": {"value": {"test1": 110}}}
+                            if 'value' in vm_ids_data and server_name in vm_ids_data['value']:
+                                vm_id = vm_ids_data['value'][server_name]
                                 print(f"🔍 Terraform output에서 VM ID 조회: {server_name} = {vm_id}")
                         
                         # VM ID가 없으면 Proxmox API에서 조회
@@ -1260,6 +1279,8 @@ def create():
                                 print(f"🔍 Proxmox API에서 VM ID 조회: {server_name} = {vm_id}")
                     except Exception as e:
                         print(f"⚠️ VM ID 조회 실패: {e}")
+                        import traceback
+                        traceback.print_exc()
                     
                     # 기본값 설정 (이 함수에서는 role, os_type, ip_address가 정의되지 않음)
                     role = ''  # 기본값
