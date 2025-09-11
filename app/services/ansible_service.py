@@ -878,13 +878,12 @@ Return Code: {returncode}
     def _install_node_exporter_if_needed(self, server_name: str, server_ip: str) -> bool:
         """Node Exporter 자동 설치 (모니터링 설정이 활성화된 경우)"""
         try:
-            # 모니터링 설정 확인 (하이브리드 방식)
-            from hybrid_config_loader import get_hybrid_config
-            config = get_hybrid_config()
-            monitoring_config = config.get_monitoring_config()
+            # 모니터링 설정 확인 (환경변수 기반)
+            import os
+            auto_install_node_exporter = os.environ.get('NODE_EXPORTER_AUTO_INSTALL', 'true').lower() == 'true'
             
             # Node Exporter 자동 설치가 비활성화된 경우 스킵
-            if not monitoring_config.get('auto_install_node_exporter', True):
+            if not auto_install_node_exporter:
                 print(f"🔧 Node Exporter 자동 설치가 비활성화됨: {server_name}")
                 return True
             
@@ -902,9 +901,9 @@ Return Code: {returncode}
                 'target_hosts': server_ip
             }
             
-            # Node Exporter 설치 실행 (동기)
-            success, result = self.run_playbook(
-                role='node_exporter',
+            # Node Exporter 설치 Playbook 실행 (subprocess 직접 사용)
+            success, result = self._run_node_exporter_playbook(
+                playbook_file=node_exporter_playbook,
                 extra_vars=extra_vars,
                 target_server=server_ip
             )
@@ -957,6 +956,56 @@ Return Code: {returncode}
                 pass
             
             return False
+
+    def _run_node_exporter_playbook(self, playbook_file: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
+        """Node Exporter 전용 Playbook 실행"""
+        try:
+            print(f"🔧 Node Exporter Playbook 실행: {playbook_file}")
+            print(f"🔧 대상 서버: {target_server}")
+            
+            # 임시 인벤토리 파일 생성
+            temp_inventory = tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False)
+            temp_inventory.write(f"[node_exporter]\n{target_server}\n")
+            temp_inventory.close()
+            
+            # Ansible 명령어 구성
+            cmd = [
+                'ansible-playbook',
+                '-i', temp_inventory.name,
+                playbook_file,
+                '--become',
+                '--become-method=sudo',
+                '--become-user=root'
+            ]
+            
+            # 추가 변수 추가
+            if extra_vars:
+                for key, value in extra_vars.items():
+                    cmd.extend(['-e', f'{key}={value}'])
+            
+            print(f"🔧 실행 명령어: {' '.join(cmd)}")
+            
+            # Ansible 실행
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=self.ansible_dir
+            )
+            
+            # 임시 파일 삭제
+            os.unlink(temp_inventory.name)
+            
+            if result.returncode == 0:
+                print(f"✅ Node Exporter Playbook 실행 성공")
+                return True, result.stdout
+            else:
+                print(f"❌ Node Exporter Playbook 실행 실패: {result.stderr}")
+                return False, result.stderr
+                
+        except Exception as e:
+            print(f"❌ Node Exporter Playbook 실행 중 오류: {e}")
+            return False, str(e)
 
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""
