@@ -912,10 +912,23 @@ Return Code: {returncode}
             if success:
                 print(f"✅ Node Exporter 설치 완료: {server_name} ({server_ip})")
                 
+                # Prometheus 설정에 서버 추가
+                try:
+                    from app.services.prometheus_service import PrometheusService
+                    prometheus_service = PrometheusService()
+                    prometheus_updated = prometheus_service.add_server_to_prometheus(server_ip)
+                    
+                    if prometheus_updated:
+                        print(f"✅ Prometheus 설정 업데이트 완료: {server_ip}")
+                    else:
+                        print(f"⚠️ Prometheus 설정 업데이트 실패: {server_ip}")
+                except Exception as e:
+                    print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                
                 # 성공 알림 생성
                 self._create_notification(
                     f"Node Exporter 설치 완료 - {server_name}",
-                    f"서버 {server_name}에 Node Exporter가 성공적으로 설치되었습니다.\n메트릭 URL: http://{server_ip}:9100/metrics",
+                    f"서버 {server_name}에 Node Exporter가 성공적으로 설치되었습니다.\n메트릭 URL: http://{server_ip}:9100/metrics\nPrometheus 설정 업데이트: {'완료' if prometheus_updated else '실패'}",
                     "success"
                 )
                 return True

@@ -1283,7 +1283,12 @@ install_monitoring() {
     
     # 프로메테우스 설정 파일 생성 (/etc/prometheus/prometheus.yml)
     log_info "프로메테우스 설정 파일 생성 중..."
-    sudo tee /etc/prometheus/prometheus.yml > /dev/null << 'EOF'
+    
+    # 현재 서버의 IP 주소 가져오기
+    CURRENT_IP=$(hostname -I | awk '{print $1}')
+    log_info "현재 서버 IP: $CURRENT_IP"
+    
+    sudo tee /etc/prometheus/prometheus.yml > /dev/null << EOF
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -1298,7 +1303,8 @@ scrape_configs:
   - job_name: 'node-exporter'
     scrape_interval: 10s
     static_configs:
-      - targets: ['192.168.0.10:9100', '192.168.0.11:9100']
+      - targets: ['${CURRENT_IP}:9100']
+    metrics_path: '/metrics'
 EOF
     
     # 소유권 설정
@@ -1504,10 +1510,165 @@ EOF
     log_success "Grafana 설치 완료"
     log_info "Grafana는 http://localhost:3000 에서 접근 가능합니다 (admin/admin)"
     
-    # Grafana 설정 완료 (설치 과정에서 이미 설정됨)
+    # Grafana 대시보드 자동 설정
+    log_info "Grafana 대시보드 설정 중..."
+    
+    # Grafana 서비스가 완전히 시작될 때까지 대기
+    log_info "Grafana 서비스 시작 대기 중..."
+    for i in {1..30}; do
+        if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
+            log_success "Grafana 서비스가 준비되었습니다"
+            break
+        else
+            log_info "Grafana 서비스 시작 대기 중... ($i/30)"
+            sleep 2
+        fi
+    done
+    
+    # Prometheus 데이터소스 추가
+    log_info "Prometheus 데이터소스 추가 중..."
+    curl -X POST \
+        -H "Content-Type: application/json" \
+        -d '{
+            "name": "Prometheus",
+            "type": "prometheus",
+            "url": "http://localhost:9090",
+            "access": "proxy",
+            "isDefault": true
+        }' \
+        http://admin:admin@localhost:3000/api/datasources 2>/dev/null || log_warning "데이터소스 추가 실패 (이미 존재할 수 있음)"
+    
+    # 시스템 모니터링 대시보드 생성
+    log_info "시스템 모니터링 대시보드 생성 중..."
+    
+    # 대시보드 JSON 생성
+    DASHBOARD_JSON='{
+        "dashboard": {
+            "id": null,
+            "title": "System Monitoring Dashboard",
+            "tags": ["monitoring", "system"],
+            "timezone": "browser",
+            "panels": [
+                {
+                    "id": 1,
+                    "title": "CPU Usage",
+                    "type": "stat",
+                    "targets": [
+                        {
+                            "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+                            "refId": "A"
+                        }
+                    ],
+                    "fieldConfig": {
+                        "defaults": {
+                            "unit": "percent",
+                            "min": 0,
+                            "max": 100,
+                            "thresholds": {
+                                "steps": [
+                                    {"color": "green", "value": null},
+                                    {"color": "yellow", "value": 80},
+                                    {"color": "red", "value": 95}
+                                ]
+                            }
+                        }
+                    },
+                    "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+                },
+                {
+                    "id": 2,
+                    "title": "Memory Usage",
+                    "type": "stat",
+                    "targets": [
+                        {
+                            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+                            "refId": "A"
+                        }
+                    ],
+                    "fieldConfig": {
+                        "defaults": {
+                            "unit": "percent",
+                            "min": 0,
+                            "max": 100,
+                            "thresholds": {
+                                "steps": [
+                                    {"color": "green", "value": null},
+                                    {"color": "yellow", "value": 85},
+                                    {"color": "red", "value": 95}
+                                ]
+                            }
+                        }
+                    },
+                    "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+                },
+                {
+                    "id": 3,
+                    "title": "Disk Usage",
+                    "type": "stat",
+                    "targets": [
+                        {
+                            "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})) * 100",
+                            "refId": "A"
+                        }
+                    ],
+                    "fieldConfig": {
+                        "defaults": {
+                            "unit": "percent",
+                            "min": 0,
+                            "max": 100,
+                            "thresholds": {
+                                "steps": [
+                                    {"color": "green", "value": null},
+                                    {"color": "yellow", "value": 85},
+                                    {"color": "red", "value": 95}
+                                ]
+                            }
+                        }
+                    },
+                    "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+                },
+                {
+                    "id": 4,
+                    "title": "Network Traffic",
+                    "type": "graph",
+                    "targets": [
+                        {
+                            "expr": "rate(node_network_receive_bytes_total[5m])",
+                            "refId": "A",
+                            "legendFormat": "{{instance}} - Receive"
+                        },
+                        {
+                            "expr": "rate(node_network_transmit_bytes_total[5m])",
+                            "refId": "B",
+                            "legendFormat": "{{instance}} - Transmit"
+                        }
+                    ],
+                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+                }
+            ],
+            "time": {
+                "from": "now-1h",
+                "to": "now"
+            },
+            "refresh": "5s"
+        },
+        "overwrite": true
+    }'
+    
+    # 대시보드 생성
+    curl -X POST \
+        -H "Content-Type: application/json" \
+        -d "$DASHBOARD_JSON" \
+        http://admin:admin@localhost:3000/api/dashboards/db 2>/dev/null && \
+        log_success "시스템 모니터링 대시보드 생성 완료" || \
+        log_warning "대시보드 생성 실패 (이미 존재할 수 있음)"
+    
+    # Grafana 설정 완료
     log_success "Grafana 설정 완료"
-    log_info "익명 접근 및 iframe 임베딩이 이미 설정되었습니다"
-    log_info "테스트 URL: http://localhost:3000/d/system_monitoring?kiosk=tv"
+    log_info "익명 접근 및 iframe 임베딩이 설정되었습니다"
+    log_info "Prometheus 데이터소스가 추가되었습니다"
+    log_info "시스템 모니터링 대시보드가 생성되었습니다"
+    log_info "대시보드 URL: http://localhost:3000/d/system-monitoring-dashboard?kiosk=tv"
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
     if [ -f "update_prometheus_targets.py" ]; then

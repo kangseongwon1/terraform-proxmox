@@ -333,11 +333,28 @@ def create_server():
                     db.session.commit()
                     print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id}, VM ID: {vm_id})")
                     
+                    # Node Exporter 자동 설치 (모니터링용)
+                    ansible_service = AnsibleService()
+                    node_exporter_installed = False
+                    try:
+                        # IP 주소에서 첫 번째 IP 추출 (Node Exporter 설치용)
+                        server_ip = ip_address_str.split(',')[0].strip() if ip_address_str else ''
+                        if server_ip:
+                            print(f"🔧 Node Exporter 자동 설치 시작: {server_name} ({server_ip})")
+                            node_exporter_installed = ansible_service._install_node_exporter_if_needed(server_name, server_ip)
+                            if node_exporter_installed:
+                                print(f"✅ Node Exporter 설치 완료: {server_name}")
+                            else:
+                                print(f"⚠️ Node Exporter 설치 실패: {server_name}")
+                        else:
+                            print(f"⚠️ IP 주소가 없어 Node Exporter 설치 스킵: {server_name}")
+                    except Exception as e:
+                        print(f"⚠️ Node Exporter 설치 중 오류: {e}")
+                    
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':
                         print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
                         try:
-                            ansible_service = AnsibleService()
                             ansible_success, ansible_message = ansible_service.assign_role_to_server(server_name, role)
                             
                             if ansible_success:
@@ -346,7 +363,7 @@ def create_server():
                                 # 성공 알림 생성
                                 NotificationService.create_server_notification(
                                     server_name, 'create', 'success', 
-                                    f'서버 {server_name} 생성 및 {role} 역할 할당이 완료되었습니다.'
+                                    f'서버 {server_name} 생성 및 {role} 역할 할당이 완료되었습니다. Node Exporter: {"설치됨" if node_exporter_installed else "설치 안됨"}'
                                 )
                             else:
                                 print(f"⚠️ Ansible 역할 할당 실패: {server_name} - {role}, 메시지: {ansible_message}")
@@ -628,6 +645,32 @@ def create_servers_bulk():
                             failed_servers.append(server_name)
                             print(f"❌ VM 생성 확인 실패: {server_name}")
                     
+                    # Node Exporter 자동 설치 (생성된 서버들에 대해)
+                    if created_servers:
+                        print(f"🔧 생성된 서버들에 Node Exporter 자동 설치 시작: {len(created_servers)}개")
+                        ansible_service = AnsibleService()
+                        node_exporter_installed_count = 0
+                        
+                        for server_name in created_servers:
+                            try:
+                                # 서버 IP 가져오기
+                                server = Server.query.filter_by(name=server_name).first()
+                                if server and server.ip_address:
+                                    server_ip = server.ip_address.split(',')[0].strip()
+                                    print(f"🔧 Node Exporter 설치: {server_name} ({server_ip})")
+                                    
+                                    if ansible_service._install_node_exporter_if_needed(server_name, server_ip):
+                                        node_exporter_installed_count += 1
+                                        print(f"✅ Node Exporter 설치 완료: {server_name}")
+                                    else:
+                                        print(f"⚠️ Node Exporter 설치 실패: {server_name}")
+                                else:
+                                    print(f"⚠️ 서버 IP 정보 없음: {server_name}")
+                            except Exception as e:
+                                print(f"⚠️ Node Exporter 설치 중 오류 ({server_name}): {e}")
+                        
+                        print(f"🔧 Node Exporter 설치 완료: {node_exporter_installed_count}/{len(created_servers)}개")
+                    
                     # 결과 메시지 생성
                     if created_servers and not failed_servers:
                         success_msg = f'모든 서버 생성 완료: {", ".join(created_servers)}'
@@ -859,7 +902,20 @@ def process_bulk_delete_terraform(server_names):
         if destroy_success:
             print(f"✅ Terraform destroy 성공: {deleted_from_tfvars}")
             
-            # 5. DB에서 서버 제거
+            # 5. Prometheus 설정에서 서버 제거
+            for server_name in deleted_from_tfvars:
+                try:
+                    server = Server.query.filter_by(name=server_name).first()
+                    if server and server.ip_address:
+                        server_ip = server.ip_address.split(',')[0].strip()
+                        from app.services.prometheus_service import PrometheusService
+                        prometheus_service = PrometheusService()
+                        prometheus_service.remove_server_from_prometheus(server_ip)
+                        print(f"🗑️ Prometheus 설정에서 {server_name} ({server_ip}) 제거")
+                except Exception as e:
+                    print(f"⚠️ Prometheus 설정에서 {server_name} 제거 실패: {e}")
+            
+            # 6. DB에서 서버 제거
             for server_name in deleted_from_tfvars:
                 server = Server.query.filter_by(name=server_name).first()
                 if server:
@@ -1301,6 +1357,23 @@ def create():
                     db.session.add(new_server)
                     db.session.commit()
                     print(f"✅ DB에 서버 저장 완료: {server_name} (ID: {new_server.id}, VM ID: {vm_id})")
+                    
+                    # Node Exporter 자동 설치 (모니터링용) - IP가 없는 경우 스킵
+                    ansible_service = AnsibleService()
+                    node_exporter_installed = False
+                    if ip_address_str:
+                        try:
+                            server_ip = ip_address_str.split(',')[0].strip()
+                            print(f"🔧 Node Exporter 자동 설치 시작: {server_name} ({server_ip})")
+                            node_exporter_installed = ansible_service._install_node_exporter_if_needed(server_name, server_ip)
+                            if node_exporter_installed:
+                                print(f"✅ Node Exporter 설치 완료: {server_name}")
+                            else:
+                                print(f"⚠️ Node Exporter 설치 실패: {server_name}")
+                        except Exception as e:
+                            print(f"⚠️ Node Exporter 설치 중 오류: {e}")
+                    else:
+                        print(f"⚠️ IP 주소가 없어 Node Exporter 설치 스킵: {server_name}")
                     
                     # Ansible을 통한 역할별 소프트웨어 설치
                     if role and role != 'none':
