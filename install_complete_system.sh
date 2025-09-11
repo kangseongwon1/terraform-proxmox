@@ -1336,6 +1336,11 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
     
+    # 기존 Prometheus 데이터 정리 (깨끗한 설치를 위해)
+    log_info "기존 Prometheus 데이터 정리 중..."
+    sudo systemctl stop prometheus 2>/dev/null || true
+    sudo rm -rf /var/lib/prometheus/* 2>/dev/null || true
+    
     # 서비스 시작
     log_info "프로메테우스 서비스 시작 중..."
     sudo systemctl daemon-reload
