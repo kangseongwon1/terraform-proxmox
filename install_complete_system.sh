@@ -1552,6 +1552,18 @@ EOF
     sleep 5
     if sudo systemctl is-active --quiet grafana-server; then
         log_success "Grafana 서비스 재시작 완료"
+        
+        # 데이터소스 연결 확인
+        log_info "Prometheus 데이터소스 연결 확인 중..."
+        sleep 10  # Grafana가 완전히 시작될 때까지 대기
+        
+        # 데이터소스 연결 테스트
+        if curl -s -f http://admin:admin@localhost:3000/api/datasources/prometheus > /dev/null 2>&1; then
+            log_success "Prometheus 데이터소스 연결 확인 완료"
+        else
+            log_warning "Prometheus 데이터소스 연결에 문제가 있을 수 있습니다"
+            log_info "Grafana 웹 인터페이스에서 데이터소스 설정을 확인해주세요: http://localhost:3000/datasources"
+        fi
     else
         log_warning "Grafana 서비스 재시작에 문제가 있을 수 있습니다"
     fi

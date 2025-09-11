@@ -5,9 +5,19 @@ datasources:
     type: prometheus
     access: proxy
     url: http://localhost:9090
+    uid: prometheus
     isDefault: true
     editable: true
+    basicAuth: false
+    withCredentials: false
     jsonData:
       httpMethod: POST
       queryTimeout: 60s
       timeInterval: 15s
+      manageAlerts: true
+      alertmanagerUid: alertmanager
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+    secureJsonData: {}
+    version: 1
