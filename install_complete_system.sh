@@ -1510,164 +1510,57 @@ EOF
     log_success "Grafana 설치 완료"
     log_info "Grafana는 http://localhost:3000 에서 접근 가능합니다 (admin/admin)"
     
-    # Grafana 대시보드 자동 설정
-    log_info "Grafana 대시보드 설정 중..."
+    # Grafana Provisioning 설정 (파일 기반)
+    log_info "Grafana Provisioning 설정 중..."
     
-    # Grafana 서비스가 완전히 시작될 때까지 대기
-    log_info "Grafana 서비스 시작 대기 중..."
-    for i in {1..30}; do
-        if curl -s http://localhost:3000/api/health > /dev/null 2>&1; then
-            log_success "Grafana 서비스가 준비되었습니다"
-            break
-        else
-            log_info "Grafana 서비스 시작 대기 중... ($i/30)"
-            sleep 2
-        fi
-    done
+    # Provisioning 디렉토리 생성
+    sudo mkdir -p /etc/grafana/provisioning/datasources
+    sudo mkdir -p /etc/grafana/provisioning/dashboards
     
-    # Prometheus 데이터소스 추가
-    log_info "Prometheus 데이터소스 추가 중..."
-    curl -X POST \
-        -H "Content-Type: application/json" \
-        -d '{
-            "name": "Prometheus",
-            "type": "prometheus",
-            "url": "http://localhost:9090",
-            "access": "proxy",
-            "isDefault": true
-        }' \
-        http://admin:admin@localhost:3000/api/datasources 2>/dev/null || log_warning "데이터소스 추가 실패 (이미 존재할 수 있음)"
+    # 데이터소스 provisioning 파일 복사
+    if [ -f "grafana/provisioning/datasources/prometheus.yml" ]; then
+        sudo cp grafana/provisioning/datasources/prometheus.yml /etc/grafana/provisioning/datasources/
+        log_success "Prometheus 데이터소스 provisioning 파일 복사 완료"
+    else
+        log_warning "Prometheus 데이터소스 provisioning 파일을 찾을 수 없습니다"
+    fi
     
-    # 시스템 모니터링 대시보드 생성
-    log_info "시스템 모니터링 대시보드 생성 중..."
+    # 대시보드 provisioning 파일 복사
+    if [ -f "grafana/provisioning/dashboards/dashboard.yml" ]; then
+        sudo cp grafana/provisioning/dashboards/dashboard.yml /etc/grafana/provisioning/dashboards/
+        log_success "대시보드 provisioning 설정 파일 복사 완료"
+    else
+        log_warning "대시보드 provisioning 설정 파일을 찾을 수 없습니다"
+    fi
     
-    # 대시보드 JSON 생성
-    DASHBOARD_JSON='{
-        "dashboard": {
-            "id": null,
-            "title": "System Monitoring Dashboard",
-            "tags": ["monitoring", "system"],
-            "timezone": "browser",
-            "panels": [
-                {
-                    "id": 1,
-                    "title": "CPU Usage",
-                    "type": "stat",
-                    "targets": [
-                        {
-                            "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-                            "refId": "A"
-                        }
-                    ],
-                    "fieldConfig": {
-                        "defaults": {
-                            "unit": "percent",
-                            "min": 0,
-                            "max": 100,
-                            "thresholds": {
-                                "steps": [
-                                    {"color": "green", "value": null},
-                                    {"color": "yellow", "value": 80},
-                                    {"color": "red", "value": 95}
-                                ]
-                            }
-                        }
-                    },
-                    "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
-                },
-                {
-                    "id": 2,
-                    "title": "Memory Usage",
-                    "type": "stat",
-                    "targets": [
-                        {
-                            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
-                            "refId": "A"
-                        }
-                    ],
-                    "fieldConfig": {
-                        "defaults": {
-                            "unit": "percent",
-                            "min": 0,
-                            "max": 100,
-                            "thresholds": {
-                                "steps": [
-                                    {"color": "green", "value": null},
-                                    {"color": "yellow", "value": 85},
-                                    {"color": "red", "value": 95}
-                                ]
-                            }
-                        }
-                    },
-                    "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
-                },
-                {
-                    "id": 3,
-                    "title": "Disk Usage",
-                    "type": "stat",
-                    "targets": [
-                        {
-                            "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})) * 100",
-                            "refId": "A"
-                        }
-                    ],
-                    "fieldConfig": {
-                        "defaults": {
-                            "unit": "percent",
-                            "min": 0,
-                            "max": 100,
-                            "thresholds": {
-                                "steps": [
-                                    {"color": "green", "value": null},
-                                    {"color": "yellow", "value": 85},
-                                    {"color": "red", "value": 95}
-                                ]
-                            }
-                        }
-                    },
-                    "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
-                },
-                {
-                    "id": 4,
-                    "title": "Network Traffic",
-                    "type": "graph",
-                    "targets": [
-                        {
-                            "expr": "rate(node_network_receive_bytes_total[5m])",
-                            "refId": "A",
-                            "legendFormat": "{{instance}} - Receive"
-                        },
-                        {
-                            "expr": "rate(node_network_transmit_bytes_total[5m])",
-                            "refId": "B",
-                            "legendFormat": "{{instance}} - Transmit"
-                        }
-                    ],
-                    "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
-                }
-            ],
-            "time": {
-                "from": "now-1h",
-                "to": "now"
-            },
-            "refresh": "5s"
-        },
-        "overwrite": true
-    }'
+    # 대시보드 JSON 파일 복사
+    if [ -f "grafana/provisioning/dashboards/system-monitoring.json" ]; then
+        sudo cp grafana/provisioning/dashboards/system-monitoring.json /etc/grafana/provisioning/dashboards/
+        log_success "시스템 모니터링 대시보드 JSON 파일 복사 완료"
+    else
+        log_warning "시스템 모니터링 대시보드 JSON 파일을 찾을 수 없습니다"
+    fi
     
-    # 대시보드 생성
-    curl -X POST \
-        -H "Content-Type: application/json" \
-        -d "$DASHBOARD_JSON" \
-        http://admin:admin@localhost:3000/api/dashboards/db 2>/dev/null && \
-        log_success "시스템 모니터링 대시보드 생성 완료" || \
-        log_warning "대시보드 생성 실패 (이미 존재할 수 있음)"
+    # 소유권 설정
+    sudo chown -R grafana:grafana /etc/grafana/provisioning
+    
+    # Grafana 서비스 재시작 (provisioning 적용)
+    log_info "Grafana 서비스 재시작 중 (provisioning 적용)..."
+    sudo systemctl restart grafana-server
+    
+    # 서비스 재시작 확인
+    sleep 5
+    if sudo systemctl is-active --quiet grafana-server; then
+        log_success "Grafana 서비스 재시작 완료"
+    else
+        log_warning "Grafana 서비스 재시작에 문제가 있을 수 있습니다"
+    fi
     
     # Grafana 설정 완료
-    log_success "Grafana 설정 완료"
+    log_success "Grafana Provisioning 설정 완료"
     log_info "익명 접근 및 iframe 임베딩이 설정되었습니다"
-    log_info "Prometheus 데이터소스가 추가되었습니다"
-    log_info "시스템 모니터링 대시보드가 생성되었습니다"
+    log_info "Prometheus 데이터소스가 자동으로 추가됩니다"
+    log_info "시스템 모니터링 대시보드가 자동으로 생성됩니다"
     log_info "대시보드 URL: http://localhost:3000/d/system-monitoring-dashboard?kiosk=tv"
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
