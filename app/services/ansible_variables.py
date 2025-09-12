@@ -131,9 +131,12 @@ class AnsibleVariableManager:
         return app_vars
     
     def get_role_variables(self, role: str) -> Dict[str, Any]:
-        """특정 역할에 대한 변수 반환"""
+        """특정 역할에 대한 변수 반환 (역할별 필터링)"""
         all_vars = self.load_all_variables()
         role_vars = {}
+        
+        # 역할별 필요한 변수 정의
+        role_specific_vars = self._get_role_specific_variables(role)
         
         # 역할별 변수 추출 (접두사 기반)
         role_prefix = f"{role}_"
@@ -146,7 +149,71 @@ class AnsibleVariableManager:
                 # 다른 역할 접두사가 없는 공통 변수들
                 role_vars[key] = value
         
-        return role_vars
+        # 역할별 필터링 적용
+        filtered_vars = {}
+        for key, value in role_vars.items():
+            if self._is_variable_needed_for_role(key, role, role_specific_vars):
+                filtered_vars[key] = value
+        
+        print(f"🔧 {role} 역할 변수 필터링: {len(all_vars)}개 → {len(filtered_vars)}개")
+        return filtered_vars
+    
+    def _get_role_specific_variables(self, role: str) -> Dict[str, list]:
+        """역할별 필요한 변수 정의"""
+        role_vars = {
+            'web': {
+                'nginx': ['nginx_user', 'nginx_port', 'nginx_worker_processes', 'nginx_worker_connections', 
+                         'nginx_keepalive_timeout', 'nginx_gzip_enabled', 'nginx_gzip_types'],
+                'ssl': ['ssl_enabled', 'ssl_cert_path', 'ssl_key_path'],
+                'upstream': ['upstream_servers', 'load_balancer_method'],
+                'cache': ['cache_enabled', 'cache_path', 'cache_size', 'cache_valid_time'],
+                'security': ['security_headers_enabled', 'x_frame_options', 'x_content_type_options', 'x_xss_protection']
+            },
+            'db': {
+                'mysql': ['mysql_root_password', 'mysql_database', 'mysql_user', 'mysql_user_password', 
+                         'mysql_port', 'mysql_bind_address']
+            },
+            'was': {
+                'tomcat': ['tomcat_version', 'tomcat_port', 'tomcat_manager_port', 'tomcat_ajp_port', 'tomcat_shutdown_port']
+            },
+            'search': {
+                'elasticsearch': ['elasticsearch_version', 'elasticsearch_port', 'elasticsearch_cluster_name', 'elasticsearch_node_name'],
+                'kibana': ['kibana_version', 'kibana_port']
+            },
+            'ftp': {
+                'ftp': ['ftp_user', 'ftp_password', 'ftp_port', 'ftp_passive_ports']
+            },
+            'java': {
+                'java': ['java_version', 'java_home', 'java_opts']
+            }
+        }
+        
+        return role_vars.get(role, {})
+    
+    def _is_variable_needed_for_role(self, var_name: str, role: str, role_specific_vars: Dict[str, list]) -> bool:
+        """변수가 특정 역할에 필요한지 확인"""
+        # 공통 변수는 항상 포함
+        common_vars = [
+            'timezone', 'locale', 'firewall_enabled', 'ssh_port', 'ssh_permit_root_login',
+            'log_level', 'log_retention_days', 'backup_enabled', 'backup_retention_days', 'backup_schedule',
+            'monitoring_enabled', 'node_exporter_version', 'node_exporter_port', 'node_exporter_user',
+            'ansible_user', 'ansible_ssh_private_key_file', 'proxmox_endpoint', 'role', 'target_server'
+        ]
+        
+        if var_name in common_vars:
+            return True
+        
+        # 역할별 특정 변수 확인
+        for category, vars_list in role_specific_vars.items():
+            if var_name in vars_list:
+                return True
+        
+        # 역할별 접두사가 있는 변수는 해당 역할에만 포함
+        for other_role in ['web', 'db', 'was', 'search', 'ftp', 'java']:
+            if other_role != role and var_name.startswith(f"{other_role}_"):
+                return False
+        
+        return True
     
     def get_environment_variables(self) -> Dict[str, Any]:
         """현재 환경에 대한 변수 반환"""
