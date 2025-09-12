@@ -922,9 +922,12 @@ Return Code: {returncode}
             
             if result.returncode == 0:
                 print(f"✅ Node Exporter Playbook 실행 성공")
+                print(f"📋 실행 결과: {result.stdout}")
                 return True, result.stdout
             else:
-                print(f"❌ Node Exporter Playbook 실행 실패: {result.stderr}")
+                print(f"❌ Node Exporter Playbook 실행 실패")
+                print(f"📋 오류 내용: {result.stderr}")
+                print(f"📋 표준 출력: {result.stdout}")
                 return False, result.stderr
                 
         except Exception as e:

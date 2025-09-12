@@ -195,6 +195,73 @@ class PrometheusService:
             logger.error(f"Prometheus에서 서버 제거 실패: {e}")
             return False
     
+    def get_manual_setup_instructions(self) -> str:
+        """수동 설정 안내 메시지 생성"""
+        return f"""
+🔧 Prometheus 수동 설정 안내:
+
+1. sudo 권한 설정:
+   sudo visudo
+   # 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
+
+2. 또는 수동으로 설정 파일 복사:
+   sudo cp /tmp/prometheus_config_*.yml /etc/prometheus/prometheus.yml
+   sudo chown prometheus:prometheus /etc/prometheus/prometheus.yml
+   sudo systemctl restart prometheus
+
+3. Prometheus 서비스 상태 확인:
+   sudo systemctl status prometheus
+   curl http://localhost:9090/targets
+"""
+
+    def _check_file_permissions(self) -> Dict[str, Any]:
+        """Prometheus 설정 파일 권한 확인"""
+        try:
+            if not os.path.exists(self.prometheus_config_path):
+                return {
+                    'exists': False,
+                    'readable': False,
+                    'writable': False,
+                    'owner': None,
+                    'permissions': None
+                }
+            
+            # 파일 정보 수집
+            stat_info = os.stat(self.prometheus_config_path)
+            
+            # 권한 확인
+            readable = os.access(self.prometheus_config_path, os.R_OK)
+            writable = os.access(self.prometheus_config_path, os.W_OK)
+            
+            # 소유자 정보 (가능한 경우)
+            owner = None
+            try:
+                import pwd
+                owner = pwd.getpwuid(stat_info.st_uid).pw_name
+            except (ImportError, KeyError):
+                owner = f"UID:{stat_info.st_uid}"
+            
+            return {
+                'exists': True,
+                'readable': readable,
+                'writable': writable,
+                'owner': owner,
+                'permissions': oct(stat_info.st_mode),
+                'uid': stat_info.st_uid,
+                'gid': stat_info.st_gid
+            }
+            
+        except Exception as e:
+            print(f"❌ 파일 권한 확인 실패: {e}")
+            return {
+                'exists': False,
+                'readable': False,
+                'writable': False,
+                'owner': None,
+                'permissions': None,
+                'error': str(e)
+            }
+
     def _check_sudo_permissions(self) -> bool:
         """sudo 권한 확인"""
         try:
@@ -226,61 +293,68 @@ class PrometheusService:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
                 return True
             else:  # Linux/Unix
-                # Linux에서는 임시 파일 생성 후 sudo로 이동
-                temp_config_path = f"/tmp/prometheus_config_{os.getpid()}.yml"
+                # 파일 권한 확인
+                file_perms = self._check_file_permissions()
+                print(f"🔧 파일 권한 확인: {file_perms}")
                 
-                # 임시 파일에 설정 쓰기
-                with open(temp_config_path, 'w') as f:
-                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-                
-                # sudo 권한 확인
-                if not self._check_sudo_permissions():
-                    print("🔧 sudo 권한이 없으므로 대안 방법을 시도합니다")
-                    
-                    try:
-                        # 직접 파일 복사 시도
-                        import shutil
-                        shutil.copy2(temp_config_path, self.prometheus_config_path)
-                        os.remove(temp_config_path)
-                        print("✅ 대안 방법으로 파일 복사 성공")
-                        return True
-                    except Exception as copy_error:
-                        print(f"❌ 대안 방법도 실패: {copy_error}")
-                        raise Exception(f"sudo 권한이 필요하며 대안 방법도 실패했습니다: {copy_error}")
-                
-                # sudo로 임시 파일을 실제 위치로 이동
+                # 방법 1: 직접 파일 수정 시도
                 try:
-                    # sudo 명령어 실행
-                    mv_result = subprocess.run([
-                        'sudo', 'mv', temp_config_path, self.prometheus_config_path
-                    ], capture_output=True, text=True, check=True)
-                    
-                    # 파일 소유자를 prometheus로 변경
-                    chown_result = subprocess.run([
-                        'sudo', 'chown', 'prometheus:prometheus', self.prometheus_config_path
-                    ], capture_output=True, text=True, check=True)
-                    
+                    print("🔧 직접 파일 수정 시도...")
+                    with open(self.prometheus_config_path, 'w') as f:
+                        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                    print("✅ 직접 파일 수정 성공")
                     return True
+                except PermissionError as perm_error:
+                    print(f"⚠️ 직접 파일 수정 실패 (권한 부족): {perm_error}")
+                    print(f"📋 파일 소유자: {file_perms.get('owner', 'unknown')}")
+                    print(f"📋 파일 권한: {file_perms.get('permissions', 'unknown')}")
+                    print(f"📋 쓰기 권한: {file_perms.get('writable', False)}")
                     
-                except subprocess.CalledProcessError as e:
-                    # sudo 실패 시 임시 파일 정리
-                    if os.path.exists(temp_config_path):
-                        os.remove(temp_config_path)
+                    # 방법 2: 임시 파일 생성 후 sudo로 이동
+                    temp_config_path = f"/tmp/prometheus_config_{os.getpid()}.yml"
                     
-                    # sudo 권한 문제인 경우 대안 방법 시도
-                    print(f"⚠️ sudo 권한 문제 감지: {e.stderr}")
-                    print("🔧 대안 방법 시도: 직접 파일 복사")
+                    # 임시 파일에 설정 쓰기
+                    with open(temp_config_path, 'w') as f:
+                        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
                     
+                    # sudo 권한 확인
+                    if not self._check_sudo_permissions():
+                        print("🔧 sudo 권한이 없으므로 수동 설정 안내를 제공합니다")
+                        
+                        # 수동 설정 안내
+                        print("🔧 수동 설정 안내:")
+                        print(f"1. 임시 파일을 수동으로 복사하세요:")
+                        print(f"   sudo cp {temp_config_path} {self.prometheus_config_path}")
+                        print(f"2. 파일 소유자를 변경하세요:")
+                        print(f"   sudo chown prometheus:prometheus {self.prometheus_config_path}")
+                        print(f"3. Prometheus 서비스를 재시작하세요:")
+                        print(f"   sudo systemctl restart prometheus")
+                        print(f"4. 임시 파일을 정리하세요:")
+                        print(f"   rm {temp_config_path}")
+                        
+                        # 임시 파일 경로를 반환하여 사용자가 수동으로 처리할 수 있도록 함
+                        raise Exception(f"sudo 권한이 필요합니다. 수동 설정을 위해 임시 파일이 생성되었습니다: {temp_config_path}")
+                    
+                    # sudo로 임시 파일을 실제 위치로 이동
                     try:
-                        # 직접 파일 복사 시도
-                        import shutil
-                        shutil.copy2(temp_config_path, self.prometheus_config_path)
-                        os.remove(temp_config_path)
-                        print("✅ 대안 방법으로 파일 복사 성공")
+                        # sudo 명령어 실행
+                        mv_result = subprocess.run([
+                            'sudo', 'mv', temp_config_path, self.prometheus_config_path
+                        ], capture_output=True, text=True, check=True)
+                        
+                        # 파일 소유자를 prometheus로 변경
+                        chown_result = subprocess.run([
+                            'sudo', 'chown', 'prometheus:prometheus', self.prometheus_config_path
+                        ], capture_output=True, text=True, check=True)
+                        
+                        print("✅ sudo를 통한 파일 이동 성공")
                         return True
-                    except Exception as copy_error:
-                        print(f"❌ 대안 방법도 실패: {copy_error}")
-                        raise Exception(f"sudo 권한이 필요하며 대안 방법도 실패했습니다: {e.stderr}")
+                        
+                    except subprocess.CalledProcessError as e:
+                        # sudo 실패 시 임시 파일 정리
+                        if os.path.exists(temp_config_path):
+                            os.remove(temp_config_path)
+                        raise Exception(f"sudo 권한이 필요합니다: {e.stderr}")
                     
         except Exception as e:
             print(f"❌ 설정 파일 쓰기 실패: {e}")
@@ -307,20 +381,43 @@ class PrometheusService:
                 print(f"❌ Prometheus 설정 파일 검증 실패: {result.stderr}")
                 return False
             
-            # Prometheus 서비스 재시작
-            result = subprocess.run(
-                ['sudo', 'systemctl', 'reload', 'prometheus'],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode == 0:
-                print("✅ Prometheus 서비스 재시작 완료")
-                return True
-            else:
-                print(f"⚠️ Prometheus 서비스 재시작 실패, 강제 재시작 시도: {result.stderr}")
+            # 방법 1: systemctl reload 시도 (권한 확인)
+            try:
+                print("🔧 systemctl reload 시도...")
+                result = subprocess.run(
+                    ['systemctl', 'reload', 'prometheus'],
+                    capture_output=True,
+                    text=True
+                )
                 
-                # 강제 재시작 시도
+                if result.returncode == 0:
+                    print("✅ systemctl reload 성공")
+                    return True
+                else:
+                    print(f"⚠️ systemctl reload 실패: {result.stderr}")
+            except Exception as reload_error:
+                print(f"⚠️ systemctl reload 오류: {reload_error}")
+            
+            # 방법 2: sudo systemctl reload 시도
+            try:
+                print("🔧 sudo systemctl reload 시도...")
+                result = subprocess.run(
+                    ['sudo', 'systemctl', 'reload', 'prometheus'],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    print("✅ sudo systemctl reload 성공")
+                    return True
+                else:
+                    print(f"⚠️ sudo systemctl reload 실패: {result.stderr}")
+            except Exception as sudo_error:
+                print(f"⚠️ sudo systemctl reload 오류: {sudo_error}")
+            
+            # 방법 3: sudo systemctl restart 시도
+            try:
+                print("🔧 sudo systemctl restart 시도...")
                 result = subprocess.run(
                     ['sudo', 'systemctl', 'restart', 'prometheus'],
                     capture_output=True,
@@ -328,11 +425,20 @@ class PrometheusService:
                 )
                 
                 if result.returncode == 0:
-                    print("✅ Prometheus 서비스 강제 재시작 완료")
+                    print("✅ sudo systemctl restart 성공")
                     return True
                 else:
-                    print(f"❌ Prometheus 서비스 재시작 실패: {result.stderr}")
-                    return False
+                    print(f"❌ sudo systemctl restart 실패: {result.stderr}")
+            except Exception as restart_error:
+                print(f"❌ sudo systemctl restart 오류: {restart_error}")
+            
+            # 방법 4: 수동 재시작 안내
+            print("🔧 수동 재시작 안내:")
+            print("   sudo systemctl restart prometheus")
+            print("   또는")
+            print("   sudo systemctl reload prometheus")
+            
+            return False
                     
         except Exception as e:
             print(f"❌ Prometheus 서비스 재시작 중 오류: {e}")

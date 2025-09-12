@@ -179,9 +179,18 @@ ls -la /etc/prometheus/prometheus.yml
 # sudo 권한 문제인 경우
 ❌ 설정 파일 쓰기 실패: sudo 권한이 필요합니다: sudo: effective uid is not 0
 
-# 해결 방법
+# 해결 방법 1: sudo 권한 설정
 sudo visudo
 # 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
+
+# 해결 방법 2: 수동 설정 (sudo 권한이 없는 경우)
+sudo cp /tmp/prometheus_config_*.yml /etc/prometheus/prometheus.yml
+sudo chown prometheus:prometheus /etc/prometheus/prometheus.yml
+sudo systemctl restart prometheus
+
+# 해결 방법 3: Prometheus 서비스 상태 확인
+sudo systemctl status prometheus
+curl http://localhost:9090/targets
 ```
 
 **macOS 사용자:**

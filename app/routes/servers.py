@@ -404,8 +404,10 @@ def create_server():
                             print(f"✅ Prometheus 설정 업데이트 완료: {server_name}")
                         else:
                             print(f"⚠️ Prometheus 설정 업데이트 실패: {server_name}")
+                            print(prometheus_service.get_manual_setup_instructions())
                     except Exception as e:
                         print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                        print("🔧 Prometheus 수동 설정이 필요할 수 있습니다.")
                     
                     print(f"✅ 서버 생성 완료: {server_name}")
                     
@@ -758,8 +760,10 @@ def create_servers_bulk():
                                 print(f"✅ Prometheus 설정 업데이트 완료: {len(created_servers)}개 서버")
                             else:
                                 print(f"⚠️ Prometheus 설정 업데이트 실패")
+                                print(prometheus_service.get_manual_setup_instructions())
                         except Exception as e:
                             print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                            print("🔧 Prometheus 수동 설정이 필요할 수 있습니다.")
                     
             except Exception as e:
                 error_msg = f'다중 서버 생성 작업 중 예외 발생: {str(e)}'
