@@ -228,19 +228,45 @@ ssh-keygen -l -f ~/.ssh/id_rsa.pub
 
 ### 5. **Prometheus 권한 오류**
 ```bash
+# 오류 예시
+❌ Prometheus 설정 업데이트 실패: [Errno 13] Permission denied: '/etc/prometheus/prometheus.yml'
+❌ 설정 파일 쓰기 실패: sudo 권한이 필요합니다: sudo: effective uid is not 0
+```
+
+**해결 방법:**
+
+1. **Prometheus 설정 파일 권한 확인:**
+```bash
 # Prometheus 설정 파일 권한 확인
 ls -la /etc/prometheus/prometheus.yml
 
 # prometheus 사용자 확인
 id prometheus
+```
 
-# sudo 권한 설정 (필요한 경우)
+2. **sudo 권한 설정:**
+```bash
+# sudo 권한 확인
+sudo -l
+
+# 비밀번호 없이 sudo 사용 가능하도록 설정
 sudo visudo
 # 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
 
-# Prometheus 서비스 재시작
+# 또는 더 제한적인 권한 설정
+username ALL=(ALL) NOPASSWD: /bin/mv /etc/prometheus/prometheus.yml, /bin/chown prometheus:prometheus /etc/prometheus/prometheus.yml
+```
+
+3. **Prometheus 서비스 재시작:**
+```bash
 sudo systemctl restart prometheus
 ```
+
+4. **자동 해결:**
+시스템이 자동으로 다음 방법으로 권한 문제를 해결합니다:
+- sudo 권한 확인
+- sudo 실패 시 직접 파일 복사 시도
+- 임시 파일 생성 후 안전한 이동
 
 ## 📋 설치 체크리스트
 

@@ -168,9 +168,21 @@ ls -la /etc/prometheus/prometheus.yml
 
 3. **자동 해결:**
 시스템이 자동으로 다음 방법으로 권한 문제를 해결합니다:
-- 임시 파일 생성 (`/tmp/prometheus_config_*.yml`)
+- sudo 권한 확인
+- sudo 실패 시 직접 파일 복사 시도
+- 임시 파일 생성 후 안전한 이동
 - `sudo mv`로 파일 이동
 - `sudo chown`으로 소유자 변경
+
+4. **sudo 권한 문제 해결:**
+```bash
+# sudo 권한 문제인 경우
+❌ 설정 파일 쓰기 실패: sudo 권한이 필요합니다: sudo: effective uid is not 0
+
+# 해결 방법
+sudo visudo
+# 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
+```
 
 **macOS 사용자:**
 ```bash

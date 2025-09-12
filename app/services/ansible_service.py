@@ -820,15 +820,10 @@ Return Code: {returncode}
                 print(f"⚠️ Node Exporter 설치 Playbook이 없습니다: {node_exporter_playbook}")
                 return False
             
-            # Node Exporter 설치 실행
-            extra_vars = {
-                'target_hosts': server_ip
-            }
-            
-            # Node Exporter 설치 Playbook 실행 (subprocess 직접 사용)
+            # Node Exporter 설치 Playbook 실행 (--limit 옵션으로 특정 서버만 제한)
             success, result = self._run_node_exporter_playbook(
                 playbook_file=node_exporter_playbook,
-                extra_vars=extra_vars,
+                extra_vars=None,  # extra_vars 제거, --limit 옵션만 사용
                 target_server=server_ip
             )
             
