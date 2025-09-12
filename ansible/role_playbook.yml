@@ -28,8 +28,6 @@
   roles:
     - name: "{{ role }}"
       when: role is defined and role != ""
-    - name: node_exporter  # Node Exporter는 서버 생성 시에만 설치 (역할 부여 시에는 설치하지 않음)
-      when: install_node_exporter is defined and install_node_exporter == true
       
   post_tasks:
     - name: 역할 설정 완료 알림
@@ -39,4 +37,3 @@
           - 서버: {{ inventory_hostname }}
           - IP: {{ ansible_default_ipv4.address }}
           - 역할: {{ role | default('미지정') }}
-          - Node Exporter: http://{{ ansible_default_ipv4.address }}:9100/metrics

@@ -351,14 +351,14 @@ def create_server():
                     except Exception as e:
                         print(f"⚠️ Node Exporter 설치 중 오류: {e}")
                     
-                    # Ansible을 통한 역할별 소프트웨어 설치 (Node Exporter 포함)
+                    # Ansible을 통한 역할별 소프트웨어 설치 (Node Exporter는 별도 설치)
                     if role and role != 'none':
                         print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
                         try:
-                            # 서버 생성 시에는 Node Exporter도 함께 설치
+                            # 서버 생성 시에는 역할만 설치 (Node Exporter는 위에서 별도 설치)
                             ansible_success, ansible_message = ansible_service.run_playbook(
                                 role=role,
-                                extra_vars={'install_node_exporter': True},
+                                extra_vars={},  # Node Exporter 설치 변수 제거
                                 target_server=server_ip
                             )
                             
