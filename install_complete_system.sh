@@ -2785,7 +2785,7 @@ show_completion_info() {
     echo -e "${GREEN}"
     echo "=========================================="
     echo "🎉 Proxmox Manager 설치 완료!"
-    echo "=할때    echo "  ✅ Docker 및 Docker Compose"
+    echo "  ✅ Docker 및 Docker Compose"
     echo "  ✅ Terraform"
     echo "  ✅ Ansible"
     echo "  ✅ HashiCorp Vault"
