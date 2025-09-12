@@ -1,7 +1,9 @@
 # 웹 서버 전용 변수
 # web 역할을 가진 서버들에만 적용
 
-# === Nginx 설정 ===
+# === Nginx 기본 설정 ===
+nginx_user: "www-data"
+nginx_port: 80
 nginx_worker_processes: "auto"
 nginx_worker_connections: 1024
 nginx_keepalive_timeout: 65

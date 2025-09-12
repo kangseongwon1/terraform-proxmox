@@ -1,13 +1,19 @@
 # WAS 서버 전용 변수
 # was 역할을 가진 서버들에만 적용
 
-# === Java 설정 ===
+# === Java 기본 설정 ===
+java_version: "11"
 java_home: "/usr/lib/jvm/java-{{ java_version }}-openjdk"
 java_opts: "-Xms512m -Xmx1024m -XX:+UseG1GC"
 java_debug_port: 5005
 java_debug_enabled: false
 
-# === Tomcat 설정 ===
+# === Tomcat 기본 설정 ===
+tomcat_version: "9"
+tomcat_port: 8080
+tomcat_manager_port: 8081
+tomcat_ajp_port: 8009
+tomcat_shutdown_port: 8005
 tomcat_home: "/opt/tomcat"
 tomcat_webapps_path: "{{ tomcat_home }}/webapps"
 tomcat_logs_path: "{{ tomcat_home }}/logs"

@@ -1,7 +1,15 @@
 # 데이터베이스 서버 전용 변수
 # db 역할을 가진 서버들에만 적용
 
-# === MySQL 설정 ===
+# === MySQL 기본 설정 ===
+mysql_root_password: "{{ ansible_mysql_root_password | default('root1234') }}"
+mysql_database: "app_db"
+mysql_user: "app_user"
+mysql_user_password: "{{ ansible_mysql_user_password | default('app1234') }}"
+mysql_port: 3306
+mysql_bind_address: "0.0.0.0"
+
+# === MySQL 성능 설정 ===
 mysql_max_connections: 200
 mysql_query_cache_size: "64M"
 mysql_innodb_buffer_pool_size: "256M"

@@ -191,8 +191,8 @@ class AnsibleVariableManager:
         return role_vars.get(role, {})
     
     def _is_variable_needed_for_role(self, var_name: str, role: str, role_specific_vars: Dict[str, list]) -> bool:
-        """변수가 특정 역할에 필요한지 확인"""
-        # 공통 변수는 항상 포함
+        """변수가 특정 역할에 필요한지 확인 (엄격한 필터링)"""
+        # 공통 변수는 항상 포함 (최소한만)
         common_vars = [
             'timezone', 'locale', 'firewall_enabled', 'ssh_port', 'ssh_permit_root_login',
             'log_level', 'log_retention_days', 'backup_enabled', 'backup_retention_days', 'backup_schedule',
@@ -213,7 +213,34 @@ class AnsibleVariableManager:
             if other_role != role and var_name.startswith(f"{other_role}_"):
                 return False
         
-        return True
+        # 역할별 특정 변수명 패턴 확인 (더 엄격한 필터링)
+        if role == 'web':
+            # Web 역할: nginx, ssl, upstream, cache, security 관련만
+            if any(var_name.startswith(prefix) for prefix in ['nginx_', 'ssl_', 'upstream_', 'cache_', 'security_', 'x_']):
+                return True
+        elif role == 'db':
+            # DB 역할: mysql 관련만
+            if any(var_name.startswith(prefix) for prefix in ['mysql_']):
+                return True
+        elif role == 'was':
+            # WAS 역할: tomcat 관련만
+            if any(var_name.startswith(prefix) for prefix in ['tomcat_']):
+                return True
+        elif role == 'search':
+            # Search 역할: elasticsearch, kibana 관련만
+            if any(var_name.startswith(prefix) for prefix in ['elasticsearch_', 'kibana_']):
+                return True
+        elif role == 'ftp':
+            # FTP 역할: ftp 관련만
+            if any(var_name.startswith(prefix) for prefix in ['ftp_']):
+                return True
+        elif role == 'java':
+            # Java 역할: java 관련만
+            if any(var_name.startswith(prefix) for prefix in ['java_']):
+                return True
+        
+        # 다른 역할의 변수는 제외
+        return False
     
     def get_environment_variables(self) -> Dict[str, Any]:
         """현재 환경에 대한 변수 반환"""
@@ -245,17 +272,20 @@ class AnsibleVariableManager:
         print("🔄 Ansible 변수 캐시 초기화")
     
     def get_ansible_extra_vars(self, role: str, additional_vars: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Ansible 실행을 위한 extra_vars 딕셔너리 생성"""
-        # 기본 변수 로드
-        extra_vars = self.get_role_variables(role)
+        """Ansible 실행을 위한 extra_vars 딕셔너리 생성 (group_vars 활용)"""
+        # group_vars를 사용하므로 최소한의 변수만 전달
+        extra_vars = {
+            'role': role,
+            'target_server': additional_vars.get('target_server') if additional_vars else None
+        }
         
-        # 추가 변수 병합
+        # 추가 변수 병합 (필요한 경우만)
         if additional_vars:
-            extra_vars.update(additional_vars)
+            # 중요한 변수만 추가
+            important_vars = ['ansible_user', 'ansible_ssh_private_key_file', 'proxmox_endpoint']
+            for key, value in additional_vars.items():
+                if key in important_vars:
+                    extra_vars[key] = value
         
-        # 역할 정보 추가
-        extra_vars['role'] = role
-        
-        # 환경 정보는 제거 (단순화)
-        
+        print(f"🔧 {role} 역할 extra_vars (group_vars 활용): {len(extra_vars)}개 변수")
         return extra_vars
