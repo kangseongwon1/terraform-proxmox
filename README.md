@@ -179,18 +179,41 @@ ls -la /etc/prometheus/prometheus.yml
 # sudo 권한 문제인 경우
 ❌ 설정 파일 쓰기 실패: sudo 권한이 필요합니다: sudo: effective uid is not 0
 
-# 해결 방법 1: sudo 권한 설정
+# 해결 방법 1: prometheus 그룹에 추가 (권장)
+sudo usermod -a -G prometheus $USER
+newgrp prometheus  # 또는 로그아웃 후 재로그인
+
+# 해결 방법 2: sudo 권한 설정
 sudo visudo
 # 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
 
-# 해결 방법 2: 수동 설정 (sudo 권한이 없는 경우)
+# 해결 방법 3: 수동 설정 (sudo 권한이 없는 경우)
 sudo cp /tmp/prometheus_config_*.yml /etc/prometheus/prometheus.yml
 sudo chown prometheus:prometheus /etc/prometheus/prometheus.yml
 sudo systemctl restart prometheus
 
-# 해결 방법 3: Prometheus 서비스 상태 확인
+# 해결 방법 4: Prometheus 서비스 상태 확인
 sudo systemctl status prometheus
 curl http://localhost:9090/targets
+```
+
+5. **Node Exporter SSH 연결 문제 해결:**
+```bash
+# SSH 연결 실패인 경우
+❌ Node Exporter 설치 실패: ssh: connect to host 192.168.0.21 port 22: No route to host
+
+# 해결 방법 1: 서버 상태 확인
+ping 192.168.0.21
+ssh rocky@192.168.0.21
+
+# 해결 방법 2: SSH 키 확인
+ssh-keygen -l -f ~/.ssh/id_rsa.pub
+ssh-copy-id rocky@192.168.0.21
+
+# 해결 방법 3: 방화벽 확인
+sudo firewall-cmd --list-all
+sudo firewall-cmd --add-port=22/tcp --permanent
+sudo firewall-cmd --reload
 ```
 
 **macOS 사용자:**

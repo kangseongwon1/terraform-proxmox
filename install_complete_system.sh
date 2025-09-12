@@ -1311,6 +1311,18 @@ EOF
     sudo chown -R prometheus:prometheus /etc/prometheus
     sudo chown -R prometheus:prometheus /var/lib/prometheus
     
+    # 현재 사용자를 prometheus 그룹에 추가 (설정 파일 수정 권한을 위해)
+    log_info "현재 사용자를 prometheus 그룹에 추가 중..."
+    CURRENT_USER=$(whoami)
+    sudo usermod -a -G prometheus $CURRENT_USER
+    log_success "사용자 $CURRENT_USER를 prometheus 그룹에 추가했습니다"
+    
+    # Prometheus 설정 파일 권한을 그룹 쓰기 가능하도록 설정
+    sudo chmod 664 /etc/prometheus/prometheus.yml
+    log_success "Prometheus 설정 파일 권한을 그룹 쓰기 가능하도록 설정했습니다"
+    
+    log_info "그룹 변경사항을 적용하려면 로그아웃 후 다시 로그인하거나 'newgrp prometheus' 명령을 실행하세요"
+    
     # systemd 유닛 생성 (표준 경로 사용)
     log_info "시스템 서비스 등록 중..."
     sudo tee /etc/systemd/system/prometheus.service > /dev/null << 'EOF'

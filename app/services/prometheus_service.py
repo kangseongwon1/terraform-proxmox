@@ -278,10 +278,61 @@ class PrometheusService:
                 return True
             else:
                 print("⚠️ sudo 권한이 설정되어 있지 않습니다")
+                print(f"📋 sudo 테스트 결과: {test_result.stderr}")
                 return False
                 
         except Exception as e:
             print(f"❌ sudo 권한 확인 실패: {e}")
+            return False
+
+    def _check_user_groups(self) -> List[str]:
+        """현재 사용자의 그룹 확인"""
+        try:
+            import grp
+            import os
+            
+            # 현재 사용자의 그룹 ID 목록
+            user_groups = os.getgroups()
+            group_names = []
+            
+            for gid in user_groups:
+                try:
+                    group_info = grp.getgrgid(gid)
+                    group_names.append(group_info.gr_name)
+                except KeyError:
+                    group_names.append(f"gid:{gid}")
+            
+            return group_names
+            
+        except Exception as e:
+            print(f"❌ 사용자 그룹 확인 실패: {e}")
+            return []
+
+    def _try_prometheus_group_access(self) -> bool:
+        """prometheus 그룹 접근 시도"""
+        try:
+            # prometheus 그룹 확인
+            import grp
+            try:
+                prometheus_group = grp.getgrnam('prometheus')
+                print(f"📋 prometheus 그룹 정보: GID={prometheus_group.gr_gid}")
+            except KeyError:
+                print("❌ prometheus 그룹이 존재하지 않습니다")
+                return False
+            
+            # 현재 사용자의 그룹 확인
+            user_groups = self._check_user_groups()
+            print(f"📋 현재 사용자 그룹: {user_groups}")
+            
+            if 'prometheus' in user_groups:
+                print("✅ prometheus 그룹에 속해있습니다")
+                return True
+            else:
+                print("⚠️ prometheus 그룹에 속해있지 않습니다")
+                return False
+                
+        except Exception as e:
+            print(f"❌ prometheus 그룹 접근 확인 실패: {e}")
             return False
 
     def _write_config_file(self, config: Dict[str, Any]) -> bool:
@@ -309,6 +360,17 @@ class PrometheusService:
                     print(f"📋 파일 소유자: {file_perms.get('owner', 'unknown')}")
                     print(f"📋 파일 권한: {file_perms.get('permissions', 'unknown')}")
                     print(f"📋 쓰기 권한: {file_perms.get('writable', False)}")
+                    
+                    # prometheus 그룹 접근 시도
+                    if self._try_prometheus_group_access():
+                        print("🔧 prometheus 그룹 접근으로 재시도...")
+                        try:
+                            with open(self.prometheus_config_path, 'w') as f:
+                                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                            print("✅ prometheus 그룹 접근으로 파일 수정 성공")
+                            return True
+                        except PermissionError:
+                            print("⚠️ prometheus 그룹 접근으로도 실패")
                     
                     # 방법 2: 임시 파일 생성 후 sudo로 이동
                     temp_config_path = f"/tmp/prometheus_config_{os.getpid()}.yml"

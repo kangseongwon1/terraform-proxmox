@@ -897,7 +897,9 @@ Return Code: {returncode}
                 '--become',
                 '--become-method=sudo',
                 '--become-user=root',
-                '--limit', target_server  # 특정 서버만 제한
+                '--limit', target_server,  # 특정 서버만 제한
+                '--ssh-common-args=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30',
+                '--timeout=60'
             ]
             
             # 추가 변수 추가
