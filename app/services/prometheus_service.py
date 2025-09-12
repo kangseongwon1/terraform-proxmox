@@ -423,9 +423,9 @@ class PrometheusService:
             return False
 
     def _restart_prometheus(self) -> bool:
-        """Prometheus 서비스 재시작"""
+        """Prometheus 서비스 재시작 (자동 리로드 우선 시도)"""
         try:
-            print("🔧 Prometheus 서비스 재시작 중...")
+            print("🔧 Prometheus 설정 적용 중...")
             
             # Windows 환경에서는 서비스 재시작 스킵
             if os.name == 'nt':
@@ -433,6 +433,7 @@ class PrometheusService:
                 return True
             
             # Prometheus 설정 파일 검증
+            print("🔧 Prometheus 설정 파일 검증 중...")
             result = subprocess.run(
                 ['promtool', 'check', 'config', self.prometheus_config_path],
                 capture_output=True,
@@ -442,31 +443,45 @@ class PrometheusService:
             if result.returncode != 0:
                 print(f"❌ Prometheus 설정 파일 검증 실패: {result.stderr}")
                 return False
+            else:
+                print("✅ Prometheus 설정 파일 검증 성공")
             
-            # 방법 1: systemctl reload 시도 (권한 확인)
+            # 방법 1: Prometheus API를 통한 설정 리로드 (가장 빠름)
             try:
-                print("🔧 systemctl reload 시도...")
-                result = subprocess.run(
-                    ['systemctl', 'reload', 'prometheus'],
-                    capture_output=True,
-                    text=True
-                )
+                print("🔧 Prometheus API를 통한 설정 리로드 시도...")
+                import requests
+                import time
                 
-                if result.returncode == 0:
-                    print("✅ systemctl reload 성공")
-                    return True
+                # Prometheus API로 설정 리로드
+                reload_response = requests.post('http://localhost:9090/-/reload', timeout=10)
+                
+                if reload_response.status_code == 200:
+                    print("✅ Prometheus API 설정 리로드 성공")
+                    
+                    # 잠시 대기 후 타겟 상태 확인
+                    time.sleep(2)
+                    
+                    # 타겟 상태 확인
+                    targets_response = requests.get('http://localhost:9090/api/v1/targets', timeout=10)
+                    if targets_response.status_code == 200:
+                        print("✅ Prometheus 타겟 상태 확인 성공")
+                        return True
+                    else:
+                        print("⚠️ Prometheus 타겟 상태 확인 실패")
+                        return False
                 else:
-                    print(f"⚠️ systemctl reload 실패: {result.stderr}")
-            except Exception as reload_error:
-                print(f"⚠️ systemctl reload 오류: {reload_error}")
+                    print(f"⚠️ Prometheus API 설정 리로드 실패: {reload_response.status_code}")
+            except Exception as api_error:
+                print(f"⚠️ Prometheus API 설정 리로드 오류: {api_error}")
             
-            # 방법 2: sudo systemctl reload 시도
+            # 방법 2: sudo systemctl reload 시도 (설정만 다시 로드)
             try:
                 print("🔧 sudo systemctl reload 시도...")
                 result = subprocess.run(
                     ['sudo', 'systemctl', 'reload', 'prometheus'],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=15
                 )
                 
                 if result.returncode == 0:
@@ -474,27 +489,65 @@ class PrometheusService:
                     return True
                 else:
                     print(f"⚠️ sudo systemctl reload 실패: {result.stderr}")
-            except Exception as sudo_error:
-                print(f"⚠️ sudo systemctl reload 오류: {sudo_error}")
+            except subprocess.TimeoutExpired:
+                print("⚠️ sudo systemctl reload 타임아웃")
+            except Exception as reload_error:
+                print(f"⚠️ sudo systemctl reload 오류: {reload_error}")
             
-            # 방법 3: sudo systemctl restart 시도
+            # 방법 3: sudo systemctl restart 시도 (가장 확실한 방법)
             try:
                 print("🔧 sudo systemctl restart 시도...")
                 result = subprocess.run(
                     ['sudo', 'systemctl', 'restart', 'prometheus'],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=30
                 )
                 
                 if result.returncode == 0:
                     print("✅ sudo systemctl restart 성공")
-                    return True
+                    
+                    # 서비스 상태 확인
+                    status_result = subprocess.run(
+                        ['sudo', 'systemctl', 'is-active', 'prometheus'],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if status_result.returncode == 0 and status_result.stdout.strip() == 'active':
+                        print("✅ Prometheus 서비스가 정상적으로 실행 중입니다")
+                        return True
+                    else:
+                        print("⚠️ Prometheus 서비스 상태 확인 실패")
+                        return False
                 else:
                     print(f"❌ sudo systemctl restart 실패: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                print("⚠️ sudo systemctl restart 타임아웃")
             except Exception as restart_error:
                 print(f"❌ sudo systemctl restart 오류: {restart_error}")
             
-            # 방법 4: 수동 재시작 안내
+            # 방법 4: systemctl reload 시도 (권한 확인)
+            try:
+                print("🔧 systemctl reload 시도...")
+                result = subprocess.run(
+                    ['systemctl', 'reload', 'prometheus'],
+                    capture_output=True,
+                    text=True,
+                    timeout=15
+                )
+                
+                if result.returncode == 0:
+                    print("✅ systemctl reload 성공")
+                    return True
+                else:
+                    print(f"⚠️ systemctl reload 실패: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                print("⚠️ systemctl reload 타임아웃")
+            except Exception as reload_error:
+                print(f"⚠️ systemctl reload 오류: {reload_error}")
+            
+            # 방법 5: 수동 재시작 안내
             print("🔧 수동 재시작 안내:")
             print("   sudo systemctl restart prometheus")
             print("   또는")
