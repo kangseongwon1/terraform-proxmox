@@ -69,11 +69,11 @@ class PrometheusService:
                 
                 print(f"🔧 Node Exporter 타겟 추가: {node_exporter_targets}")
             
-            # 설정 파일에 쓰기
-            with open(self.prometheus_config_path, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-            
-            print(f"✅ Prometheus 설정 파일 업데이트 완료: {self.prometheus_config_path}")
+            # 설정 파일에 쓰기 (권한 문제 해결)
+            if self._write_config_file(config):
+                print(f"✅ Prometheus 설정 파일 업데이트 완료: {self.prometheus_config_path}")
+            else:
+                raise Exception("설정 파일 쓰기 실패")
             
             # Prometheus 서비스 재시작
             return self._restart_prometheus()
@@ -137,9 +137,9 @@ class PrometheusService:
                 targets.append(new_target)
                 print(f"🔧 Node Exporter 타겟 추가: {new_target}")
                 
-                # 설정 파일에 쓰기
-                with open(self.prometheus_config_path, 'w') as f:
-                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                # 설정 파일에 쓰기 (권한 문제 해결)
+                if not self._write_config_file(config):
+                    raise Exception("설정 파일 쓰기 실패")
                 
                 print(f"✅ Prometheus 설정에 서버 추가 완료: {server_ip}")
                 
@@ -177,9 +177,9 @@ class PrometheusService:
                         targets.remove(target_to_remove)
                         print(f"🔧 Node Exporter 타겟 제거: {target_to_remove}")
                         
-                        # 설정 파일에 쓰기
-                        with open(self.prometheus_config_path, 'w') as f:
-                            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                        # 설정 파일에 쓰기 (권한 문제 해결)
+                        if not self._write_config_file(config):
+                            raise Exception("설정 파일 쓰기 실패")
                         
                         print(f"✅ Prometheus 설정에서 서버 제거 완료: {server_ip}")
                         
@@ -195,6 +195,45 @@ class PrometheusService:
             logger.error(f"Prometheus에서 서버 제거 실패: {e}")
             return False
     
+    def _write_config_file(self, config: Dict[str, Any]) -> bool:
+        """Prometheus 설정 파일에 쓰기 (권한 문제 해결)"""
+        try:
+            if os.name == 'nt':  # Windows
+                # Windows에서는 직접 쓰기
+                with open(self.prometheus_config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                return True
+            else:  # Linux/Unix
+                # Linux에서는 임시 파일 생성 후 sudo로 이동
+                temp_config_path = f"/tmp/prometheus_config_{os.getpid()}.yml"
+                
+                # 임시 파일에 설정 쓰기
+                with open(temp_config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                
+                # sudo로 임시 파일을 실제 위치로 이동
+                try:
+                    subprocess.run([
+                        'sudo', 'mv', temp_config_path, self.prometheus_config_path
+                    ], capture_output=True, text=True, check=True)
+                    
+                    # 파일 소유자를 prometheus로 변경
+                    subprocess.run([
+                        'sudo', 'chown', 'prometheus:prometheus', self.prometheus_config_path
+                    ], capture_output=True, text=True, check=True)
+                    
+                    return True
+                    
+                except subprocess.CalledProcessError as e:
+                    # sudo 실패 시 임시 파일 정리
+                    if os.path.exists(temp_config_path):
+                        os.remove(temp_config_path)
+                    raise Exception(f"sudo 권한이 필요합니다: {e.stderr}")
+                    
+        except Exception as e:
+            print(f"❌ 설정 파일 쓰기 실패: {e}")
+            return False
+
     def _restart_prometheus(self) -> bool:
         """Prometheus 서비스 재시작"""
         try:

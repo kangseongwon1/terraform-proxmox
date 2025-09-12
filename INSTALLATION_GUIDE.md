@@ -68,7 +68,7 @@ ANSIBLE_MYSQL_USER_PASSWORD=your_secure_mysql_user_password
 ANSIBLE_FTP_PASSWORD=your_secure_ftp_password
 ANSIBLE_TOMCAT_MANAGER_PASSWORD=your_secure_tomcat_manager_password
 NODE_EXPORTER_AUTO_INSTALL=true
-```
+rol```
 
 ## 🚀 설치 과정
 
@@ -226,6 +226,22 @@ ansible all -i ansible/inventory -m ping
 ssh-keygen -l -f ~/.ssh/id_rsa.pub
 ```
 
+### 5. **Prometheus 권한 오류**
+```bash
+# Prometheus 설정 파일 권한 확인
+ls -la /etc/prometheus/prometheus.yml
+
+# prometheus 사용자 확인
+id prometheus
+
+# sudo 권한 설정 (필요한 경우)
+sudo visudo
+# 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
+
+# Prometheus 서비스 재시작
+sudo systemctl restart prometheus
+```
+
 ## 📋 설치 체크리스트
 
 ### ✅ **기본 설치**
@@ -240,6 +256,7 @@ ssh-keygen -l -f ~/.ssh/id_rsa.pub
 - [ ] Vault 설치 및 설정
 - [ ] Grafana 설치 및 접속 확인
 - [ ] Prometheus 설치 및 접속 확인
+- [ ] Prometheus 권한 설정 (sudo 권한)
 - [ ] Node Exporter 설치 확인
 - [ ] Docker 설치 확인
 

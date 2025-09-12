@@ -136,6 +136,42 @@ python --version
 terraform --version
 ```
 
+## 🔧 Prometheus 권한 문제 해결
+
+Prometheus 설정 파일 업데이트 시 권한 오류가 발생할 수 있습니다:
+
+```bash
+# 오류 예시
+❌ Prometheus 설정 업데이트 실패: [Errno 13] Permission denied: '/etc/prometheus/prometheus.yml'
+```
+
+**해결 방법:**
+
+1. **sudo 권한 설정:**
+```bash
+# sudo 권한 확인
+sudo -l
+
+# 비밀번호 없이 sudo 사용 가능하도록 설정 (선택사항)
+sudo visudo
+# 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown
+```
+
+2. **Prometheus 사용자 확인:**
+```bash
+# prometheus 사용자 존재 확인
+id prometheus
+
+# Prometheus 설정 파일 권한 확인
+ls -la /etc/prometheus/prometheus.yml
+```
+
+3. **자동 해결:**
+시스템이 자동으로 다음 방법으로 권한 문제를 해결합니다:
+- 임시 파일 생성 (`/tmp/prometheus_config_*.yml`)
+- `sudo mv`로 파일 이동
+- `sudo chown`으로 소유자 변경
+
 **macOS 사용자:**
 ```bash
 # Homebrew 설치 (없는 경우)
