@@ -958,24 +958,27 @@ Return Code: {returncode}
             return False
 
     def _run_node_exporter_playbook(self, playbook_file: str, extra_vars: Dict[str, Any] = None, target_server: str = None) -> Tuple[bool, str]:
-        """Node Exporter 전용 Playbook 실행"""
+        """Node Exporter 전용 Playbook 실행 (Dynamic Inventory 사용)"""
         try:
             print(f"🔧 Node Exporter Playbook 실행: {playbook_file}")
             print(f"🔧 대상 서버: {target_server}")
             
-            # 임시 인벤토리 파일 생성
-            temp_inventory = tempfile.NamedTemporaryFile(mode='w', suffix='.ini', delete=False)
-            temp_inventory.write(f"[node_exporter]\n{target_server}\n")
-            temp_inventory.close()
+            # Dynamic Inventory 스크립트 경로
+            dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
             
-            # Ansible 명령어 구성
+            if not os.path.exists(dynamic_inventory_script):
+                print(f"❌ Dynamic Inventory 스크립트를 찾을 수 없습니다: {dynamic_inventory_script}")
+                return False, "Dynamic Inventory 스크립트 없음"
+            
+            # Ansible 명령어 구성 (Dynamic Inventory 사용)
             cmd = [
                 'ansible-playbook',
-                '-i', temp_inventory.name,
+                '-i', dynamic_inventory_script,
                 playbook_file,
                 '--become',
                 '--become-method=sudo',
-                '--become-user=root'
+                '--become-user=root',
+                '--limit', target_server  # 특정 서버만 제한
             ]
             
             # 추가 변수 추가
@@ -985,16 +988,18 @@ Return Code: {returncode}
             
             print(f"🔧 실행 명령어: {' '.join(cmd)}")
             
+            # 환경변수 설정 (Dynamic Inventory에서 사용)
+            env = os.environ.copy()
+            env['TARGET_SERVER_IP'] = target_server
+            
             # Ansible 실행
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                cwd=self.ansible_dir
+                cwd=self.ansible_dir,
+                env=env
             )
-            
-            # 임시 파일 삭제
-            os.unlink(temp_inventory.name)
             
             if result.returncode == 0:
                 print(f"✅ Node Exporter Playbook 실행 성공")
@@ -1006,6 +1011,155 @@ Return Code: {returncode}
         except Exception as e:
             print(f"❌ Node Exporter Playbook 실행 중 오류: {e}")
             return False, str(e)
+
+    def _run_node_exporter_playbook_batch(self, playbook_file: str, target_servers: List[str], extra_vars: Dict[str, Any] = None) -> Tuple[bool, str]:
+        """Node Exporter 일괄 설치 Playbook 실행 (여러 서버 동시 처리)"""
+        try:
+            print(f"🔧 Node Exporter 일괄 설치 시작: {len(target_servers)}개 서버")
+            print(f"🔧 대상 서버들: {target_servers}")
+            
+            # Dynamic Inventory 스크립트 경로
+            dynamic_inventory_script = os.path.join(self.ansible_dir, "dynamic_inventory.py")
+            
+            if not os.path.exists(dynamic_inventory_script):
+                print(f"❌ Dynamic Inventory 스크립트를 찾을 수 없습니다: {dynamic_inventory_script}")
+                return False, "Dynamic Inventory 스크립트 없음"
+            
+            # --limit 옵션으로 여러 서버 지정 (쉼표로 구분)
+            limit_hosts = ','.join(target_servers)
+            
+            # Ansible 명령어 구성 (일괄 처리)
+            cmd = [
+                'ansible-playbook',
+                '-i', dynamic_inventory_script,
+                playbook_file,
+                '--become',
+                '--become-method=sudo',
+                '--become-user=root',
+                '--limit', limit_hosts,  # 여러 서버 동시 처리
+                '--forks', '10',  # 병렬 처리 포크 수 (동시 실행할 서버 수)
+                '--ssh-common-args=-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPersist=60s'
+            ]
+            
+            # 추가 변수 추가
+            if extra_vars:
+                for key, value in extra_vars.items():
+                    cmd.extend(['-e', f'{key}={value}'])
+            
+            print(f"🔧 일괄 실행 명령어: {' '.join(cmd)}")
+            
+            # 환경변수 설정 (Dynamic Inventory에서 사용)
+            env = os.environ.copy()
+            # 일괄 처리 시에는 TARGET_SERVER_IP를 설정하지 않음 (모든 서버 대상)
+            
+            # Ansible 실행
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=self.ansible_dir,
+                env=env,
+                timeout=1800  # 30분 타임아웃
+            )
+            
+            if result.returncode == 0:
+                print(f"✅ Node Exporter 일괄 설치 성공: {len(target_servers)}개 서버")
+                return True, result.stdout
+            else:
+                print(f"❌ Node Exporter 일괄 설치 실패: {result.stderr}")
+                return False, result.stderr
+                
+        except subprocess.TimeoutExpired:
+            print(f"❌ Node Exporter 일괄 설치 타임아웃: 30분 초과")
+            return False, "일괄 설치 타임아웃 (30분 초과)"
+        except Exception as e:
+            print(f"❌ Node Exporter 일괄 설치 중 오류: {e}")
+            return False, str(e)
+
+    def _install_node_exporter_batch(self, server_ips: List[str]) -> Tuple[bool, str]:
+        """Node Exporter 일괄 설치 (여러 서버 동시 처리)"""
+        try:
+            # 모니터링 설정 확인 (환경변수 기반)
+            import os
+            auto_install_node_exporter = os.environ.get('NODE_EXPORTER_AUTO_INSTALL', 'true').lower() == 'true'
+            
+            # Node Exporter 자동 설치가 비활성화된 경우 스킵
+            if not auto_install_node_exporter:
+                print(f"🔧 Node Exporter 자동 설치가 비활성화됨")
+                return True, "Node Exporter 자동 설치 비활성화됨"
+            
+            print(f"🔧 Node Exporter 일괄 설치 시작: {len(server_ips)}개 서버")
+            print(f"🔧 대상 서버 IP들: {server_ips}")
+            
+            # Node Exporter 설치 Playbook 경로
+            node_exporter_playbook = os.path.join(self.ansible_dir, "install_node_exporter.yml")
+            
+            if not os.path.exists(node_exporter_playbook):
+                print(f"⚠️ Node Exporter 설치 Playbook이 없습니다: {node_exporter_playbook}")
+                return False, "Node Exporter 설치 Playbook 없음"
+            
+            # Node Exporter 일괄 설치 실행
+            extra_vars = {
+                'target_hosts': ','.join(server_ips)
+            }
+            
+            # Node Exporter 일괄 설치 Playbook 실행
+            success, result = self._run_node_exporter_playbook_batch(
+                playbook_file=node_exporter_playbook,
+                target_servers=server_ips,
+                extra_vars=extra_vars
+            )
+            
+            if success:
+                print(f"✅ Node Exporter 일괄 설치 완료: {len(server_ips)}개 서버")
+                
+                # Prometheus 설정에 모든 서버 추가
+                prometheus_updated_count = 0
+                try:
+                    from app.services.prometheus_service import PrometheusService
+                    prometheus_service = PrometheusService()
+                    
+                    for server_ip in server_ips:
+                        if prometheus_service.add_server_to_prometheus(server_ip):
+                            prometheus_updated_count += 1
+                            print(f"✅ Prometheus 설정 업데이트 완료: {server_ip}")
+                        else:
+                            print(f"⚠️ Prometheus 설정 업데이트 실패: {server_ip}")
+                except Exception as e:
+                    print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                
+                # 성공 알림 생성
+                self._create_notification(
+                    f"Node Exporter 일괄 설치 완료",
+                    f"{len(server_ips)}개 서버에 Node Exporter가 성공적으로 설치되었습니다.\n대상 서버: {', '.join(server_ips)}\nPrometheus 설정 업데이트: {prometheus_updated_count}/{len(server_ips)}개 완료",
+                    "success"
+                )
+                return True, f"일괄 설치 성공: {len(server_ips)}개 서버, Prometheus 업데이트: {prometheus_updated_count}개"
+            else:
+                print(f"❌ Node Exporter 일괄 설치 실패")
+                
+                # 실패 알림 생성
+                self._create_notification(
+                    f"Node Exporter 일괄 설치 실패",
+                    f"{len(server_ips)}개 서버에 Node Exporter 설치 중 오류가 발생했습니다.\n대상 서버: {', '.join(server_ips)}\n오류: {result}",
+                    "error"
+                )
+                return False, f"일괄 설치 실패: {result}"
+                
+        except Exception as e:
+            print(f"❌ Node Exporter 일괄 설치 중 오류: {e}")
+            
+            # 오류 알림 생성
+            try:
+                self._create_notification(
+                    f"Node Exporter 일괄 설치 오류",
+                    f"{len(server_ips)}개 서버에 Node Exporter 설치 중 예외가 발생했습니다.\n대상 서버: {', '.join(server_ips)}\n오류: {str(e)}",
+                    "error"
+                )
+            except:
+                pass
+            
+            return False, f"일괄 설치 중 예외 발생: {str(e)}"
 
     def _create_notification(self, title: str, message: str, severity: str = "info", details: str = None):
         """알림 생성"""

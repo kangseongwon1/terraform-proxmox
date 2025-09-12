@@ -649,27 +649,32 @@ def create_servers_bulk():
                     if created_servers:
                         print(f"🔧 생성된 서버들에 Node Exporter 자동 설치 시작: {len(created_servers)}개")
                         ansible_service = AnsibleService()
-                        node_exporter_installed_count = 0
                         
+                        # 서버 IP 수집
+                        server_ips = []
                         for server_name in created_servers:
                             try:
-                                # 서버 IP 가져오기
                                 server = Server.query.filter_by(name=server_name).first()
                                 if server and server.ip_address:
                                     server_ip = server.ip_address.split(',')[0].strip()
-                                    print(f"🔧 Node Exporter 설치: {server_name} ({server_ip})")
-                                    
-                                    if ansible_service._install_node_exporter_if_needed(server_name, server_ip):
-                                        node_exporter_installed_count += 1
-                                        print(f"✅ Node Exporter 설치 완료: {server_name}")
-                                    else:
-                                        print(f"⚠️ Node Exporter 설치 실패: {server_name}")
+                                    server_ips.append(server_ip)
+                                    print(f"🔧 Node Exporter 설치 대상: {server_name} ({server_ip})")
                                 else:
                                     print(f"⚠️ 서버 IP 정보 없음: {server_name}")
                             except Exception as e:
-                                print(f"⚠️ Node Exporter 설치 중 오류 ({server_name}): {e}")
+                                print(f"⚠️ 서버 IP 수집 중 오류 ({server_name}): {e}")
                         
-                        print(f"🔧 Node Exporter 설치 완료: {node_exporter_installed_count}/{len(created_servers)}개")
+                        # 일괄 설치 실행
+                        if server_ips:
+                            print(f"🔧 Node Exporter 일괄 설치 시작: {len(server_ips)}개 서버")
+                            success, result = ansible_service._install_node_exporter_batch(server_ips)
+                            
+                            if success:
+                                print(f"✅ Node Exporter 일괄 설치 성공: {len(server_ips)}개 서버")
+                            else:
+                                print(f"❌ Node Exporter 일괄 설치 실패: {result}")
+                        else:
+                            print(f"⚠️ Node Exporter 설치할 유효한 서버 IP가 없음")
                     
                     # 결과 메시지 생성
                     if created_servers and not failed_servers:

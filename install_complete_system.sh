@@ -1580,6 +1580,13 @@ EOF
     log_info "시스템 모니터링 대시보드가 자동으로 생성됩니다"
     log_info "대시보드 URL: http://localhost:3000/d/system-monitoring-dashboard?kiosk=tv"
     
+    # Ansible Dynamic Inventory 스크립트 권한 설정
+    if [ -f "ansible/dynamic_inventory.py" ]; then
+        log_info "Ansible Dynamic Inventory 스크립트 권한 설정 중..."
+        chmod +x ansible/dynamic_inventory.py
+        log_success "Dynamic Inventory 스크립트 권한 설정 완료"
+    fi
+    
     # Prometheus 타겟 업데이트 스크립트 권한 설정
     if [ -f "update_prometheus_targets.py" ]; then
         log_info "Prometheus 타겟 업데이트 스크립트 설정 중..."
