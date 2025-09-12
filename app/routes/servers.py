@@ -394,6 +394,19 @@ def create_server():
                             f'서버 {server_name} 생성이 완료되었습니다.'
                         )
                     
+                    # Prometheus 설정 업데이트 (서버 생성 완료 후)
+                    try:
+                        from app.services.prometheus_service import PrometheusService
+                        prometheus_service = PrometheusService()
+                        prometheus_updated = prometheus_service.update_prometheus_config()
+                        
+                        if prometheus_updated:
+                            print(f"✅ Prometheus 설정 업데이트 완료: {server_name}")
+                        else:
+                            print(f"⚠️ Prometheus 설정 업데이트 실패: {server_name}")
+                    except Exception as e:
+                        print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                    
                     print(f"✅ 서버 생성 완료: {server_name}")
                     
             except Exception as e:
@@ -734,6 +747,20 @@ def create_servers_bulk():
                             except Exception as notif_error:
                                 print(f"⚠️ 알림 생성 실패: {str(notif_error)}")
                     
+                    # Prometheus 설정 업데이트 (다중 서버 생성 완료 후)
+                    if created_servers:
+                        try:
+                            from app.services.prometheus_service import PrometheusService
+                            prometheus_service = PrometheusService()
+                            prometheus_updated = prometheus_service.update_prometheus_config()
+                            
+                            if prometheus_updated:
+                                print(f"✅ Prometheus 설정 업데이트 완료: {len(created_servers)}개 서버")
+                            else:
+                                print(f"⚠️ Prometheus 설정 업데이트 실패")
+                        except Exception as e:
+                            print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
+                    
             except Exception as e:
                 error_msg = f'다중 서버 생성 작업 중 예외 발생: {str(e)}'
                 print(f"❌ {error_msg}")
@@ -916,18 +943,18 @@ def process_bulk_delete_terraform(server_names):
         if destroy_success:
             print(f"✅ Terraform destroy 성공: {deleted_from_tfvars}")
             
-            # 5. Prometheus 설정에서 서버 제거
-            for server_name in deleted_from_tfvars:
-                try:
-                    server = Server.query.filter_by(name=server_name).first()
-                    if server and server.ip_address:
-                        server_ip = server.ip_address.split(',')[0].strip()
-                        from app.services.prometheus_service import PrometheusService
-                        prometheus_service = PrometheusService()
-                        prometheus_service.remove_server_from_prometheus(server_ip)
-                        print(f"🗑️ Prometheus 설정에서 {server_name} ({server_ip}) 제거")
-                except Exception as e:
-                    print(f"⚠️ Prometheus 설정에서 {server_name} 제거 실패: {e}")
+            # 5. Prometheus 설정 업데이트 (삭제된 서버들 제거)
+            try:
+                from app.services.prometheus_service import PrometheusService
+                prometheus_service = PrometheusService()
+                prometheus_updated = prometheus_service.update_prometheus_config()
+                
+                if prometheus_updated:
+                    print(f"✅ Prometheus 설정 업데이트 완료: {len(deleted_from_tfvars)}개 서버 제거")
+                else:
+                    print(f"⚠️ Prometheus 설정 업데이트 실패")
+            except Exception as e:
+                print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
             
             # 6. DB에서 서버 제거
             for server_name in deleted_from_tfvars:

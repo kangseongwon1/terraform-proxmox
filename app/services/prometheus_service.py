@@ -15,7 +15,11 @@ class PrometheusService:
     """Prometheus 서비스"""
     
     def __init__(self):
-        self.prometheus_config_path = "/etc/prometheus/prometheus.yml"
+        # Windows 환경에서는 로컬 경로 사용, Linux에서는 시스템 경로 사용
+        if os.name == 'nt':  # Windows
+            self.prometheus_config_path = "prometheus.yml"
+        else:  # Linux/Unix
+            self.prometheus_config_path = "/etc/prometheus/prometheus.yml"
         self.node_exporter_port = 9100
         
     def update_prometheus_config(self, server_ips: List[str] = None) -> bool:
@@ -195,6 +199,11 @@ class PrometheusService:
         """Prometheus 서비스 재시작"""
         try:
             print("🔧 Prometheus 서비스 재시작 중...")
+            
+            # Windows 환경에서는 서비스 재시작 스킵
+            if os.name == 'nt':
+                print("ℹ️ Windows 환경에서는 Prometheus 서비스 재시작을 스킵합니다.")
+                return True
             
             # Prometheus 설정 파일 검증
             result = subprocess.run(
