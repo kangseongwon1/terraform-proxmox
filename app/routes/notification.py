@@ -1,16 +1,23 @@
 """
 알림 관련 라우트
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from flask_login import login_required, current_user
 from app.models import Notification
 from app.routes.auth import permission_required
 from app import db
 import logging
+import json
+import time
+import threading
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('notification', __name__, url_prefix='/api')
+
+# SSE 연결 관리
+sse_connections = defaultdict(list)
 
 @bp.route('/notifications', methods=['GET'])
 @login_required
@@ -111,6 +118,61 @@ def get_latest_notification():
     except Exception as e:
         print(f"💥 최신 알림 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@bp.route('/notifications/stream', methods=['GET'])
+@login_required
+def notification_stream():
+    """Server-Sent Events를 통한 실시간 알림 스트림"""
+    def event_stream():
+        user_id = current_user.id
+        connection_id = f"{user_id}_{int(time.time() * 1000)}"
+        
+        # 연결 등록
+        sse_connections[user_id].append(connection_id)
+        
+        try:
+            # 연결 확인 메시지
+            yield f"data: {json.dumps({'type': 'connected', 'connection_id': connection_id})}\n\n"
+            
+            # 하트비트 (30초마다)
+            last_heartbeat = time.time()
+            while True:
+                current_time = time.time()
+                
+                # 하트비트 전송
+                if current_time - last_heartbeat >= 30:
+                    yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': current_time})}\n\n"
+                    last_heartbeat = current_time
+                
+                time.sleep(1)
+                
+        except GeneratorExit:
+            # 연결 종료 시 정리
+            if user_id in sse_connections and connection_id in sse_connections[user_id]:
+                sse_connections[user_id].remove(connection_id)
+                if not sse_connections[user_id]:
+                    del sse_connections[user_id]
+            logger.info(f"SSE 연결 종료: {connection_id}")
+    
+    return Response(event_stream(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    })
+
+def broadcast_notification(user_id: int, notification_data: dict):
+    """특정 사용자에게 알림 브로드캐스트"""
+    if user_id in sse_connections:
+        for connection_id in sse_connections[user_id].copy():
+            try:
+                # 실제로는 연결된 클라이언트에게 전송
+                # 여기서는 로그만 출력 (실제 구현에서는 WebSocket이나 SSE 큐 사용)
+                logger.info(f"알림 브로드캐스트: {user_id} -> {connection_id}: {notification_data}")
+            except Exception as e:
+                logger.error(f"알림 브로드캐스트 실패: {e}")
+                # 연결 제거
+                sse_connections[user_id].remove(connection_id)
 
 @bp.route('/notifications/<int:notification_id>', methods=['GET'])
 @login_required

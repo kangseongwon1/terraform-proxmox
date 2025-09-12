@@ -8,6 +8,9 @@ $(function() {
   // 페이지 로드 시에만 알림 로드 (한 번만)
   window.loadNotifications();
   
+  // 실시간 알림 폴링 시작
+  window.startNotificationPolling();
+  
   // 실시간 서버 상태 폴링
   let serverStatusPolling = null;
   let isBulkOperationInProgress = false; // 일괄 작업 진행 상태 플래그
@@ -2980,6 +2983,55 @@ window.loadNotifications = function() {
 window.addNewNotification = function(severity, title, message, details, id) {
   console.log('[instances.js] 새 알림 추가:', title);
   window.addSystemNotification(severity, title, message, details, id);
+};
+
+// 실시간 알림 폴링 (5초마다)
+window.startNotificationPolling = function() {
+  if (window.notificationPollingInterval) {
+    clearInterval(window.notificationPollingInterval);
+  }
+  
+  window.notificationPollingInterval = setInterval(function() {
+    // 최신 알림만 확인 (성능 최적화)
+    $.get('/api/notifications/latest', { _ts: Date.now() })
+      .done(function(response) {
+        if (response && response.success && response.notification) {
+          const noti = response.notification;
+          
+          // 중복 알림 방지
+          const isDuplicate = window.systemNotifications.some(function(existing) {
+            return existing.title === noti.title && existing.message === noti.message;
+          });
+          
+          if (!isDuplicate) {
+            // 새 알림 추가
+            window.addSystemNotification(
+              noti.severity || 'info',
+              noti.title,
+              noti.message,
+              noti.details,
+              noti.id
+            );
+            
+            console.log('[instances.js] 새 알림 수신:', noti.title);
+          }
+        }
+      })
+      .fail(function(xhr) {
+        console.error('[instances.js] 알림 폴링 실패:', xhr);
+      });
+  }, 5000); // 5초마다 폴링
+  
+  console.log('[instances.js] 알림 폴링 시작 (5초 간격)');
+};
+
+// 알림 폴링 중지
+window.stopNotificationPolling = function() {
+  if (window.notificationPollingInterval) {
+    clearInterval(window.notificationPollingInterval);
+    window.notificationPollingInterval = null;
+    console.log('[instances.js] 알림 폴링 중지');
+  }
 };
 (function(){
   // 알림 목록 관리
