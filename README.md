@@ -183,6 +183,11 @@ ls -la /etc/prometheus/prometheus.yml
 sudo usermod -a -G prometheus $USER
 newgrp prometheus  # 또는 로그아웃 후 재로그인
 
+# 또는 즉시 적용 (권장)
+sudo usermod -a -G prometheus $USER
+sudo chmod 664 /etc/prometheus/prometheus.yml
+newgrp prometheus
+
 # 해결 방법 2: sudo 권한 설정
 sudo visudo
 # 다음 줄 추가: username ALL=(ALL) NOPASSWD: /bin/mv, /bin/chown

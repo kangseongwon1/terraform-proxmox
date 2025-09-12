@@ -1321,6 +1321,11 @@ EOF
     sudo chmod 664 /etc/prometheus/prometheus.yml
     log_success "Prometheus 설정 파일 권한을 그룹 쓰기 가능하도록 설정했습니다"
     
+    # 현재 사용자가 yml 파일을 직접 수정할 수 있도록 소유자 변경
+    log_info "Prometheus yml 파일 소유자를 현재 사용자로 변경 중..."
+    sudo chown $CURRENT_USER:$CURRENT_USER /etc/prometheus/prometheus.yml
+    log_success "Prometheus yml 파일 소유자를 $CURRENT_USER로 변경했습니다"
+    
     log_info "그룹 변경사항을 적용하려면 로그아웃 후 다시 로그인하거나 'newgrp prometheus' 명령을 실행하세요"
     
     # systemd 유닛 생성 (표준 경로 사용)
@@ -2780,12 +2785,7 @@ show_completion_info() {
     echo -e "${GREEN}"
     echo "=========================================="
     echo "🎉 Proxmox Manager 설치 완료!"
-    echo "=========================================="
-    echo -e "${NC}"
-    
-    echo -e "${CYAN}📋 설치된 구성요소:${NC}"
-    echo "  ✅ Python 환경 및 Flask 애플리케이션"
-    echo "  ✅ Docker 및 Docker Compose"
+    echo "=할때    echo "  ✅ Docker 및 Docker Compose"
     echo "  ✅ Terraform"
     echo "  ✅ Ansible"
     echo "  ✅ HashiCorp Vault"
