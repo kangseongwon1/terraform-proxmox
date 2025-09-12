@@ -351,11 +351,16 @@ def create_server():
                     except Exception as e:
                         print(f"⚠️ Node Exporter 설치 중 오류: {e}")
                     
-                    # Ansible을 통한 역할별 소프트웨어 설치
+                    # Ansible을 통한 역할별 소프트웨어 설치 (Node Exporter 포함)
                     if role and role != 'none':
                         print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
                         try:
-                            ansible_success, ansible_message = ansible_service.assign_role_to_server(server_name, role)
+                            # 서버 생성 시에는 Node Exporter도 함께 설치
+                            ansible_success, ansible_message = ansible_service.run_playbook(
+                                role=role,
+                                extra_vars={'install_node_exporter': True},
+                                target_server=server_ip
+                            )
                             
                             if ansible_success:
                                 print(f"✅ Ansible 역할 할당 성공: {server_name} - {role}")
@@ -664,10 +669,14 @@ def create_servers_bulk():
                             except Exception as e:
                                 print(f"⚠️ 서버 IP 수집 중 오류 ({server_name}): {e}")
                         
-                        # 일괄 설치 실행
+                        # 일괄 설치 실행 (Node Exporter 포함)
                         if server_ips:
                             print(f"🔧 Node Exporter 일괄 설치 시작: {len(server_ips)}개 서버")
-                            success, result = ansible_service._install_node_exporter_batch(server_ips)
+                            success, result = ansible_service.run_playbook(
+                                role='node_exporter',
+                                extra_vars={'install_node_exporter': True},
+                                limit_hosts=','.join(server_ips)
+                            )
                             
                             if success:
                                 print(f"✅ Node Exporter 일괄 설치 성공: {len(server_ips)}개 서버")
@@ -1380,12 +1389,17 @@ def create():
                     else:
                         print(f"⚠️ IP 주소가 없어 Node Exporter 설치 스킵: {server_name}")
                     
-                    # Ansible을 통한 역할별 소프트웨어 설치
+                    # Ansible을 통한 역할별 소프트웨어 설치 (Node Exporter 포함)
                     if role and role != 'none':
                         print(f"🔧 Ansible 역할 할당 시작: {server_name} - {role}")
                         try:
                             ansible_service = AnsibleService()
-                            ansible_success, ansible_message = ansible_service.assign_role_to_server(server_name, role)
+                            # 서버 생성 시에는 Node Exporter도 함께 설치
+                            ansible_success, ansible_message = ansible_service.run_playbook(
+                                role=role,
+                                extra_vars={'install_node_exporter': True},
+                                target_server=ip_address_str
+                            )
                             
                             if ansible_success:
                                 print(f"✅ Ansible 역할 할당 성공: {server_name} - {role}")

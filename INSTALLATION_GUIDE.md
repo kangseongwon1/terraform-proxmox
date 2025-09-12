@@ -61,6 +61,13 @@ GRAFANA_URL=http://localhost:3000
 GRAFANA_USERNAME=admin
 GRAFANA_PASSWORD=your-grafana-password
 PROMETHEUS_URL=http://localhost:9090
+
+# Ansible 설정 (통합 관리)
+ANSIBLE_MYSQL_ROOT_PASSWORD=your_secure_mysql_root_password
+ANSIBLE_MYSQL_USER_PASSWORD=your_secure_mysql_user_password
+ANSIBLE_FTP_PASSWORD=your_secure_ftp_password
+ANSIBLE_TOMCAT_MANAGER_PASSWORD=your_secure_tomcat_manager_password
+NODE_EXPORTER_AUTO_INSTALL=true
 ```
 
 ## 🚀 설치 과정

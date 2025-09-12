@@ -5,16 +5,11 @@
   gather_facts: true
   vars:
     ansible_verbosity: 2
-    # 기본 변수들
-    nginx_user: "www-data"
-    nginx_port: 80
-    mysql_root_password: "{{ ansible_mysql_root_password | default('root1234') }}"
-    mysql_database: "app_db"
-    java_version: "11"
-    tomcat_port: 8080
-    elasticsearch_port: 9200
-    ftp_user: "ftpuser"
-    ftp_password: "{{ ansible_ftp_password | default('ftppass123') }}"
+    # 모든 변수는 group_vars/ 디렉토리에서 관리됩니다
+    # - group_vars/all.yml: 모든 서버 공통 변수
+    # - group_vars/web.yml: 웹 서버 전용 변수
+    # - group_vars/db.yml: 데이터베이스 서버 전용 변수
+    # - group_vars/was.yml: WAS 서버 전용 변수
     
   pre_tasks:
     - name: Ensure Python is available (Rocky/RHEL)
@@ -33,7 +28,8 @@
   roles:
     - name: "{{ role }}"
       when: role is defined and role != ""
-    - name: node_exporter  # 모든 서버에 Node Exporter 설치
+    - name: node_exporter  # Node Exporter는 서버 생성 시에만 설치 (역할 부여 시에는 설치하지 않음)
+      when: install_node_exporter is defined and install_node_exporter == true
       
   post_tasks:
     - name: 역할 설정 완료 알림

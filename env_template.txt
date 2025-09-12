@@ -192,24 +192,53 @@ VAULT_ADDR=http://127.0.0.1:8200
 VAULT_TOKEN=root
 
 # ========================================
-# Ansible 비밀번호 설정 (Vault 사용 시 필요)
+# Ansible 설정 (통합 관리)
 # ========================================
 
-# MySQL 루트 비밀번호 (Ansible에서 사용)
-ANSIBLE_MYSQL_ROOT_PASSWORD=default_mysql_root_pass
+# MySQL 관련 보안 변수 (Ansible에서 사용)
+ANSIBLE_MYSQL_ROOT_PASSWORD=your_secure_mysql_root_password
+ANSIBLE_MYSQL_USER_PASSWORD=your_secure_mysql_user_password
+ANSIBLE_MYSQL_REPLICATION_PASSWORD=your_secure_replication_password
 
-# FTP 비밀번호 (Ansible에서 사용)
-ANSIBLE_FTP_PASSWORD=default_ftp_pass
+# FTP 관련 보안 변수 (Ansible에서 사용)
+ANSIBLE_FTP_PASSWORD=your_secure_ftp_password
 
-# ========================================
+# Tomcat Manager 관련 보안 변수 (Ansible에서 사용)
+ANSIBLE_TOMCAT_MANAGER_PASSWORD=your_secure_tomcat_manager_password
+
+# Node Exporter 자동 설치 설정
+NODE_EXPORTER_AUTO_INSTALL=true
+
+# Prometheus 설정
+PROMETHEUS_RETENTION=30d
+
 # 백업 설정
+BACKUP_ENABLED=true
+BACKUP_COMPRESSION=true
+
+# 로그 설정
+LOG_RETENTION_DAYS=30
+
+# 성능 설정
+NGINX_WORKER_PROCESSES=auto
+NGINX_WORKER_CONNECTIONS=1024
+MYSQL_MAX_CONNECTIONS=200
+TOMCAT_HEAP_SIZE=1024m
+
+# 보안 설정
+FIREWALL_ENABLED=true
+SSH_PERMIT_ROOT_LOGIN=false
+SSL_ENABLED=false
+
+# ========================================
+# 백업 설정 (통합)
 # ========================================
 
 # 백업 저장 경로
 BACKUP_PATH=/var/backups/proxmox
 
-# 백업 보존 기간 (일)
-BACKUP_RETENTION_DAYS=30
+# 백업 보존 기간 (일) - 위의 BACKUP_RETENTION_DAYS와 동일
+# BACKUP_RETENTION_DAYS=30  # 위에서 이미 설정됨
 
 # 백업 암호화 여부
 ENCRYPT_BACKUPS=true

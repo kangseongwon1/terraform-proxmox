@@ -14,6 +14,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from flask import current_app
 from app.models.server import Server
 from app.models.notification import Notification
+from app.services.ansible_variables import AnsibleVariableManager
 from app import db
 
 # ansible-runner import
@@ -65,6 +66,9 @@ class AnsibleService:
             print(f"⚠️ Dynamic Inventory 스크립트가 존재하지 않습니다: {self.dynamic_inventory_script}")
         else:
             print(f"✅ Dynamic Inventory 스크립트 확인됨: {self.dynamic_inventory_script}")
+        
+        # Ansible 변수 관리자 초기화
+        self.variable_manager = AnsibleVariableManager(ansible_dir)
     
 
     
@@ -405,43 +409,11 @@ class AnsibleService:
             print(f"🔧 서버 데이터: {server_data}")
             print(f"🔧 Dynamic Inventory 스크립트 사용: {self.dynamic_inventory_script}")
             
-            # 6. Node Exporter 자동 설치 (모니터링 설정이 활성화된 경우)
-            self._install_node_exporter_if_needed(server_name, server.ip_address)
+            # 6. Node Exporter 자동 설치는 서버 생성 시에만 실행 (역할 부여 시에는 실행하지 않음)
+            # self._install_node_exporter_if_needed(server_name, server.ip_address)
             
-            # 7. 역할별 추가 변수 설정
-            role_vars = extra_vars or {}
-            
-            # 역할별 기본 설정
-            if role == 'web':
-                role_vars.update({
-                    'nginx_user': 'www-data',
-                    'nginx_port': 80
-                })
-            elif role == 'db':
-                role_vars.update({
-                    'mysql_root_password': 'dmc1234!',
-                    'mysql_port': 3306
-                })
-            elif role == 'was':
-                role_vars.update({
-                    'java_version': '11',
-                    'tomcat_port': 8080
-                })
-            elif role == 'java':
-                role_vars.update({
-                    'java_version': '11',
-                    'spring_profile': 'production'
-                })
-            elif role == 'search':
-                role_vars.update({
-                    'elasticsearch_port': 9200,
-                    'kibana_port': 5601
-                })
-            elif role == 'ftp':
-                role_vars.update({
-                    'ftp_port': 21,
-                    'ftp_user': 'ftpuser'
-                })
+            # 7. 역할별 변수 설정 (새로운 변수 관리 시스템 사용)
+            role_vars = self.variable_manager.get_ansible_extra_vars(role, extra_vars)
             
             print(f"🔧 역할 변수 설정: {role_vars}")
             
@@ -498,44 +470,10 @@ class AnsibleService:
             if not server_data:
                 return False, f"서버 {server_name}의 정보를 찾을 수 없습니다"
             
-            # 동적 inventory 생성
-            if not self._generate_dynamic_inventory([server_data]):
-                return False, "동적 inventory 파일 생성 실패"
+            # 동적 inventory는 이미 스크립트로 처리되므로 별도 생성 불필요
             
-            # 역할별 추가 변수 설정
-            role_vars = extra_vars or {}
-            
-            # 역할별 기본 설정
-            if role == 'web':
-                role_vars.update({
-                    'nginx_user': 'www-data',
-                    'nginx_port': 80
-                })
-            elif role == 'db':
-                role_vars.update({
-                    'mysql_root_password': 'dmc1234!',
-                    'mysql_port': 3306
-                })
-            elif role == 'was':
-                role_vars.update({
-                    'java_version': '11',
-                    'tomcat_port': 8080
-                })
-            elif role == 'java':
-                role_vars.update({
-                    'java_version': '11',
-                    'spring_profile': 'production'
-                })
-            elif role == 'search':
-                role_vars.update({
-                    'elasticsearch_port': 9200,
-                    'kibana_port': 5601
-                })
-            elif role == 'ftp':
-                role_vars.update({
-                    'ftp_port': 21,
-                    'ftp_user': 'ftpuser'
-                })
+            # 역할별 변수 설정 (새로운 변수 관리 시스템 사용)
+            role_vars = self.variable_manager.get_ansible_extra_vars(role, extra_vars)
             
             print(f"🔧 역할 변수 설정: {role_vars}")
             
@@ -737,23 +675,9 @@ class AnsibleService:
                     env = os.environ.copy()
                     env['TARGET_SERVER_IP'] = server.ip_address
                     
-                    # 역할 변수 설정 (환경 변수에서 가져오기)
-                    role_vars = extra_vars or {}
+                    # 역할 변수 설정 (새로운 변수 관리 시스템 사용)
+                    role_vars = self.variable_manager.get_ansible_extra_vars(role, extra_vars)
                     role_vars['target_server'] = server.ip_address
-                    role_vars['role'] = role
-                    role_vars['nginx_user'] = 'www-data'
-                    role_vars['nginx_port'] = 80
-                    role_vars['mysql_root_password'] = os.environ.get('ANSIBLE_MYSQL_ROOT_PASSWORD', 'root1234')
-                    role_vars['mysql_database'] = 'app_db'
-                    role_vars['java_version'] = '11'
-                    role_vars['tomcat_port'] = 8080
-                    role_vars['elasticsearch_port'] = 9200
-                    role_vars['ftp_user'] = 'ftpuser'
-                    role_vars['ftp_password'] = os.environ.get('ANSIBLE_FTP_PASSWORD', 'ftppass123')
-                    
-                    # Ansible에서 사용할 환경 변수들
-                    role_vars['ansible_mysql_root_password'] = os.environ.get('ANSIBLE_MYSQL_ROOT_PASSWORD', 'root1234')
-                    role_vars['ansible_ftp_password'] = os.environ.get('ANSIBLE_FTP_PASSWORD', 'ftppass123')
                     
                     # Ansible 명령어 구성
                     command = [

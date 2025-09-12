@@ -408,16 +408,39 @@ htop
 
 ---
 
-## 🚀 빠른 시작 (기존 사용자용)
+## 🚀 빠른 시작
 
-### 1. 설치
+### **방법 1: 빠른 설치 (권장)**
 
 ```bash
-# 리포지토리 클론
+# 1. 리포지토리 클론
 git clone <repository-url>
 cd terraform-proxmox
 
-# 자동 설치 스크립트 실행
+# 2. 빠른 설치 실행 (Linux/macOS)
+chmod +x quick_setup.sh
+./quick_setup.sh
+
+# 3. .env 파일 편집 (자동으로 생성됨)
+nano .env  # 실제 값으로 수정
+
+# 4. Flask 애플리케이션 시작
+source venv/bin/activate
+python run.py
+```
+
+### **방법 2: 수동 설치**
+
+```bash
+# 1. 리포지토리 클론
+git clone <repository-url>
+cd terraform-proxmox
+
+# 2. 환경 설정
+cp env_template.txt .env
+nano .env  # 실제 값으로 수정
+
+# 3. 자동 설치 스크립트 실행
 chmod +x setup.sh
 ./setup.sh
 ```
