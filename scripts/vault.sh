@@ -149,8 +149,8 @@ cleanup_vault() {
     log_info "3. 기존 Vault 컨테이너 정리 중..."
     
     # Docker Compose로 실행 중인 Vault 중지
-    if [ -f "docker-compose.vault.yml" ]; then
-        docker-compose -f docker-compose.vault.yml down 2>/dev/null || true
+    if [ -f "docker-compose.vault.yaml" ]; then
+        docker-compose -f docker-compose.vault.yaml down 2>/dev/null || true
     fi
     
     # 기존 Vault 컨테이너 중지 및 제거
@@ -171,7 +171,7 @@ start_vault() {
     mkdir -p vault-data
     
     # Docker Compose로 Vault 실행
-    docker-compose -f docker-compose.vault.yml up -d
+    docker-compose -f docker-compose.vault.yaml up -d
     
     # Vault 초기화 대기
     log_info "Vault 초기화 대기 중..."
@@ -579,8 +579,8 @@ show_completion() {
     log_info "🔧 관리 명령어:"
     echo "  - 상태 확인: docker exec vault-dev vault status"
     echo "  - 시크릿 조회: docker exec vault-dev vault kv get secret/proxmox"
-    echo "  - 서비스 중지: docker-compose -f docker-compose.vault.yml down"
-    echo "  - 서비스 시작: docker-compose -f docker-compose.vault.yml up -d"
+    echo "  - 서비스 중지: docker-compose -f docker-compose.vault.yaml down"
+    echo "  - 서비스 시작: docker-compose -f docker-compose.vault.yaml up -d"
     echo ""
     
     log_info "🌐 웹 UI 접속:"
@@ -591,7 +591,7 @@ show_completion() {
     log_info "📁 중요 파일:"
     echo "  - vault_init.txt: 초기화 정보 (안전하게 보관하세요)"
     echo "  - vault-dev.hcl: Vault 설정 파일"
-    echo "  - docker-compose.vault.yml: Docker Compose 설정"
+    echo "  - docker-compose.vault.yaml: Docker Compose 설정"
     echo ""
     
     log_info "🔄 Terraform 사용:"
