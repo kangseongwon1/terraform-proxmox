@@ -57,7 +57,7 @@ pre_validation() {
     REQUIRED_FILES=(
         "requirements.txt"
         "scripts/vault.sh"
-        "docker-compose.vault.yml"
+        "docker-compose.vault.yaml"
         "config/vault-dev.hcl"
         "scripts/create_tables.py"
         "monitoring/update_prometheus_targets.py"
@@ -1192,6 +1192,10 @@ echo ""
 read -p "VM 기본 비밀번호를 입력하세요: " -s VM_PASSWORD
 echo ""
 
+# Vault 볼륨 권한 설정 (권한 문제 해결)
+echo "🔧 Vault 볼륨 권한 설정 중..."
+docker exec vault-dev sh -c "mkdir -p /vault/data && chmod 755 /vault/data" 2>/dev/null || true
+
 # Vault 초기화 실행
 echo "🚀 Vault 초기화 실행 중..."
 VAULT_INIT_OUTPUT=$(docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 2>/dev/null)
@@ -1854,6 +1858,10 @@ start_services() {
                     read -p "VM 기본 비밀번호를 입력하세요: " -s VM_PASSWORD
                     echo ""
                     
+                    # Vault 볼륨 권한 설정 (권한 문제 해결)
+                    log_info "Vault 볼륨 권한 설정 중..."
+                    docker exec vault-dev sh -c "mkdir -p /vault/data && chmod 755 /vault/data" 2>/dev/null || true
+                    
                     # Vault 재초기화 실행
                     log_info "Vault 재초기화 실행 중..."
                     VAULT_INIT_OUTPUT=$(docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 2>/dev/null)
@@ -1985,6 +1993,10 @@ start_services() {
             # VM 비밀번호 입력
             read -p "VM 기본 비밀번호를 입력하세요: " -s VM_PASSWORD
             echo ""
+            
+            # Vault 볼륨 권한 설정 (권한 문제 해결)
+            log_info "Vault 볼륨 권한 설정 중..."
+            docker exec vault-dev sh -c "mkdir -p /vault/data && chmod 755 /vault/data" 2>/dev/null || true
             
             # Vault 초기화 실행
             log_info "Vault 초기화 실행 중..."
