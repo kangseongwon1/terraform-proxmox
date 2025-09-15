@@ -255,18 +255,18 @@ init_vault() {
     UNSEAL_KEY=$(grep 'Unseal Key 1:' ../vault_init.txt | awk '{print $NF}')
     ROOT_TOKEN=$(grep 'Root Token:' ../vault_init.txt | awk '{print $NF}')
     
-    # Vault 언실
+    # Vault 언실 (TTY 문제 해결)
     log_info "Vault 언실 중..."
-    docker exec vault-dev vault operator unseal $UNSEAL_KEY
+    docker exec vault-dev vault operator unseal "$UNSEAL_KEY"
     
     if [ $? -ne 0 ]; then
         log_error "Vault 언실 실패"
         exit 1
     fi
     
-    # Root 토큰으로 로그인
+    # Root 토큰으로 로그인 (TTY 문제 해결)
     log_info "Vault 인증 중..."
-    docker exec vault-dev vault login $ROOT_TOKEN
+    echo "$ROOT_TOKEN" | docker exec -i vault-dev vault login -
     
     if [ $? -ne 0 ]; then
         log_error "Vault 인증 실패"
