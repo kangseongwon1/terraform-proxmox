@@ -1762,9 +1762,9 @@ start_services() {
     log_step "13. 서비스 시작 중..."
     
     # Vault 서비스 시작
-    if [ -f "docker-compose.vault.yml" ]; then
+    if [ -f "docker-compose.vault.yaml" ]; then
         log_info "Vault 서비스 시작 중..."
-        docker-compose -f docker-compose.vault.yml up -d
+        docker-compose -f docker-compose.vault.yaml up -d
         
         if [ $? -eq 0 ]; then
             log_success "Vault 서비스 시작 완료"
@@ -2884,7 +2884,7 @@ show_completion_info() {
     echo ""
     echo "  Vault 서비스:"
     echo "    상태 확인: docker exec vault-dev vault status"
-    echo "    중지: docker-compose -f docker-compose.vault.yml down"
+    echo "    중지: docker-compose -f docker-compose.vault.yaml down"
     
     echo ""
     echo -e "${CYAN}📁 중요 파일:${NC}"
