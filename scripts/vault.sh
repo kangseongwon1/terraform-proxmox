@@ -188,8 +188,13 @@ start_vault() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if docker exec vault-dev vault status | grep -q "Version"; then
+        if docker exec vault-dev vault status 2>/dev/null | grep -q "Version"; then
             log_success "Vault 컨테이너 시작 완료"
+            
+            # 추가 대기 시간 (볼륨 마운트 완료 대기)
+            log_info "Vault 볼륨 마운트 완료 대기 중..."
+            sleep 5
+            
             return 0
         fi
         
@@ -206,8 +211,33 @@ start_vault() {
 init_vault() {
     log_info "5. Vault 초기화 및 언실 중..."
     
+    # Vault 컨테이너가 완전히 준비되었는지 확인
+    log_info "Vault 컨테이너 준비 상태 확인 중..."
+    local max_attempts=10
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if docker exec vault-dev vault status 2>/dev/null | grep -q "Version"; then
+            log_success "Vault 컨테이너 준비 완료"
+            break
+        fi
+        
+        log_info "Vault 컨테이너 준비 대기 중... ($attempt/$max_attempts)"
+        sleep 3
+        ((attempt++))
+        
+        if [ $attempt -gt $max_attempts ]; then
+            log_error "Vault 컨테이너 준비 실패"
+            exit 1
+        fi
+    done
+    
     # Vault 초기화 (최초 1회)
     if docker exec vault-dev vault status | grep -q "Initialized.*false"; then
+        # Vault 볼륨 권한 설정 (권한 문제 해결)
+        log_info "Vault 볼륨 권한 설정 중..."
+        docker exec vault-dev sh -c "mkdir -p /vault/data && chmod 755 /vault/data" 2>/dev/null || true
+        
         log_info "Vault 초기화 실행 중..."
         docker exec vault-dev vault operator init -key-shares=1 -key-threshold=1 > ../vault_init.txt
         
