@@ -1,6 +1,6 @@
 import requests
 import json
-from config import Config
+from config.config import Config
 
 def check_backup_files():
     """실제 백업 파일명 확인"""

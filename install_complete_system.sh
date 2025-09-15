@@ -1098,10 +1098,10 @@ setup_vault() {
     fi
     
     # Vault 스크립트 실행
-    if [ -f "vault.sh" ]; then
+    if [ -f "scripts/vault.sh" ]; then
         log_info "Vault 설정 스크립트 실행 중..."
-        chmod +x vault.sh
-        ./vault.sh
+        chmod +x scripts/vault.sh
+        ./scripts/vault.sh
         
         if [ $? -eq 0 ]; then
             log_success "Vault 설정 완료"
@@ -1110,7 +1110,7 @@ setup_vault() {
             exit 1
         fi
     else
-        log_error "vault.sh 파일을 찾을 수 없습니다"
+        log_error "scripts/vault.sh 파일을 찾을 수 없습니다"
         exit 1
     fi
     
@@ -1250,104 +1250,116 @@ EOF
 install_monitoring() {
     log_step "10. 모니터링 시스템 설치 중..."
     
-    # Prometheus 설치 (통합)
-    log_info "Prometheus 설치 중..."
+    # Docker 모니터링 시스템 설치 (권장)
+    log_info "Docker 모니터링 시스템 설치 중..."
     
-    # Prometheus 다운로드 (Linux x64)
-    PROMETHEUS_VERSION="2.47.2"
-    PROMETHEUS_URL="https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+    # Docker 설치 확인
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker가 설치되지 않았습니다."
+        log_info "Docker 설치 후 다시 시도해주세요."
+        log_info "설치 명령어: curl -fsSL https://get.docker.com -o get-docker.sh && sudo sh get-docker.sh"
+        exit 1
+    fi
     
-    log_info "Prometheus ${PROMETHEUS_VERSION} 다운로드 중..."
-    wget -O prometheus.tar.gz ${PROMETHEUS_URL}
+    if ! command -v docker-compose &> /dev/null; then
+        log_error "Docker Compose가 설치되지 않았습니다."
+        log_info "Docker Compose 설치 후 다시 시도해주세요."
+        log_info "설치 명령어: sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose"
+        exit 1
+    fi
     
-    # 압축 해제
-    log_info "압축 해제 중..."
-    tar -xzf prometheus.tar.gz
-    mv prometheus-${PROMETHEUS_VERSION}.linux-amd64 prometheus_temp
+    log_success "Docker 및 Docker Compose 확인 완료"
     
-    # 표준 배치 경로 준비 (/opt, /etc, /var/lib)
-    log_info "디렉토리 준비 중..."
-    sudo useradd --no-create-home --shell /bin/false prometheus 2>/dev/null || true
-    sudo mkdir -p /opt/prometheus
-    sudo mkdir -p /etc/prometheus
-    sudo mkdir -p /var/lib/prometheus
+    # 모니터링 디렉토리 생성
+    log_info "모니터링 디렉토리 생성 중..."
+    mkdir -p monitoring/grafana/provisioning/datasources
+    mkdir -p monitoring/grafana/provisioning/dashboards
+    mkdir -p monitoring/grafana/dashboards
+    mkdir -p monitoring/prometheus_data
+    mkdir -p monitoring/grafana_data
     
-    # 바이너리 및 콘솔 파일 배치 (/opt/prometheus)
-    log_info "바이너리 배치 중..."
-    sudo cp -f prometheus_temp/prometheus /opt/prometheus/
-    sudo cp -f prometheus_temp/promtool /opt/prometheus/
-    sudo cp -rf prometheus_temp/consoles /opt/prometheus/
-    sudo cp -rf prometheus_temp/console_libraries /opt/prometheus/
-    sudo chown -R prometheus:prometheus /opt/prometheus
-    sudo chmod 0755 /opt/prometheus/prometheus /opt/prometheus/promtool
+    # Docker 모니터링 시스템 시작
+    log_info "Docker 모니터링 시스템 시작 중..."
+    if [ -f "monitoring/start-monitoring.sh" ]; then
+        chmod +x monitoring/start-monitoring.sh
+        cd monitoring
+        ./start-monitoring.sh
+        cd ..
+        log_success "Docker 모니터링 시스템 시작 완료"
+    else
+        log_warning "Docker 모니터링 스크립트를 찾을 수 없습니다."
+        log_info "수동으로 Docker 모니터링 시스템을 시작하세요:"
+        log_info "  cd monitoring && docker-compose up -d"
+    fi
     
-    # 프로메테우스 설정 파일 생성 (/etc/prometheus/prometheus.yml)
-    log_info "프로메테우스 설정 파일 생성 중..."
+    # Prometheus 타겟 업데이트 스크립트 권한 설정
+    if [ -f "monitoring/update_prometheus_targets.py" ]; then
+        log_info "Prometheus 타겟 업데이트 스크립트 설정 중..."
+        chmod +x monitoring/update_prometheus_targets.py
+        
+        # PyYAML 설치 확인 (스크립트 실행에 필요)
+        source venv/bin/activate
+        pip install PyYAML requests
+        
+        log_success "Prometheus 타겟 업데이트 스크립트 설정 완료"
+    fi
     
-    # 현재 서버의 IP 주소 가져오기
-    CURRENT_IP=$(hostname -I | awk '{print $1}')
-    log_info "현재 서버 IP: $CURRENT_IP"
+    # Ansible Dynamic Inventory 스크립트 권한 설정
+    if [ -f "ansible/dynamic_inventory.py" ]; then
+        log_info "Ansible Dynamic Inventory 스크립트 권한 설정 중..."
+        chmod +x ansible/dynamic_inventory.py
+        log_success "Dynamic Inventory 스크립트 권한 설정 완료"
+    fi
     
-    sudo tee /etc/prometheus/prometheus.yml > /dev/null << EOF
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+    # 방화벽 설정 (Docker 포트)
+    if command -v firewall-cmd &> /dev/null; then
+        log_info "방화벽 설정 중..."
+        sudo firewall-cmd --permanent --add-port=3000/tcp  # Grafana
+        sudo firewall-cmd --permanent --add-port=9090/tcp  # Prometheus
+        sudo firewall-cmd --permanent --add-port=9100/tcp  # Node Exporter
+        sudo firewall-cmd --reload
+        log_success "방화벽 설정 완료"
+    fi
+    
+    log_success "모니터링 시스템 설치 완료"
+    
+    # 사용법 안내
+    log_info "==========================================="
+    log_info "🎉 Docker 모니터링 시스템 설치 완료!"
+    log_info "==========================================="
+    log_info "📊 접속 정보:"
+    log_info "  - Prometheus: http://localhost:9090"
+    log_info "  - Grafana: http://localhost:3000 (admin/admin123)"
+    log_info ""
+    log_info "🔧 관리 명령어:"
+    log_info "  - 시작: cd monitoring && docker-compose up -d"
+    log_info "  - 중지: cd monitoring && docker-compose down"
+    log_info "  - 재시작: cd monitoring && docker-compose restart"
+    log_info "  - 로그 확인: cd monitoring && docker-compose logs"
+    log_info "  - 상태 확인: cd monitoring && docker-compose ps"
+    log_info "==========================================="
+}
 
-rule_files: []
 
-scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
+# ========================================
+# 11. 데이터베이스 초기화
+# ========================================
 
-  - job_name: 'node-exporter'
-    scrape_interval: 10s
-    static_configs:
-      - targets: ['${CURRENT_IP}:9100']
-    metrics_path: '/metrics'
-EOF
+setup_database() {
+    log_step "11. 데이터베이스 초기화 중..."
     
-    # 소유권 설정
-    sudo chown -R prometheus:prometheus /etc/prometheus
-    sudo chown -R prometheus:prometheus /var/lib/prometheus
+    # instance 디렉토리 생성
+    if [ ! -d "instance" ]; then
+        log_info "instance 디렉토리 생성 중..."
+        mkdir -p instance
+    fi
     
-    # 현재 사용자를 prometheus 그룹에 추가 (설정 파일 수정 권한을 위해)
-    log_info "현재 사용자를 prometheus 그룹에 추가 중..."
-    CURRENT_USER=$(whoami)
-    sudo usermod -a -G prometheus $CURRENT_USER
-    log_success "사용자 $CURRENT_USER를 prometheus 그룹에 추가했습니다"
-    
-    # Prometheus 설정 파일 권한을 그룹 쓰기 가능하도록 설정
-    sudo chmod 664 /etc/prometheus/prometheus.yml
-    log_success "Prometheus 설정 파일 권한을 그룹 쓰기 가능하도록 설정했습니다"
-    
-    # 현재 사용자가 yml 파일을 직접 수정할 수 있도록 소유자 변경
-    log_info "Prometheus yml 파일 소유자를 현재 사용자로 변경 중..."
-    sudo chown $CURRENT_USER:$CURRENT_USER /etc/prometheus/prometheus.yml
-    log_success "Prometheus yml 파일 소유자를 $CURRENT_USER로 변경했습니다"
-    
-    log_info "그룹 변경사항을 적용하려면 로그아웃 후 다시 로그인하거나 'newgrp prometheus' 명령을 실행하세요"
-    
-    # systemd 유닛 생성 (표준 경로 사용)
-    log_info "시스템 서비스 등록 중..."
-    sudo tee /etc/systemd/system/prometheus.service > /dev/null << 'EOF'
-[Unit]
-Description=Prometheus
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-User=prometheus
-Group=prometheus
-Type=simple
-ExecStart=/opt/prometheus/prometheus \
-    --config.file=/etc/prometheus/prometheus.yml \
-    --storage.tsdb.path=/var/lib/prometheus \
-    --web.console.templates=/opt/prometheus/consoles \
-    --web.console.libraries=/opt/prometheus/console_libraries \
-    --web.listen-address=0.0.0.0:9090
-Restart=on-failure
-RestartSec=5
+    # 기존 데이터베이스 백업 (재설치 지원)
+    if [ -f "instance/proxmox_manager.db" ]; then
+        log_info "기존 데이터베이스 백업 중..."
+        cp instance/proxmox_manager.db instance/proxmox_manager.db.backup.$(date +%Y%m%d_%H%M%S)
+        log_success "데이터베이스 백업 완료"
+    fi
 
 [Install]
 WantedBy=multi-user.target
@@ -1605,15 +1617,36 @@ EOF
     fi
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
-    if [ -f "update_prometheus_targets.py" ]; then
+    if [ -f "monitoring/update_prometheus_targets.py" ]; then
         log_info "Prometheus 타겟 업데이트 스크립트 설정 중..."
-        chmod +x update_prometheus_targets.py
+        chmod +x monitoring/update_prometheus_targets.py
         
         # PyYAML 설치 확인 (스크립트 실행에 필요)
         source venv/bin/activate
         pip install PyYAML requests
         
         log_success "Prometheus 타겟 업데이트 스크립트 설정 완료"
+    fi
+    
+    # Docker 모니터링 시스템 설정
+    log_info "Docker 모니터링 시스템 설정 중..."
+    if [ -f "monitoring/start-monitoring.sh" ]; then
+        chmod +x monitoring/start-monitoring.sh
+        log_success "Docker 모니터링 스크립트 권한 설정 완료"
+        
+        # Docker 설치 확인
+        if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+            log_info "Docker 모니터링 시스템 시작 중..."
+            cd monitoring
+            ./start-monitoring.sh
+            cd ..
+            log_success "Docker 모니터링 시스템 시작 완료"
+        else
+            log_warning "Docker가 설치되지 않아 모니터링 시스템을 시작할 수 없습니다."
+            log_info "Docker 설치 후 'monitoring/start-monitoring.sh'를 실행하세요."
+        fi
+    else
+        log_warning "Docker 모니터링 스크립트를 찾을 수 없습니다."
     fi
     
     log_success "모니터링 시스템 설치 완료"
@@ -2079,7 +2112,7 @@ start_services() {
     
     # config.py 파일 자동 생성 (TerraformConfig 클래스 포함)
     log_info "config.py 파일 자동 생성 중..."
-    cat > config.py << 'EOF'
+    cat > config/config.py << 'EOF'
 import os
 from datetime import timedelta
 
@@ -2540,7 +2573,7 @@ if ! /data/terraform-proxmox/venv/bin/python -c "import sys; sys.path.insert(0, 
     
     # config.py 파일 자동 생성
     echo "📝 config.py 파일 자동 생성 중..."
-    cat > /data/terraform-proxmox/config.py << 'PYEOF'
+    cat > /data/terraform-proxmox/config/config.py << 'PYEOF'
 import os
 from datetime import timedelta
 

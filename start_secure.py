@@ -53,7 +53,7 @@ def check_file_permissions():
     """파일 권한 검증"""
     print("🔐 파일 권한을 검증합니다...")
     
-    sensitive_files = ['.env', 'config.py']
+    sensitive_files = ['.env', 'config/config.py']
     for file_path in sensitive_files:
         if Path(file_path).exists():
             stat = Path(file_path).stat()

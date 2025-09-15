@@ -358,7 +358,7 @@ class TerraformService:
             
             # Proxmox 설정 자동 추가 (없는 경우에만)
             if 'proxmox_endpoint' not in tfvars:
-                from config import Config
+                from config.config import Config
                 tfvars['proxmox_endpoint'] = Config.PROXMOX_ENDPOINT
                 tfvars['proxmox_username'] = Config.PROXMOX_USERNAME
                 tfvars['proxmox_node'] = Config.PROXMOX_NODE
@@ -367,7 +367,7 @@ class TerraformService:
             
             # VM 기본 설정 추가 (없는 경우에만)
             if 'vm_username' not in tfvars:
-                from config import Config
+                from config.config import Config
                 tfvars['vm_username'] = Config.SSH_USER
                 print("🔧 VM 기본 설정 자동 추가 완료")
             
@@ -388,7 +388,7 @@ class TerraformService:
             import socket
             
             if username is None:
-                from config import Config
+                from config.config import Config
                 username = Config.SSH_USER
             
             # SSH 클라이언트 생성
@@ -396,7 +396,7 @@ class TerraformService:
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             # SSH 키 파일 경로
-            from config import Config
+            from config.config import Config
             ssh_key_path = Config.SSH_PRIVATE_KEY_PATH.replace('~', os.path.expanduser('~'))
             
             print(f"🔍 SSH 연결 테스트: {username}@{ip_address}")

@@ -67,7 +67,7 @@ def setup_vault_token():
 setup_vault_token()
 
 # 설정 파일 import
-from config import config
+from config.config import config
 
 app = Flask(__name__)
 

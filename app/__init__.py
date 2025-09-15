@@ -53,7 +53,7 @@ def create_app(config_name='development'):
     load_vault_environment()
     
     # 설정 로드
-    from config import config
+    from config.config import config
     app.config.from_object(config[config_name])
     
     # 데이터베이스 초기화

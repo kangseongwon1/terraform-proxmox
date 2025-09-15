@@ -10,7 +10,7 @@ import requests
 import json
 from typing import List, Dict, Any
 
-def load_prometheus_config(config_path: str = "/etc/prometheus/prometheus.yml") -> Dict[str, Any]:
+def load_prometheus_config(config_path: str = "prometheus.yml") -> Dict[str, Any]:
     """Prometheus 설정 파일 로드"""
     try:
         with open(config_path, 'r') as f:
@@ -22,7 +22,7 @@ def load_prometheus_config(config_path: str = "/etc/prometheus/prometheus.yml") 
         print(f"❌ YAML 파싱 오류: {e}")
         return None
 
-def save_prometheus_config(config: Dict[str, Any], config_path: str = "/etc/prometheus/prometheus.yml") -> bool:
+def save_prometheus_config(config: Dict[str, Any], config_path: str = "prometheus.yml") -> bool:
     """Prometheus 설정 파일 저장"""
     try:
         with open(config_path, 'w') as f:

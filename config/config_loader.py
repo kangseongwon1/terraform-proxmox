@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 class MonitoringConfig:
     """모니터링 시스템 설정 관리 클래스"""
     
-    def __init__(self, config_file: str = 'monitoring_config.conf'):
+    def __init__(self, config_file: str = 'config/monitoring_config.conf'):
         self.config_file = config_file
         self.config = configparser.ConfigParser()
         self.load_config()

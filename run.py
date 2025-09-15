@@ -15,9 +15,9 @@ if project_root not in sys.path:
 
 # Terraform 변수 자동 매핑
 try:
-    from config import TerraformConfig
+    from config.config import TerraformConfig
 except ImportError as e:
-    print(f"❌ config.py import 실패: {e}")
+    print(f"❌ config/config.py import 실패: {e}")
     print(f"현재 작업 디렉토리: {os.getcwd()}")
     print(f"프로젝트 루트: {project_root}")
     print(f"Python 경로: {sys.path}")

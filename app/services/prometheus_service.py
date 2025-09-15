@@ -15,11 +15,16 @@ class PrometheusService:
     """Prometheus 서비스"""
     
     def __init__(self):
-        # Windows 환경에서는 로컬 경로 사용, Linux에서는 시스템 경로 사용
-        if os.name == 'nt':  # Windows
+        # Docker 모니터링 시스템 우선, 그 다음 환경별 경로 사용
+        if os.path.exists("monitoring/prometheus.yml"):
+            self.prometheus_config_path = "monitoring/prometheus.yml"
+            self.is_docker_mode = True
+        elif os.name == 'nt':  # Windows
             self.prometheus_config_path = "prometheus.yml"
+            self.is_docker_mode = False
         else:  # Linux/Unix
             self.prometheus_config_path = "/etc/prometheus/prometheus.yml"
+            self.is_docker_mode = False
         self.node_exporter_port = 9100
         
     def update_prometheus_config(self, server_ips: List[str] = None) -> bool:
@@ -217,6 +222,17 @@ class PrometheusService:
     def _check_file_permissions(self) -> Dict[str, Any]:
         """Prometheus 설정 파일 권한 확인"""
         try:
+            # Docker 모드에서는 권한 문제 없음
+            if self.is_docker_mode:
+                return {
+                    'exists': True,
+                    'readable': True,
+                    'writable': True,
+                    'owner': 'docker',
+                    'permissions': 'docker_mode',
+                    'docker_mode': True
+                }
+            
             if not os.path.exists(self.prometheus_config_path):
                 return {
                     'exists': False,
@@ -338,6 +354,13 @@ class PrometheusService:
     def _write_config_file(self, config: Dict[str, Any]) -> bool:
         """Prometheus 설정 파일에 쓰기 (권한 문제 해결)"""
         try:
+            # Docker 모드에서는 직접 쓰기 (권한 문제 없음)
+            if self.is_docker_mode:
+                with open(self.prometheus_config_path, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                print(f"✅ Docker 모드: Prometheus 설정 파일 업데이트 완료")
+                return True
+            
             if os.name == 'nt':  # Windows
                 # Windows에서는 직접 쓰기
                 with open(self.prometheus_config_path, 'w') as f:
@@ -426,6 +449,23 @@ class PrometheusService:
         """Prometheus 서비스 재시작 (자동 리로드 우선 시도)"""
         try:
             print("🔧 Prometheus 설정 적용 중...")
+            
+            # Docker 모드에서는 컨테이너 재시작
+            if self.is_docker_mode:
+                print("🔧 Docker 모드: Prometheus 컨테이너 재시작 중...")
+                try:
+                    result = subprocess.run(
+                        ['docker-compose', '-f', 'monitoring/docker-compose.yml', 'restart', 'prometheus'],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    if result.returncode == 0:
+                        print("✅ Docker Prometheus 컨테이너 재시작 성공")
+                        return True
+                    else:
+                        print(f"⚠️ Docker Prometheus 컨테이너 재시작 실패: {result.stderr}")
+                except Exception as e:
+                    print(f"⚠️ Docker Prometheus 컨테이너 재시작 오류: {e}")
+                return True
             
             # Windows 환경에서는 서비스 재시작 스킵
             if os.name == 'nt':

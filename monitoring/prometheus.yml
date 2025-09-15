@@ -1,0 +1,31 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus 자체 모니터링
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter (호스트 시스템 모니터링)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Proxmox Manager 서버들 (동적 추가)
+  - job_name: 'proxmox-servers'
+    static_configs:
+      - targets: []
+    # 동적으로 타겟 추가/제거 가능
+
+  # Proxmox Manager 애플리케이션
+  - job_name: 'proxmox-manager'
+    static_configs:
+      - targets: ['host.docker.internal:5000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s

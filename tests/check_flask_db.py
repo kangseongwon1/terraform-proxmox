@@ -5,7 +5,7 @@ Flask 앱의 데이터베이스 설정 확인
 
 import os
 import sys
-from config import Config, DevelopmentConfig
+from config.config import Config, DevelopmentConfig
 
 def check_flask_config():
     """Flask 설정 확인"""

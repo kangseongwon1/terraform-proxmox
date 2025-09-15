@@ -1,7 +1,7 @@
 import sqlite3
 import requests
 import json
-from config import Config
+from config.config import Config
 
 def sync_vm_data():
     """Proxmox의 실제 VM 정보로 DB 동기화"""

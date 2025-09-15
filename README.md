@@ -1,6 +1,15 @@
 # 🚀 Proxmox 서버 자동 생성 시스템
 
-Flask + Terraform + Ansible을 사용한 Proxmox 기반 서버 자동 생성 및 관리 시스템입니다.
+Flask + Terraform + Ansible + Docker을 사용한 Proxmox 기반 서버 자동 생성 및 관리 시스템입니다.
+
+## 🎯 주요 기능
+
+- **서버 자동 생성**: Terraform으로 Proxmox VM 자동 생성
+- **소프트웨어 자동 설치**: Ansible로 역할별 소프트웨어 자동 설치
+- **Docker 모니터링**: Prometheus + Grafana를 Docker로 간편 관리
+- **웹 UI**: 직관적인 웹 인터페이스로 서버 관리
+- **권한 관리**: 역할 기반 접근 제어 (RBAC)
+- **실시간 알림**: 서버 생성/삭제 상태 실시간 업데이트
 
 ## 📁 프로젝트 구조
 
@@ -715,6 +724,41 @@ dynamic "network_device" {
 ```
 
 ## 📊 모니터링 및 관리
+
+### Docker 모니터링 시스템 (권장)
+
+**Prometheus + Grafana를 Docker로 간편하게 관리:**
+
+```bash
+# 모니터링 시스템 시작
+cd monitoring
+./start-monitoring.sh
+
+# 또는 직접 Docker Compose 사용
+docker-compose up -d
+
+# 상태 확인
+docker-compose ps
+
+# 로그 확인
+docker-compose logs
+
+# 중지
+docker-compose down
+
+# 재시작
+docker-compose restart
+```
+
+**접속 정보:**
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (admin/admin123)
+
+**장점:**
+- ✅ **권한 문제 해결**: Docker 컨테이너에서 독립 실행
+- ✅ **간편한 관리**: docker-compose로 통합 관리
+- ✅ **자동 프로비저닝**: Grafana 데이터소스/대시보드 자동 설정
+- ✅ **버전 관리**: 컨테이너 이미지로 일관된 환경
 
 ### 웹 UI 기능
 - **실시간 서버 상태**: CPU, 메모리, IP 정보 표시

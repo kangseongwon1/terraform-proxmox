@@ -618,7 +618,7 @@ class AnsibleService:
             
             # update_prometheus_targets.py 스크립트 실행
             result = subprocess.run([
-                'python3', 'update_prometheus_targets.py', 'add', server_ip, '9100'
+                'python3', 'monitoring/update_prometheus_targets.py', 'add', server_ip, '9100'
             ], capture_output=True, text=True, timeout=30)
             
             if result.returncode == 0:
