@@ -7,7 +7,7 @@ services:
     ports:
       - "8200:8200"
     volumes:
-      - ./vault-dev.hcl:/vault/config/vault.hcl:ro
+      - ./config/vault-dev.hcl:/vault/config/vault.hcl:ro
       - vault-data:/vault/data  # Vault 데이터 영구 저장
     cap_add:
       - IPC_LOCK

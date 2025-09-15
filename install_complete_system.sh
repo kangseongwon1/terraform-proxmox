@@ -55,13 +55,12 @@ pre_validation() {
     
     # 필수 파일 확인
     REQUIRED_FILES=(
-        "env_template.txt"
         "requirements.txt"
-        "vault.sh"
+        "scripts/vault.sh"
         "docker-compose.vault.yml"
-        "vault-dev.hcl"
-        "create_tables.py"
-        "update_prometheus_targets.py"
+        "config/vault-dev.hcl"
+        "scripts/create_tables.py"
+        "monitoring/update_prometheus_targets.py"
     )
     
     MISSING_FILES=()
@@ -915,7 +914,28 @@ setup_environment() {
     # .env 파일 확인
     if [ ! -f ".env" ]; then
         log_info ".env 파일 생성 중..."
-        cp env_template.txt .env
+        # .env 파일이 없으면 기본 템플릿 생성
+        cat > .env << 'EOF'
+# Proxmox Manager 환경 변수 설정
+# 이 파일을 편집하여 실제 값으로 변경하세요
+
+# Proxmox 설정
+PROXMOX_ENDPOINT=https://your-proxmox-server:8006
+PROXMOX_USERNAME=your-username
+PROXMOX_PASSWORD=your-password
+PROXMOX_NODE=your-node-name
+
+# Vault 설정
+VAULT_ADDR=http://localhost:8200
+VAULT_TOKEN=your-vault-token
+
+# 데이터베이스 설정
+DATABASE_URL=sqlite:///instance/proxmox_manager.db
+
+# Flask 설정
+FLASK_ENV=development
+SECRET_KEY=your-secret-key-here
+EOF
         
         log_warning "⚠️  .env 파일을 생성했습니다. 필수 정보를 입력해주세요:"
         echo ""
