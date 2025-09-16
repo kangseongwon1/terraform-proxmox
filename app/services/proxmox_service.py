@@ -6,6 +6,7 @@ import logging
 import sqlite3
 import json
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
 from flask import current_app
@@ -1258,8 +1259,13 @@ class ProxmoxService:
                     success_count += 1
                     continue
                 
-                # Firewall 설정 추가
-                new_value = current_value + ',firewall=1'
+                # Firewall 설정 추가 (기존 firewall 설정이 있으면 교체)
+                if 'firewall=' in current_value:
+                    # 기존 firewall 설정을 1로 교체
+                    new_value = re.sub(r'firewall=\d+', 'firewall=1', current_value)
+                else:
+                    # firewall 설정이 없으면 추가
+                    new_value = current_value + ',firewall=1'
                 print(f"🔧 {device} Firewall 설정 변경: {current_value} → {new_value}")
                 
                 # VM 설정 업데이트
@@ -1489,9 +1495,11 @@ class ProxmoxService:
                 current_value = vm_config[device]
                 
                 # Firewall 설정이 있는지 확인
-                if 'firewall=1' in current_value:
-                    # Firewall 설정 제거
-                    new_value = current_value.replace(',firewall=1', '').replace('firewall=1,', '').replace('firewall=1', '')
+                if 'firewall=' in current_value:
+                    # Firewall 설정 제거 (정규식 사용)
+                    new_value = re.sub(r',?firewall=\d+', '', current_value)
+                    # 시작이나 끝에 남은 쉼표 정리
+                    new_value = re.sub(r'^,|,$', '', new_value)
                     print(f"🔧 {device} Firewall 설정 제거: {current_value} → {new_value}")
                     
                     # VM 설정 업데이트
