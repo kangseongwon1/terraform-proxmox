@@ -8,3 +8,11 @@ datasources:
     uid: prometheus
     isDefault: true
     editable: true
+    jsonData:
+      httpMethod: GET
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 2.40.0
+      cacheLevel: 'High'
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: 10m
