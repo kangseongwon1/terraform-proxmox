@@ -443,7 +443,7 @@ set_environment() {
         # 토큰 업데이트
         sed -i "s/\"vault_token\": \".*\"/\"vault_token\": \"$ROOT_TOKEN\"/" terraform.tfvars.json
         
-        cd scripts
+        cd ../scripts
         log_success "terraform.tfvars.json 업데이트 완료"
     fi
     

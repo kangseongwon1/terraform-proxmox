@@ -1205,10 +1205,10 @@ if [ $? -eq 0 ]; then
     UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
     
     # 토큰과 Unseal 키를 파일에 저장
-    echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-    echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-    chmod 600 /data/terraform-proxmox/vault_token.txt
-    chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+    echo "$VAULT_TOKEN" > vault_token.txt
+    echo "$UNSEAL_KEY" > vault_unseal_keys.txt
+    chmod 600 vault_token.txt
+    chmod 600 vault_unseal_keys.txt
     
     echo "✅ Vault 초기화 완료 및 키 저장"
     
@@ -1217,9 +1217,9 @@ if [ $? -eq 0 ]; then
     export TF_VAR_vault_token="$VAULT_TOKEN"
     
     # .env 파일에 토큰 업데이트
-    if [ -f "/data/terraform-proxmox/.env" ]; then
-        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" /data/terraform-proxmox/.env
-        sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+    if [ -f ".env" ]; then
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" .env
+        sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
         echo "✅ .env 파일에 토큰 업데이트 완료"
     fi
     
@@ -1247,8 +1247,8 @@ if [ $? -eq 0 ]; then
     echo "  VM Password (Base64): $VM_PASSWORD_B64"
     echo ""
     echo "📁 저장된 파일:"
-    echo "  /data/terraform-proxmox/vault_token.txt"
-    echo "  /data/terraform-proxmox/vault_unseal_keys.txt"
+    echo "  vault_token.txt"
+    echo "  vault_unseal_keys.txt"
     echo ""
     echo "⚠️  중요: 이 정보들을 안전한 곳에 보관하세요!"
     echo ""
@@ -1813,9 +1813,9 @@ start_services() {
                 log_info "Vault가 sealed 상태입니다. Unseal을 진행합니다..."
                 
                 # Unseal 키 파일 확인
-                if [ -f "/data/terraform-proxmox/vault_unseal_keys.txt" ]; then
+                if [ -f "vault_unseal_keys.txt" ]; then
                     log_info "저장된 Unseal 키를 사용합니다..."
-                    UNSEAL_KEY=$(cat /data/terraform-proxmox/vault_unseal_keys.txt)
+                    UNSEAL_KEY=$(cat vault_unseal_keys.txt)
                     
                     # Vault Unseal 실행
                     if docker exec vault-dev vault operator unseal "$UNSEAL_KEY" 2>/dev/null; then
@@ -1823,14 +1823,14 @@ start_services() {
                     else
                         log_error "Vault Unseal 실패"
                     fi
-                elif [ -f "/data/terraform-proxmox/vault_init.txt" ]; then
+                elif [ -f "vault_init.txt" ]; then
                     log_info "vault_init.txt에서 Unseal 키를 추출합니다..."
-                    UNSEAL_KEY=$(grep "Unseal Key 1:" /data/terraform-proxmox/vault_init.txt | awk '{print $4}')
+                    UNSEAL_KEY=$(grep "Unseal Key 1:" vault_init.txt | awk '{print $4}')
                     
                     if [ -n "$UNSEAL_KEY" ]; then
                         # Unseal 키를 별도 파일에 저장
-                        echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-                        chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+                        echo "$UNSEAL_KEY" > vault_unseal_keys.txt
+                        chmod 600 vault_unseal_keys.txt
                         log_success "Unseal 키를 vault_unseal_keys.txt에 저장했습니다."
                         
                         # Vault Unseal 실행
@@ -1871,10 +1871,10 @@ start_services() {
                         UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
                         
                         # 토큰과 Unseal 키를 파일에 저장
-                        echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-                        echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-                        chmod 600 /data/terraform-proxmox/vault_token.txt
-                        chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+                        echo "$VAULT_TOKEN" > vault_token.txt
+                        echo "$UNSEAL_KEY" > vault_unseal_keys.txt
+                        chmod 600 vault_token.txt
+                        chmod 600 vault_unseal_keys.txt
                         
                         log_success "Vault 재초기화 완료 및 키 저장"
                         
@@ -1922,8 +1922,8 @@ start_services() {
             fi
             
             # 토큰 복원
-            if [ -f "/data/terraform-proxmox/vault_token.txt" ]; then
-                VAULT_TOKEN=$(cat /data/terraform-proxmox/vault_token.txt)
+            if [ -f "vault_token.txt" ]; then
+                VAULT_TOKEN=$(cat vault_token.txt)
                 export VAULT_TOKEN="$VAULT_TOKEN"
                 export TF_VAR_vault_token="$VAULT_TOKEN"
                 
@@ -1933,14 +1933,14 @@ start_services() {
                     sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
                     log_success "Vault 토큰이 .env 파일에 업데이트되었습니다."
                 fi
-            elif [ -f "/data/terraform-proxmox/vault_init.txt" ]; then
+            elif [ -f "vault_init.txt" ]; then
                 log_info "vault_init.txt에서 Vault 토큰을 추출합니다..."
-                VAULT_TOKEN=$(grep "Initial Root Token:" /data/terraform-proxmox/vault_init.txt | awk '{print $4}')
+                VAULT_TOKEN=$(grep "Initial Root Token:" vault_init.txt | awk '{print $4}')
                 
                 if [ -n "$VAULT_TOKEN" ]; then
                     # 토큰을 별도 파일에 저장
-                    echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-                    chmod 600 /data/terraform-proxmox/vault_token.txt
+                    echo "$VAULT_TOKEN" > vault_token.txt
+                    chmod 600 vault_token.txt
                     log_success "Vault 토큰을 vault_token.txt에 저장했습니다."
                     
                     export VAULT_TOKEN="$VAULT_TOKEN"
@@ -2007,10 +2007,10 @@ start_services() {
                 UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
                 
                 # 토큰과 Unseal 키를 파일에 저장
-                echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-                echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-                chmod 600 /data/terraform-proxmox/vault_token.txt
-                chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+                echo "$VAULT_TOKEN" > vault_token.txt
+                echo "$UNSEAL_KEY" > vault_unseal_keys.txt
+                chmod 600 vault_token.txt
+                chmod 600 vault_unseal_keys.txt
                 
                 log_success "Vault 초기화 완료 및 키 저장"
                 
@@ -2330,7 +2330,7 @@ EOF
     # 가상환경 활성화 및 패키지 설치를 위한 스크립트 생성
     cat > fix_venv.sh << 'EOF'
 #!/bin/bash
-cd /data/terraform-proxmox
+# 현재 디렉토리에서 실행
 
 # 가상환경 활성화
 source venv/bin/activate
@@ -2426,7 +2426,7 @@ EOF
         # 자동 수정 스크립트 실행
         cat > auto_fix_venv.sh << 'EOF'
 #!/bin/bash
-cd /data/terraform-proxmox
+# 현재 디렉토리에서 실행
 source venv/bin/activate
 pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests
 deactivate
@@ -2488,7 +2488,7 @@ EOF
 # Proxmox Manager 자동 복구 스크립트
 # 사용법: sudo systemctl start proxmox-manager (자동으로 이 스크립트가 실행됨)
 
-cd /data/terraform-proxmox
+# 현재 디렉토리에서 실행
 
 echo "🔧 Proxmox Manager 자동 복구 시작..."
 
@@ -2503,9 +2503,9 @@ if docker ps | grep -q vault-dev; then
         echo "⚠️ Vault가 sealed 상태입니다. Unseal을 진행합니다..."
         
         # Unseal 키 파일 확인
-        if [ -f "/data/terraform-proxmox/vault_unseal_keys.txt" ]; then
+        if [ -f "vault_unseal_keys.txt" ]; then
             echo "📋 저장된 Unseal 키를 사용합니다..."
-            UNSEAL_KEY=$(cat /data/terraform-proxmox/vault_unseal_keys.txt)
+            UNSEAL_KEY=$(cat vault_unseal_keys.txt)
             
             # Vault Unseal 실행
             if docker exec vault-dev vault operator unseal "$UNSEAL_KEY" 2>/dev/null; then
@@ -2513,14 +2513,14 @@ if docker ps | grep -q vault-dev; then
             else
                 echo "❌ Vault Unseal 실패"
             fi
-        elif [ -f "/data/terraform-proxmox/vault_init.txt" ]; then
+        elif [ -f "vault_init.txt" ]; then
             echo "📋 vault_init.txt에서 Unseal 키를 추출합니다..."
-            UNSEAL_KEY=$(grep "Unseal Key 1:" /data/terraform-proxmox/vault_init.txt | awk '{print $4}')
+            UNSEAL_KEY=$(grep "Unseal Key 1:" vault_init.txt | awk '{print $4}')
             
             if [ -n "$UNSEAL_KEY" ]; then
                 # Unseal 키를 별도 파일에 저장
-                echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-                chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+                echo "$UNSEAL_KEY" > vault_unseal_keys.txt
+                chmod 600 vault_unseal_keys.txt
                 echo "✅ Unseal 키를 vault_unseal_keys.txt에 저장했습니다."
                 
                 # Vault Unseal 실행
@@ -2534,43 +2534,43 @@ if docker ps | grep -q vault-dev; then
             fi
         else
             echo "❌ Unseal 키 파일이 없습니다:"
-            echo "  - /data/terraform-proxmox/vault_unseal_keys.txt"
-            echo "  - /data/terraform-proxmox/vault_init.txt"
+            echo "  - vault_unseal_keys.txt"
+            echo "  - vault_init.txt"
         fi
     else
         echo "✅ Vault가 이미 unsealed 상태입니다."
     fi
     
     # 토큰 복원
-    if [ -f "/data/terraform-proxmox/vault_token.txt" ]; then
-        VAULT_TOKEN=$(cat /data/terraform-proxmox/vault_token.txt)
+    if [ -f "vault_token.txt" ]; then
+        VAULT_TOKEN=$(cat vault_token.txt)
         export VAULT_TOKEN="$VAULT_TOKEN"
         export TF_VAR_vault_token="$VAULT_TOKEN"
         
         # .env 파일에 토큰 업데이트
-        if [ -f "/data/terraform-proxmox/.env" ]; then
-            sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" /data/terraform-proxmox/.env
-            sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+        if [ -f ".env" ]; then
+            sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" .env
+            sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
         fi
         
         echo "✅ Vault 토큰 복원 완료"
-    elif [ -f "/data/terraform-proxmox/vault_init.txt" ]; then
+    elif [ -f "vault_init.txt" ]; then
         echo "📋 vault_init.txt에서 Vault 토큰을 추출합니다..."
-        VAULT_TOKEN=$(grep "Initial Root Token:" /data/terraform-proxmox/vault_init.txt | awk '{print $4}')
+        VAULT_TOKEN=$(grep "Initial Root Token:" vault_init.txt | awk '{print $4}')
         
         if [ -n "$VAULT_TOKEN" ]; then
             # 토큰을 별도 파일에 저장
-            echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-            chmod 600 /data/terraform-proxmox/vault_token.txt
+            echo "$VAULT_TOKEN" > vault_token.txt
+            chmod 600 vault_token.txt
             echo "✅ Vault 토큰을 vault_token.txt에 저장했습니다."
             
             export VAULT_TOKEN="$VAULT_TOKEN"
             export TF_VAR_vault_token="$VAULT_TOKEN"
             
             # .env 파일에 토큰 업데이트
-            if [ -f "/data/terraform-proxmox/.env" ]; then
-                sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" /data/terraform-proxmox/.env
-                sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+            if [ -f ".env" ]; then
+                sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" .env
+                sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" .env
             fi
             
             echo "✅ Vault 토큰 복원 완료"
@@ -2579,19 +2579,19 @@ if docker ps | grep -q vault-dev; then
         fi
     else
         echo "⚠️ 저장된 Vault 토큰이 없습니다:"
-        echo "  - /data/terraform-proxmox/vault_token.txt"
-        echo "  - /data/terraform-proxmox/vault_init.txt"
+        echo "  - vault_token.txt"
+        echo "  - vault_init.txt"
     fi
 else
     echo "⚠️ Vault 컨테이너가 실행되지 않았습니다."
 fi
 
 # 가상환경 패키지 문제 해결
-if ! /data/terraform-proxmox/venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
+if ! ./venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
     echo "⚠️  가상환경 패키지 문제 감지. 자동 수정 중..."
     
     # 가상환경 활성화 및 패키지 재설치
-    source /data/terraform-proxmox/venv/bin/activate
+    source ./venv/bin/activate
     pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests paramiko
     deactivate
     
@@ -2600,12 +2600,12 @@ fi
 
 # config.py import 문제 해결
 echo "🔍 config.py import 테스트 중..."
-if ! /data/terraform-proxmox/venv/bin/python -c "import sys; sys.path.insert(0, '/data/terraform-proxmox'); from config import TerraformConfig" 2>/dev/null; then
+if ! ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config import TerraformConfig" 2>/dev/null; then
     echo "⚠️  config.py import 문제 감지. 자동 수정 중..."
     
     # config.py 파일 자동 생성
     echo "📝 config.py 파일 자동 생성 중..."
-    cat > /data/terraform-proxmox/config/config.py << 'PYEOF'
+    cat > config/config.py << 'PYEOF'
 import os
 from datetime import timedelta
 
@@ -2774,7 +2774,7 @@ PYEOF
     echo "✅ config.py 파일 생성 완료"
     
     # 다시 import 테스트
-    if /data/terraform-proxmox/venv/bin/python -c "import sys; sys.path.insert(0, '/data/terraform-proxmox'); from config import TerraformConfig" 2>/dev/null; then
+    if ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config import TerraformConfig" 2>/dev/null; then
         echo "✅ config.py import 문제 해결 완료"
     else
         echo "❌ config.py import 문제 해결 실패"

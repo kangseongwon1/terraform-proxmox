@@ -62,10 +62,10 @@ if [ $? -eq 0 ]; then
     UNSEAL_KEY=$(echo "$VAULT_INIT_OUTPUT" | grep "Unseal Key 1:" | awk '{print $4}')
     
     # 토큰과 Unseal 키를 파일에 저장
-    echo "$VAULT_TOKEN" > /data/terraform-proxmox/vault_token.txt
-    echo "$UNSEAL_KEY" > /data/terraform-proxmox/vault_unseal_keys.txt
-    chmod 600 /data/terraform-proxmox/vault_token.txt
-    chmod 600 /data/terraform-proxmox/vault_unseal_keys.txt
+    echo "$VAULT_TOKEN" > ../vault_token.txt
+    echo "$UNSEAL_KEY" > ../vault_unseal_keys.txt
+    chmod 600 ../vault_token.txt
+    chmod 600 ../vault_unseal_keys.txt
     
     echo "✅ Vault 초기화 완료 및 키 저장"
     
@@ -74,9 +74,9 @@ if [ $? -eq 0 ]; then
     export TF_VAR_vault_token="$VAULT_TOKEN"
     
     # .env 파일에 토큰 업데이트
-    if [ -f "/data/terraform-proxmox/.env" ]; then
-        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" /data/terraform-proxmox/.env
-        sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" /data/terraform-proxmox/.env
+    if [ -f "../.env" ]; then
+        sed -i "s|VAULT_TOKEN=.*|VAULT_TOKEN=$VAULT_TOKEN|" ../.env
+        sed -i "s|TF_VAR_vault_token=.*|TF_VAR_vault_token=$VAULT_TOKEN|" ../.env
         echo "✅ .env 파일에 토큰 업데이트 완료"
     fi
     
@@ -104,8 +104,8 @@ if [ $? -eq 0 ]; then
     echo "  VM Password (Base64): $VM_PASSWORD_B64"
     echo ""
     echo "📁 저장된 파일:"
-    echo "  /data/terraform-proxmox/vault_token.txt"
-    echo "  /data/terraform-proxmox/vault_unseal_keys.txt"
+    echo "  ../vault_token.txt"
+    echo "  ../vault_unseal_keys.txt"
     echo ""
     echo "⚠️  중요: 이 정보들을 안전한 곳에 보관하세요!"
     echo ""
