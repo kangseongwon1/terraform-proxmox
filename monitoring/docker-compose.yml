@@ -44,6 +44,8 @@ services:
     networks:
       - monitoring
     user: "472:472"  # grafana:grafana (권한 문제 해결)
+    depends_on:
+      - prometheus
 
   node-exporter:
     image: prom/node-exporter:latest
