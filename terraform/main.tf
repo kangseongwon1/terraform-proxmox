@@ -7,6 +7,10 @@ data "vault_generic_secret" "vm" {
   path = "secret/vm"
 }
 
+data "vault_generic_secret" "ssh" {
+  path = "secret/ssh"
+}
+
 module "server" {
   source = "./modules/server"
   for_each = var.servers
@@ -26,5 +30,5 @@ module "server" {
   proxmox_node      = var.proxmox_node
   vm_username       = each.value.vm_username != null ? each.value.vm_username : data.vault_generic_secret.vm.data["username"]
   vm_password       = each.value.vm_password != null ? each.value.vm_password : data.vault_generic_secret.vm.data["password"]
-  ssh_keys          = [var.ssh_keys]
+  ssh_keys          = [data.vault_generic_secret.ssh.data["public_key"]]
 }

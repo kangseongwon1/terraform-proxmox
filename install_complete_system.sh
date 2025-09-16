@@ -911,8 +911,8 @@ install_ansible() {
 setup_environment() {
     log_step "8. 환경변수 파일 설정 및 검증 중..."
     
-    # SSH 공개키 경로 설정
-    log_info "SSH 공개키 경로 설정 중..."
+    # SSH 공개키를 Vault에 저장
+    log_info "SSH 공개키를 Vault에 저장 중..."
     SSH_PUBLIC_KEY_PATH=""
     
     # SSH 공개키 파일 찾기 (여러 가능한 위치 확인)
@@ -932,9 +932,14 @@ setup_environment() {
         log_success "SSH 키 생성 완료: $SSH_PUBLIC_KEY_PATH"
     fi
     
-    # SSH 공개키 내용을 환경변수로 설정
-    export SSH_PUBLIC_KEY_PATH
-    export SSH_PUBLIC_KEY_CONTENT=$(cat "$SSH_PUBLIC_KEY_PATH")
+    # SSH 공개키 내용을 Vault에 저장
+    SSH_PUBLIC_KEY_CONTENT=$(cat "$SSH_PUBLIC_KEY_PATH")
+    if command -v vault >/dev/null 2>&1; then
+        vault kv put secret/ssh public_key="$SSH_PUBLIC_KEY_CONTENT" key_path="$SSH_PUBLIC_KEY_PATH"
+        log_success "SSH 공개키를 Vault에 저장 완료"
+    else
+        log_warning "Vault CLI가 설치되지 않았습니다. 나중에 수동으로 저장하세요"
+    fi
     
     # .env 파일 확인
     if [ ! -f ".env" ]; then
@@ -950,9 +955,7 @@ PROXMOX_USERNAME=your-username
 PROXMOX_PASSWORD=your-password
 PROXMOX_NODE=your-node-name
 
-# SSH 설정
-SSH_PUBLIC_KEY_PATH=$SSH_PUBLIC_KEY_PATH
-SSH_PUBLIC_KEY_CONTENT=$SSH_PUBLIC_KEY_CONTENT
+# SSH 설정은 Vault에서 관리됩니다
 
 # Vault 설정
 VAULT_ADDR=http://localhost:8200

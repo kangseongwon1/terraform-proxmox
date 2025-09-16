@@ -47,7 +47,7 @@ resource "proxmox_virtual_environment_vm" "this" {
     user_account {
       username = var.vm_username
       password = var.vm_password
-      keys     = [for key in var.ssh_keys : can(file(key)) ? file(key) : key]
+      keys     = var.ssh_keys
     }
     
     # 각 네트워크 디바이스별로 ip/subnet/gateway 적용
