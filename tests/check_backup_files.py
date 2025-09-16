@@ -1,6 +1,16 @@
 import requests
 import json
-from config.config import Config
+try:
+    from config.config import Config
+except ImportError:
+    # 대안 방법으로 config 로드
+    import importlib.util
+    import os
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+    spec = importlib.util.spec_from_file_location("config", config_path)
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    Config = config_module.Config
 
 def check_backup_files():
     """실제 백업 파일명 확인"""

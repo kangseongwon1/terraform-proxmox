@@ -53,7 +53,18 @@ def create_app(config_name='development'):
     load_vault_environment()
     
     # 설정 로드
-    from config.config import config
+    try:
+        from config.config import config
+    except ImportError:
+        # 대안 방법으로 config 로드
+        import importlib.util
+        import os
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+        spec = importlib.util.spec_from_file_location("config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+        config = config_module.config
+    
     app.config.from_object(config[config_name])
     
     # 데이터베이스 초기화

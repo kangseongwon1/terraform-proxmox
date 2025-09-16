@@ -1,7 +1,17 @@
 import sqlite3
 import requests
 import json
-from config.config import Config
+try:
+    from config.config import Config
+except ImportError:
+    # 대안 방법으로 config 로드
+    import importlib.util
+    import os
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+    spec = importlib.util.spec_from_file_location("config", config_path)
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    Config = config_module.Config
 
 def sync_vm_data():
     """Proxmox의 실제 VM 정보로 DB 동기화"""

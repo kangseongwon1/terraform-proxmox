@@ -15,13 +15,30 @@ if project_root not in sys.path:
 
 # Terraform 변수 자동 매핑
 try:
-    from config.config import TerraformConfig
+    # config 디렉토리를 Python 경로에 추가
+    config_dir = os.path.join(project_root, 'config')
+    if config_dir not in sys.path:
+        sys.path.insert(0, config_dir)
+    
+    from config import TerraformConfig
 except ImportError as e:
     print(f"❌ config/config.py import 실패: {e}")
     print(f"현재 작업 디렉토리: {os.getcwd()}")
     print(f"프로젝트 루트: {project_root}")
     print(f"Python 경로: {sys.path}")
-    sys.exit(1)
+    
+    # 대안 방법 시도
+    try:
+        import importlib.util
+        config_path = os.path.join(project_root, 'config', 'config.py')
+        spec = importlib.util.spec_from_file_location("config", config_path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+        TerraformConfig = config_module.TerraformConfig
+        print("✅ 대안 방법으로 config.py 로드 성공")
+    except Exception as e2:
+        print(f"❌ 대안 방법도 실패: {e2}")
+        sys.exit(1)
 TerraformConfig.setup_terraform_vars()
 
 # Terraform 변수 검증

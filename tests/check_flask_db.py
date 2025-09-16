@@ -5,7 +5,17 @@ Flask 앱의 데이터베이스 설정 확인
 
 import os
 import sys
-from config.config import Config, DevelopmentConfig
+try:
+    from config.config import Config
+except ImportError:
+    # 대안 방법으로 config 로드
+    import importlib.util
+    import os
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+    spec = importlib.util.spec_from_file_location("config", config_path)
+    config_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config_module)
+    Config = config_module.Config, DevelopmentConfig
 
 def check_flask_config():
     """Flask 설정 확인"""
