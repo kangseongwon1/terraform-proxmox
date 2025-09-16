@@ -149,8 +149,8 @@ cleanup_vault() {
     log_info "3. 기존 Vault 컨테이너 정리 중..."
     
     # Docker Compose로 실행 중인 Vault 중지
-    if [ -f "../docker-compose.vault.yaml" ]; then
-        docker-compose -f ../docker-compose.vault.yaml down 2>/dev/null || true
+    if [ -f "docker-compose.vault.yaml" ]; then
+        docker-compose -f docker-compose.vault.yaml down 2>/dev/null || true
     elif [ -f "docker-compose.vault.yaml" ]; then
         docker-compose -f docker-compose.vault.yaml down 2>/dev/null || true
     fi
@@ -170,11 +170,11 @@ start_vault() {
     log_info "4. Vault Docker Compose 실행 중..."
     
     # Vault 데이터 디렉토리 생성
-    mkdir -p ../vault-data
+    mkdir -p vault-data
     
     # Docker Compose로 Vault 실행
-    if [ -f "../docker-compose.vault.yaml" ]; then
-        docker-compose -f ../docker-compose.vault.yaml up -d
+    if [ -f "docker-compose.vault.yaml" ]; then
+        docker-compose -f docker-compose.vault.yaml up -d
     else
         docker-compose -f docker-compose.vault.yaml up -d
     fi
@@ -294,8 +294,8 @@ configure_vault() {
     
     # .env 파일 경로 확인 (상위 디렉토리 우선)
     ENV_FILE=""
-    if [ -f "../.env" ]; then
-        ENV_FILE="../.env"
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
     elif [ -f ".env" ]; then
         ENV_FILE=".env"
     fi
@@ -414,8 +414,8 @@ set_environment() {
     
     # .env 파일 경로 확인 (상위 디렉토리 우선)
     ENV_FILE=""
-    if [ -f "../.env" ]; then
-        ENV_FILE="../.env"
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
     elif [ -f ".env" ]; then
         ENV_FILE=".env"
     fi
@@ -433,9 +433,9 @@ set_environment() {
     setup_bashrc_environment
     
     # terraform.tfvars.json 업데이트
-    if [ -f "../terraform/terraform.tfvars.json" ]; then
+    if [ -f "terraform/terraform.tfvars.json" ]; then
         log_info "terraform.tfvars.json 업데이트 중..."
-        cd ../terraform
+        cd terraform
         
         # 기존 파일 백업
         cp terraform.tfvars.json terraform.tfvars.json.backup 2>/dev/null || true
@@ -443,7 +443,7 @@ set_environment() {
         # 토큰 업데이트
         sed -i "s/\"vault_token\": \".*\"/\"vault_token\": \"$ROOT_TOKEN\"/" terraform.tfvars.json
         
-        cd ../scripts
+        cd scripts
         log_success "terraform.tfvars.json 업데이트 완료"
     fi
     
@@ -460,14 +460,14 @@ test_terraform() {
     log_info "8. Terraform 테스트 중..."
     
     # terraform 디렉토리 존재 확인
-    if [ ! -d "../terraform" ]; then
+    if [ ! -d "terraform" ]; then
         log_error "terraform 디렉토리가 존재하지 않습니다!"
         log_info "terraform 디렉토리를 생성하고 기본 파일들을 복원하세요."
         log_info "또는 install_complete_system.sh를 다시 실행하여 전체 시스템을 재설치하세요."
         exit 1
     fi
     
-    cd ../terraform
+    cd terraform
     
     # Terraform 초기화
     log_info "Terraform 초기화 중..."
@@ -485,8 +485,8 @@ test_terraform() {
     
     # .env 파일 경로 확인 (상위 디렉토리 우선)
     ENV_FILE=""
-    if [ -f "../.env" ]; then
-        ENV_FILE="../.env"
+    if [ -f ".env" ]; then
+        ENV_FILE=".env"
     elif [ -f ".env" ]; then
         ENV_FILE=".env"
     fi
@@ -601,9 +601,9 @@ show_completion() {
     echo ""
     
     log_info "📁 중요 파일:"
-    echo "  - ../vault_init.txt: 초기화 정보 (안전하게 보관하세요)"
-    echo "  - ../config/vault-dev.hcl: Vault 설정 파일"
-    echo "  - ../docker-compose.vault.yaml: Docker Compose 설정"
+    echo "  - vault_init.txt: 초기화 정보 (안전하게 보관하세요)"
+    echo "  - config/vault-dev.hcl: Vault 설정 파일"
+    echo "  - docker-compose.vault.yaml: Docker Compose 설정"
     echo ""
     
     log_info "🔄 Terraform 사용:"
