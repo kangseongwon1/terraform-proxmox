@@ -58,16 +58,8 @@ resource "proxmox_virtual_environment_vm" "this" {
           gateway = ip_config.value.gateway
         }
       }
-    }
+    }    
     
-    # Cloud-init user data (공통 설정 적용)
-    user_data = base64encode(templatefile("${path.module}/cloud-init-user-data.yml", {
-      vm_username = var.vm_username
-      vm_password = var.vm_password
-      vm_name     = var.name
-      vm_role     = var.role
-      ssh_public_key = length(var.ssh_keys) > 0 ? (can(file(var.ssh_keys[0])) ? file(var.ssh_keys[0]) : var.ssh_keys[0]) : ""
-    }))
   }
 
   operating_system {
