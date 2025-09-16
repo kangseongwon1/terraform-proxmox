@@ -911,11 +911,36 @@ install_ansible() {
 setup_environment() {
     log_step "8. 환경변수 파일 설정 및 검증 중..."
     
+    # SSH 공개키 경로 설정
+    log_info "SSH 공개키 경로 설정 중..."
+    SSH_PUBLIC_KEY_PATH=""
+    
+    # SSH 공개키 파일 찾기 (여러 가능한 위치 확인)
+    for ssh_path in "$HOME/.ssh/id_rsa.pub" "$HOME/.ssh/id_ed25519.pub" "/root/.ssh/id_rsa.pub" "/root/.ssh/id_ed25519.pub"; do
+        if [ -f "$ssh_path" ]; then
+            SSH_PUBLIC_KEY_PATH="$ssh_path"
+            log_success "SSH 공개키 발견: $SSH_PUBLIC_KEY_PATH"
+            break
+        fi
+    done
+    
+    if [ -z "$SSH_PUBLIC_KEY_PATH" ]; then
+        log_warning "SSH 공개키를 찾을 수 없습니다. SSH 키를 생성합니다..."
+        mkdir -p "$HOME/.ssh"
+        ssh-keygen -t rsa -b 4096 -f "$HOME/.ssh/id_rsa" -N "" -C "$(whoami)@$(hostname)"
+        SSH_PUBLIC_KEY_PATH="$HOME/.ssh/id_rsa.pub"
+        log_success "SSH 키 생성 완료: $SSH_PUBLIC_KEY_PATH"
+    fi
+    
+    # SSH 공개키 내용을 환경변수로 설정
+    export SSH_PUBLIC_KEY_PATH
+    export SSH_PUBLIC_KEY_CONTENT=$(cat "$SSH_PUBLIC_KEY_PATH")
+    
     # .env 파일 확인
     if [ ! -f ".env" ]; then
         log_info ".env 파일 생성 중..."
         # .env 파일이 없으면 기본 템플릿 생성
-        cat > .env << 'EOF'
+        cat > .env << EOF
 # Proxmox Manager 환경 변수 설정
 # 이 파일을 편집하여 실제 값으로 변경하세요
 
@@ -924,6 +949,10 @@ PROXMOX_ENDPOINT=https://your-proxmox-server:8006
 PROXMOX_USERNAME=your-username
 PROXMOX_PASSWORD=your-password
 PROXMOX_NODE=your-node-name
+
+# SSH 설정
+SSH_PUBLIC_KEY_PATH=$SSH_PUBLIC_KEY_PATH
+SSH_PUBLIC_KEY_CONTENT=$SSH_PUBLIC_KEY_CONTENT
 
 # Vault 설정
 VAULT_ADDR=http://localhost:8200
