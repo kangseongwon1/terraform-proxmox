@@ -54,7 +54,7 @@ class PrometheusService:
                     {
                         'job_name': 'prometheus',
                         'static_configs': [
-                            {'targets': ['localhost:9090']}
+                            {'targets': ['prometheus:9090' if self.is_docker_mode else 'localhost:9090']}
                         ]
                     }
                 ]
@@ -109,7 +109,7 @@ class PrometheusService:
                         {
                             'job_name': 'prometheus',
                             'static_configs': [
-                                {'targets': ['localhost:9090']}
+                                {'targets': ['prometheus:9090' if self.is_docker_mode else 'localhost:9090']}
                             ]
                         }
                     ]
@@ -454,15 +454,28 @@ class PrometheusService:
             if self.is_docker_mode:
                 print("🔧 Docker 모드: Prometheus 컨테이너 재시작 중...")
                 try:
+                    # 현재 디렉토리에서 monitoring 디렉토리로 이동하여 실행
                     result = subprocess.run(
-                        ['docker-compose', '-f', 'monitoring/docker-compose.yml', 'restart', 'prometheus'],
+                        ['docker-compose', 'restart', 'prometheus'],
+                        cwd='monitoring',
                         capture_output=True, text=True, timeout=30
                     )
                     if result.returncode == 0:
                         print("✅ Docker Prometheus 컨테이너 재시작 성공")
                         return True
                     else:
-                        print(f"⚠️ Docker Prometheus 컨테이너 재시작 실패: {result.stderr}")
+                        print(f"⚠️ docker-compose 실패, docker compose 시도: {result.stderr}")
+                        # docker compose 명령어 시도 (최신 Docker)
+                        result = subprocess.run(
+                            ['docker', 'compose', 'restart', 'prometheus'],
+                            cwd='monitoring',
+                            capture_output=True, text=True, timeout=30
+                        )
+                        if result.returncode == 0:
+                            print("✅ Docker Compose v2 Prometheus 컨테이너 재시작 성공")
+                            return True
+                        else:
+                            print(f"⚠️ Docker Compose v2 재시작도 실패: {result.stderr}")
                 except Exception as e:
                     print(f"⚠️ Docker Prometheus 컨테이너 재시작 오류: {e}")
                 return True
@@ -472,19 +485,25 @@ class PrometheusService:
                 print("ℹ️ Windows 환경에서는 Prometheus 서비스 재시작을 스킵합니다.")
                 return True
             
-            # Prometheus 설정 파일 검증
-            print("🔧 Prometheus 설정 파일 검증 중...")
-            result = subprocess.run(
-                ['promtool', 'check', 'config', self.prometheus_config_path],
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode != 0:
-                print(f"❌ Prometheus 설정 파일 검증 실패: {result.stderr}")
-                return False
+            # Prometheus 설정 파일 검증 (Docker 모드에서는 스킵)
+            if not self.is_docker_mode:
+                print("🔧 Prometheus 설정 파일 검증 중...")
+                try:
+                    result = subprocess.run(
+                        ['promtool', 'check', 'config', self.prometheus_config_path],
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    if result.returncode != 0:
+                        print(f"❌ Prometheus 설정 파일 검증 실패: {result.stderr}")
+                        return False
+                    else:
+                        print("✅ Prometheus 설정 파일 검증 성공")
+                except FileNotFoundError:
+                    print("⚠️ promtool이 설치되지 않았습니다. 설정 파일 검증을 스킵합니다.")
             else:
-                print("✅ Prometheus 설정 파일 검증 성공")
+                print("ℹ️ Docker 모드: 설정 파일 검증을 스킵합니다.")
             
             # 방법 1: Prometheus API를 통한 설정 리로드 (가장 빠름)
             try:
