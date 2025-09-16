@@ -1522,9 +1522,9 @@ setup_database() {
     source venv/bin/activate
     
     # 데이터베이스 테이블 생성
-    if [ -f "create_tables.py" ]; then
+    if [ -f "scripts/create_tables.py" ]; then
         log_info "데이터베이스 테이블 생성 중..."
-        python3 create_tables.py
+        python3 scripts/create_tables.py
         
         if [ $? -eq 0 ]; then
             log_success "데이터베이스 테이블 생성 완료"
