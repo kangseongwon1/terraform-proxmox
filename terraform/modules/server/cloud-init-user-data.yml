@@ -1,0 +1,54 @@
+#cloud-config
+# Rocky Linux 9 Cloud-init 설정
+
+# 사용자 설정
+users:
+  - name: rocky
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: ${vm_password_hash}  # Terraform에서 해시된 비밀번호로 대체됨
+    ssh_authorized_keys:
+      - ${ssh_public_key}  # Terraform에서 대체됨
+
+# 시간대 설정
+timezone: Asia/Seoul
+
+# 로케일 설정
+locale: ko_KR.UTF-8
+
+# 패키지 설치
+packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - tree
+  - jq
+  - chrony
+
+# 서비스 설정
+services:
+  - name: chronyd
+    enabled: true
+
+# SSH 설정
+ssh_pwauth: true
+disable_root: true
+
+# SELinux 비활성화
+runcmd:
+  - setenforce 0
+  - sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+  - systemctl disable firewalld
+  - systemctl stop firewalld
+  - systemctl mask firewalld
+  - echo "Welcome to Rocky Linux 9 - Proxmox VM" > /etc/motd
+  - echo "alias ll='ls -la'" >> /home/rocky/.bashrc
+  - echo "alias la='ls -A'" >> /home/rocky/.bashrc
+  - echo "alias l='ls -CF'" >> /home/rocky/.bashrc
+  - chown rocky:rocky /home/rocky/.bashrc
+
+# 최종 메시지
+final_message: "Rocky Linux 9 초기화 완료 - SSH 키 인증 활성화됨"

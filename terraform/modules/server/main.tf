@@ -44,11 +44,11 @@ resource "proxmox_virtual_environment_vm" "this" {
   }
 
   initialization {
-    user_account {
-      username = var.vm_username
-      password = var.vm_password
-      keys    = [for key in var.ssh_keys : can(file(key)) ? file(key) : key]
-    }
+    user_data = base64encode(templatefile("${path.module}/cloud-init-user-data.yml", {
+      ssh_public_key = var.ssh_keys[0]  # 첫 번째 SSH 키 사용
+      vm_password_hash = bcrypt(var.vm_password, 10)  # 비밀번호 해시 생성
+    }))
+    
     # 각 네트워크 디바이스별로 ip/subnet/gateway 적용
     dynamic "ip_config" {
       for_each = var.network_devices
@@ -59,7 +59,6 @@ resource "proxmox_virtual_environment_vm" "this" {
         }
       }
     }    
-    
   }
 
   operating_system {
