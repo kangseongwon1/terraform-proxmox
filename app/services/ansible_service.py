@@ -802,6 +802,38 @@ Return Code: {returncode}
         
         return f"Ansible 실행이 백그라운드에서 시작되었습니다. 완료 시 알림을 확인하세요."
 
+    def _wait_for_server_ready(self, server_ip: str, max_attempts: int = 30, delay: int = 10) -> bool:
+        """서버가 SSH 연결 가능할 때까지 대기"""
+        import time
+        import socket
+        
+        print(f"🔧 서버 준비 대기 중: {server_ip}")
+        
+        for attempt in range(max_attempts):
+            try:
+                # SSH 포트(22) 연결 테스트
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex((server_ip, 22))
+                sock.close()
+                
+                if result == 0:
+                    print(f"✅ 서버 SSH 포트 연결 성공: {server_ip} (시도 {attempt + 1}/{max_attempts})")
+                    # 추가로 잠시 대기 (SSH 서비스 완전 준비)
+                    time.sleep(5)
+                    return True
+                else:
+                    print(f"⏳ 서버 SSH 포트 연결 대기 중: {server_ip} (시도 {attempt + 1}/{max_attempts})")
+                    
+            except Exception as e:
+                print(f"⏳ 서버 연결 테스트 중 오류: {e} (시도 {attempt + 1}/{max_attempts})")
+            
+            if attempt < max_attempts - 1:
+                time.sleep(delay)
+        
+        print(f"❌ 서버 준비 대기 시간 초과: {server_ip}")
+        return False
+
     def _install_node_exporter_if_needed(self, server_name: str, server_ip: str) -> bool:
         """Node Exporter 자동 설치 (모니터링 설정이 활성화된 경우)"""
         try:
@@ -815,6 +847,11 @@ Return Code: {returncode}
                 return True
             
             print(f"🔧 Node Exporter 자동 설치 시작: {server_name} ({server_ip})")
+            
+            # 서버가 SSH 연결 가능할 때까지 대기
+            if not self._wait_for_server_ready(server_ip):
+                print(f"❌ 서버 준비 대기 실패: {server_ip}")
+                return False
             
             # Node Exporter 설치 Playbook 경로
             node_exporter_playbook = os.path.join(self.ansible_dir, "install_node_exporter.yml")

@@ -472,6 +472,18 @@ def create_server():
                         print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
                         print("🔧 Prometheus 수동 설정이 필요할 수 있습니다.")
                     
+                    # Node Exporter 설치 성공 여부와 관계없이 Prometheus 설정 업데이트
+                    if not node_exporter_installed and server_ip:
+                        print(f"🔧 Node Exporter 설치 실패했지만 Prometheus 설정은 업데이트: {server_ip}")
+                        try:
+                            from app.services.prometheus_service import PrometheusService
+                            prometheus_service = PrometheusService()
+                            prometheus_updated = prometheus_service.update_prometheus_config()
+                            if prometheus_updated:
+                                print(f"✅ Prometheus 설정 업데이트 완료 (Node Exporter 실패 후): {server_ip}")
+                        except Exception as e:
+                            print(f"⚠️ Prometheus 설정 업데이트 중 오류 (Node Exporter 실패 후): {e}")
+                    
                     print(f"✅ 서버 생성 완료: {server_name}")
                     
             except Exception as e:
@@ -762,6 +774,19 @@ def create_servers_bulk():
                                 print(f"❌ Node Exporter 일괄 설치 실패: {result}")
                         else:
                             print(f"⚠️ Node Exporter 설치할 유효한 서버 IP가 없음")
+                    
+                    # Prometheus 설정 업데이트 (대량 서버 생성 완료 후)
+                    try:
+                        from app.services.prometheus_service import PrometheusService
+                        prometheus_service = PrometheusService()
+                        prometheus_updated = prometheus_service.update_prometheus_config()
+                        
+                        if prometheus_updated:
+                            print(f"✅ Prometheus 설정 업데이트 완료: {len(created_servers)}개 서버")
+                        else:
+                            print(f"⚠️ Prometheus 설정 업데이트 실패")
+                    except Exception as e:
+                        print(f"⚠️ Prometheus 설정 업데이트 중 오류: {e}")
                     
                     # 결과 메시지 생성
                     if created_servers and not failed_servers:

@@ -46,7 +46,7 @@ class PrometheusService:
         print(f"🔧 설정 파일 경로: {self.prometheus_config_path}")
         
     def update_prometheus_config(self, server_ips: List[str] = None) -> bool:
-        """Prometheus 설정 파일 업데이트"""
+        """Prometheus 설정 파일 업데이트 (기존 설정 유지)"""
         try:
             # 서버 IP 목록이 제공되지 않으면 DB에서 가져오기
             if server_ips is None:
@@ -61,36 +61,64 @@ class PrometheusService:
             
             print(f"🔧 Prometheus 설정 업데이트: {len(server_ips)}개 서버")
             
-            # Prometheus 설정 생성
-            config = {
-                'global': {
-                    'scrape_interval': '15s',
-                    'evaluation_interval': '15s'
-                },
-                'rule_files': [],
-                'scrape_configs': [
-                    {
-                        'job_name': 'prometheus',
-                        'static_configs': [
-                            {'targets': ['prometheus:9090' if self.is_docker_mode else 'localhost:9090']}
-                        ]
-                    }
-                ]
-            }
+            # 기존 설정 파일 읽기 (존재하는 경우)
+            config = None
+            if os.path.exists(self.prometheus_config_path):
+                try:
+                    with open(self.prometheus_config_path, 'r') as f:
+                        config = yaml.safe_load(f)
+                    print(f"✅ 기존 Prometheus 설정 파일 로드 완료")
+                except Exception as e:
+                    print(f"⚠️ 기존 설정 파일 로드 실패: {e}")
+                    config = None
             
-            # Node Exporter 타겟 추가
-            if server_ips:
+            # 기존 설정이 없으면 기본 설정 생성
+            if config is None:
+                config = {
+                    'global': {
+                        'scrape_interval': '15s',
+                        'evaluation_interval': '15s'
+                    },
+                    'rule_files': [],
+                    'scrape_configs': [
+                        {
+                            'job_name': 'prometheus',
+                            'static_configs': [
+                                {'targets': ['prometheus:9090' if self.is_docker_mode else 'localhost:9090']}
+                            ]
+                        }
+                    ]
+                }
+                print(f"🔧 기본 Prometheus 설정 생성")
+            
+            # Node Exporter job 찾기 또는 생성
+            node_exporter_job = None
+            for job in config['scrape_configs']:
+                if job['job_name'] in ['node-exporter', 'proxmox-servers']:
+                    node_exporter_job = job
+                    break
+            
+            if node_exporter_job:
+                # 기존 job 업데이트
                 node_exporter_targets = [f"{ip}:{self.node_exporter_port}" for ip in server_ips]
-                config['scrape_configs'].append({
-                    'job_name': 'node-exporter',
-                    'scrape_interval': '10s',
-                    'static_configs': [
-                        {'targets': node_exporter_targets}
-                    ],
-                    'metrics_path': '/metrics'
-                })
-                
-                print(f"🔧 Node Exporter 타겟 추가: {node_exporter_targets}")
+                node_exporter_job['static_configs'][0]['targets'] = node_exporter_targets
+                node_exporter_job['scrape_interval'] = '10s'
+                if 'metrics_path' not in node_exporter_job:
+                    node_exporter_job['metrics_path'] = '/metrics'
+                print(f"🔧 기존 job 업데이트: {node_exporter_job['job_name']} - {node_exporter_targets}")
+            else:
+                # 새 job 생성
+                if server_ips:
+                    node_exporter_targets = [f"{ip}:{self.node_exporter_port}" for ip in server_ips]
+                    config['scrape_configs'].append({
+                        'job_name': 'node-exporter',
+                        'scrape_interval': '10s',
+                        'static_configs': [
+                            {'targets': node_exporter_targets}
+                        ],
+                        'metrics_path': '/metrics'
+                    })
+                    print(f"🔧 새 Node Exporter job 생성: {node_exporter_targets}")
             
             # 설정 파일에 쓰기 (권한 문제 해결)
             if self._write_config_file(config):
