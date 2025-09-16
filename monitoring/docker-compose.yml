@@ -41,18 +41,19 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin123
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_AUTH_ANONYMOUS_HIDE_VERSION=true
       - GF_SECURITY_ALLOW_EMBEDDING=true
       - GF_SECURITY_X_FRAME_OPTIONS=allow
+      - GF_LOG_LEVEL=debug
+      - GF_DATABASE_MAX_IDLE_CONN=2
+      - GF_DATABASE_MAX_OPEN_CONN=0
     networks:
       - monitoring
     user: "472:472"  # grafana:grafana (권한 문제 해결)
     depends_on:
-      prometheus:
-        condition: service_healthy
+      - prometheus
 
   node-exporter:
     image: prom/node-exporter:latest
