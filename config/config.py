@@ -97,7 +97,18 @@ class Config:
     
     # SQLAlchemy 설정
     basedir = os.path.abspath(os.path.dirname(__file__))
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "instance", "proxmox_manager.db")}')
+    # 프로젝트 루트 디렉토리로 이동 (config 디렉토리의 상위)
+    project_root = os.path.dirname(basedir)
+    instance_dir = os.path.join(project_root, "instance")
+    
+    # instance 디렉토리가 없으면 생성
+    if not os.path.exists(instance_dir):
+        try:
+            os.makedirs(instance_dir, mode=0o755, exist_ok=True)
+        except Exception as e:
+            print(f"⚠️ instance 디렉토리 생성 실패: {e}")
+    
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(instance_dir, "proxmox_manager.db")}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Proxmox 설정 (환경 변수 필수)

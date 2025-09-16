@@ -2065,7 +2065,18 @@ class Config:
     
     # SQLAlchemy 설정
     basedir = os.path.abspath(os.path.dirname(__file__))
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "instance", "proxmox_manager.db")}')
+    # 프로젝트 루트 디렉토리로 이동 (config 디렉토리의 상위)
+    project_root = os.path.dirname(basedir)
+    instance_dir = os.path.join(project_root, "instance")
+    
+    # instance 디렉토리가 없으면 생성
+    if not os.path.exists(instance_dir):
+        try:
+            os.makedirs(instance_dir, mode=0o755, exist_ok=True)
+        except Exception as e:
+            print(f"⚠️ instance 디렉토리 생성 실패: {e}")
+    
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(instance_dir, "proxmox_manager.db")}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Proxmox 설정 (환경 변수 필수)
@@ -2426,6 +2437,21 @@ if ! ./venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
     echo "✅ 가상환경 패키지 수정 완료"
 fi
 
+# 데이터베이스 디렉토리 및 권한 설정
+echo "🗄️ 데이터베이스 디렉토리 설정 중..."
+mkdir -p instance
+chmod 755 instance
+chown $USER:$USER instance 2>/dev/null || true
+
+# 데이터베이스 파일 권한 설정 (존재하는 경우)
+if [ -f "instance/proxmox_manager.db" ]; then
+    chmod 664 instance/proxmox_manager.db
+    chown $USER:$USER instance/proxmox_manager.db 2>/dev/null || true
+    echo "✅ 데이터베이스 파일 권한 설정 완료"
+else
+    echo "ℹ️ 데이터베이스 파일이 아직 생성되지 않았습니다 (정상)"
+fi
+
 # config.py import 문제 해결
 echo "🔍 config.py import 테스트 중..."
 if ! ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config.config import TerraformConfig" 2>/dev/null; then
@@ -2531,7 +2557,18 @@ class Config:
     DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
     
     basedir = os.path.abspath(os.path.dirname(__file__))
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(basedir, "instance", "proxmox_manager.db")}')
+    # 프로젝트 루트 디렉토리로 이동 (config 디렉토리의 상위)
+    project_root = os.path.dirname(basedir)
+    instance_dir = os.path.join(project_root, "instance")
+    
+    # instance 디렉토리가 없으면 생성
+    if not os.path.exists(instance_dir):
+        try:
+            os.makedirs(instance_dir, mode=0o755, exist_ok=True)
+        except Exception as e:
+            print(f"⚠️ instance 디렉토리 생성 실패: {e}")
+    
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{os.path.join(instance_dir, "proxmox_manager.db")}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     PROXMOX_ENDPOINT = os.environ.get('PROXMOX_ENDPOINT', 'https://localhost:8006')
@@ -2612,6 +2649,23 @@ PYEOF
     else
         echo "❌ config.py import 문제 해결 실패"
     fi
+fi
+
+# 데이터베이스 초기화 (필요한 경우)
+echo "🗄️ 데이터베이스 초기화 확인 중..."
+if [ ! -f "instance/proxmox_manager.db" ]; then
+    echo "📝 데이터베이스 초기화 중..."
+    ./venv/bin/python -c "
+import sys
+sys.path.insert(0, '.')
+from app import create_app, db
+app = create_app()
+with app.app_context():
+    db.create_all()
+    print('✅ 데이터베이스 초기화 완료')
+" 2>/dev/null || echo "⚠️ 데이터베이스 초기화 실패 (서비스 시작 시 자동 생성됨)"
+else
+    echo "✅ 데이터베이스 파일이 이미 존재합니다"
 fi
 
 # systemd 서비스 재시작
