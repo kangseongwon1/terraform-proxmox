@@ -39,6 +39,8 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_AUTH_ANONYMOUS_HIDE_VERSION=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_X_FRAME_OPTIONS=allow
     networks:
       - monitoring
     user: "472:472"  # grafana:grafana (권한 문제 해결)
