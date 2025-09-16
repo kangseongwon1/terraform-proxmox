@@ -12,3 +12,4 @@ datasources:
       httpMethod: POST
       queryTimeout: 60s
       timeInterval: 15s
+    secureJsonData: {}
