@@ -1302,19 +1302,8 @@ install_monitoring() {
     mkdir -p monitoring/prometheus_data
     mkdir -p monitoring/grafana_data
     
-    # Docker 모니터링 시스템 시작
-    log_info "Docker 모니터링 시스템 시작 중..."
-    if [ -f "monitoring/start-monitoring.sh" ]; then
-        chmod +x monitoring/start-monitoring.sh
-        cd monitoring
-        ./start-monitoring.sh
-        cd ..
-        log_success "Docker 모니터링 시스템 시작 완료"
-    else
-        log_warning "Docker 모니터링 스크립트를 찾을 수 없습니다."
-        log_info "수동으로 Docker 모니터링 시스템을 시작하세요:"
-        log_info "  cd monitoring && docker-compose up -d"
-    fi
+    # Docker 모니터링 시스템은 아래에서 별도로 시작됩니다
+    log_info "모니터링 디렉토리 구조 준비 완료"
     
     # Prometheus 타겟 업데이트 스크립트 권한 설정
     if [ -f "monitoring/update_prometheus_targets.py" ]; then
@@ -1347,21 +1336,8 @@ install_monitoring() {
     
     log_success "모니터링 시스템 설치 완료"
     
-    # 사용법 안내
-    log_info "==========================================="
-    log_info "🎉 Docker 모니터링 시스템 설치 완료!"
-    log_info "==========================================="
-    log_info "📊 접속 정보:"
-    log_info "  - Prometheus: http://localhost:9090"
-    log_info "  - Grafana: http://localhost:3000 (admin/admin123)"
-    log_info ""
-    log_info "🔧 관리 명령어:"
-    log_info "  - 시작: cd monitoring && docker-compose up -d"
-    log_info "  - 중지: cd monitoring && docker-compose down"
-    log_info "  - 재시작: cd monitoring && docker-compose restart"
-    log_info "  - 로그 확인: cd monitoring && docker-compose logs"
-    log_info "  - 상태 확인: cd monitoring && docker-compose ps"
-    log_info "==========================================="
+    # 모니터링 시스템 준비 완료 (실제 시작은 아래에서)
+    log_success "모니터링 시스템 준비 완료"
 }
 
 
@@ -1389,227 +1365,73 @@ setup_database() {
 WantedBy=multi-user.target
 EOF
     
-    # 기존 Prometheus 데이터 정리 (깨끗한 설치를 위해)
-    log_info "기존 Prometheus 데이터 정리 중..."
-    sudo systemctl stop prometheus 2>/dev/null || true
-    sudo rm -rf /var/lib/prometheus/* 2>/dev/null || true
+    # Docker 기반 모니터링 시스템 시작
+    log_info "Docker 기반 모니터링 시스템 시작 중..."
     
-    # 서비스 시작
-    log_info "프로메테우스 서비스 시작 중..."
-    sudo systemctl daemon-reload
-    sudo systemctl enable prometheus
-    sudo systemctl start prometheus
-    
-    # 상태 확인
-    log_info "설치 완료! 상태 확인 중..."
-    sudo systemctl status prometheus --no-pager
-    
-    # 정리
-    rm -rf prometheus_temp prometheus.tar.gz
-    
-    log_success "Prometheus 설치 완료"
-    log_info "프로메테우스는 http://localhost:9090 에서 접근 가능합니다"
-    
-    # Grafana 설치 (통합)
-    log_info "Grafana 설치 중..."
-    
-    # Grafana 다운로드 (Linux x64)
-    GRAFANA_VERSION="10.2.0"
-    GRAFANA_URL="https://dl.grafana.com/oss/release/grafana-${GRAFANA_VERSION}.linux-amd64.tar.gz"
-    
-    log_info "Grafana ${GRAFANA_VERSION} 다운로드 중..."
-    wget -O grafana.tar.gz ${GRAFANA_URL}
-    
-    # 압축 해제
-    log_info "압축 해제 중..."
-    tar -xzf grafana.tar.gz
-    mv grafana-${GRAFANA_VERSION} grafana_temp
-    
-    # 표준 배치 경로 준비
-    log_info "디렉토리 준비 중..."
-    sudo useradd --no-create-home --shell /bin/false grafana 2>/dev/null || true
-    sudo mkdir -p /opt/grafana
-    sudo mkdir -p /etc/grafana
-    sudo mkdir -p /var/lib/grafana
-    sudo mkdir -p /var/lib/grafana/plugins
-    sudo mkdir -p /var/log/grafana
-    sudo mkdir -p /var/run/grafana
-    
-    # 바이너리 및 파일 배치
-    log_info "바이너리 배치 중..."
-    sudo cp -rf grafana_temp/* /opt/grafana/
-    sudo chown -R grafana:grafana /opt/grafana
-    sudo chown -R grafana:grafana /var/lib/grafana
-    sudo chown -R grafana:grafana /var/lib/grafana/plugins
-    sudo chown -R grafana:grafana /var/log/grafana
-    sudo chown -R grafana:grafana /var/run/grafana
-    sudo chmod 0755 /opt/grafana/bin/grafana-server
-    sudo chmod 755 /var/run/grafana
-    
-    # Grafana 설정 파일 생성
-    log_info "Grafana 설정 파일 생성 중..."
-    sudo tee /etc/grafana/grafana.ini > /dev/null << 'EOF'
-[paths]
-data = /var/lib/grafana
-logs = /var/log/grafana
-plugins = /var/lib/grafana/plugins
-provisioning = /etc/grafana/provisioning
-
-[server]
-http_port = 3000
-domain = localhost
-root_url = http://localhost:3000/
-pidfile = /var/run/grafana/grafana-server.pid
-
-[database]
-type = sqlite3
-path = grafana.db
-
-[session]
-provider = file
-
-[log]
-mode = console file
-level = info
-
-[security]
-admin_user = admin
-admin_password = admin
-allow_embedding = true
-cookie_secure = false
-cookie_samesite = lax
-
-[auth.anonymous]
-enabled = true
-org_name = Main Org.
-org_role = Viewer
-hide_version = false
-EOF
-    
-    # 소유권 설정
-    sudo chown -R grafana:grafana /etc/grafana
-    
-    # PID 파일 디렉토리 권한 재확인
-    log_info "PID 파일 디렉토리 권한 재확인 중..."
-    sudo chown -R grafana:grafana /var/run/grafana
-    sudo chmod 755 /var/run/grafana
-    
-    # 기존 서비스 중지 (있다면)
-    log_info "기존 Grafana 서비스 중지 중..."
-    sudo systemctl stop grafana-server 2>/dev/null || true
-    
-    # systemd 유닛 생성 (표준 PID 파일 경로 사용)
-    log_info "시스템 서비스 등록 중..."
-    sudo tee /etc/systemd/system/grafana-server.service > /dev/null << 'EOF'
-[Unit]
-Description=Grafana Server
-Documentation=http://docs.grafana.org
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=notify
-User=grafana
-Group=grafana
-WorkingDirectory=/opt/grafana
-ExecStart=/opt/grafana/bin/grafana server --config=/etc/grafana/grafana.ini --pidfile=/var/run/grafana/grafana-server.pid
-Restart=on-failure
-RestartSec=5
-TimeoutStopSec=20
-LimitNOFILE=10000
-Environment=GF_PATHS_HOME=/opt/grafana
-Environment=GF_PATHS_DATA=/var/lib/grafana
-Environment=GF_PATHS_LOGS=/var/log/grafana
-Environment=GF_PATHS_PLUGINS=/var/lib/grafana/plugins
-Environment=GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-Environment=GF_PATHS_CONFIG=/etc/grafana/grafana.ini
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    # 서비스 시작
-    log_info "Grafana 서비스 시작 중..."
-    sudo systemctl daemon-reload
-    sudo systemctl enable grafana-server
-    
-    # 서비스 시작 및 상태 확인
-    log_info "Grafana 서비스 시작 중..."
-    if sudo systemctl start grafana-server; then
-        log_success "Grafana 서비스 시작 성공"
-        
-        # 서비스 상태 확인 (최대 10초 대기)
-        log_info "서비스 상태 확인 중..."
-        for i in {1..10}; do
-            if sudo systemctl is-active --quiet grafana-server; then
-                log_success "Grafana 서비스가 정상적으로 실행 중입니다"
-                break
-            else
-                log_info "서비스 시작 대기 중... ($i/10)"
-                sleep 1
-            fi
-        done
-        
-        # 최종 상태 확인
-        if sudo systemctl is-active --quiet grafana-server; then
-            log_success "Grafana 설치 및 시작 완료"
-        else
-            log_warning "Grafana 서비스 시작에 문제가 있을 수 있습니다"
-            log_info "서비스 로그 확인: sudo journalctl -u grafana-server -n 20"
-        fi
+    # 모니터링 디렉토리로 이동하여 Docker Compose 실행
+    if [ -f "monitoring/start-monitoring.sh" ]; then
+        chmod +x monitoring/start-monitoring.sh
+        ./monitoring/start-monitoring.sh
+        log_success "Docker 기반 모니터링 시스템 시작 완료"
     else
-        log_error "Grafana 서비스 시작 실패"
-        log_info "서비스 로그 확인: sudo journalctl -u grafana-server -n 20"
+        log_warning "monitoring/start-monitoring.sh 파일을 찾을 수 없습니다"
+        log_info "수동으로 Docker Compose 실행: cd monitoring && docker-compose up -d"
     fi
     
-    # 정리
-    rm -rf grafana_temp grafana.tar.gz
+    # 정리 (Docker 사용으로 불필요한 파일들 제거)
+    # rm -rf prometheus_temp prometheus.tar.gz  # Docker 사용으로 불필요
     
-    log_success "Grafana 설치 완료"
+    log_success "Prometheus Docker 설정 완료"
+    log_info "프로메테우스는 http://localhost:9090 에서 접근 가능합니다"
+    
+    # Grafana는 Docker Compose에서 함께 실행되므로 별도 설치 불필요
+    log_info "Grafana는 Docker Compose에서 Prometheus와 함께 실행됩니다"
+    
+    # Docker 컨테이너 상태 확인
+    log_info "Docker 컨테이너 상태 확인 중..."
+    if command -v docker &> /dev/null; then
+        if docker ps | grep -q "grafana"; then
+            log_success "Grafana Docker 컨테이너가 실행 중입니다"
+        else
+            log_warning "Grafana Docker 컨테이너가 실행되지 않았습니다"
+            log_info "Docker Compose를 다시 실행해주세요: cd monitoring && docker-compose up -d"
+        fi
+    else
+        log_warning "Docker가 설치되지 않았습니다"
+    fi
+    
+    log_success "Grafana Docker 설정 완료"
     log_info "Grafana는 http://localhost:3000 에서 접근 가능합니다 (admin/admin)"
     
-    # Grafana Provisioning 설정 (파일 기반)
-    log_info "Grafana Provisioning 설정 중..."
+    # Grafana Provisioning은 Docker 볼륨 마운트로 자동 설정됨
+    log_info "Grafana Provisioning 확인 중..."
     
-    # Provisioning 디렉토리 생성
-    sudo mkdir -p /etc/grafana/provisioning/datasources
-    sudo mkdir -p /etc/grafana/provisioning/dashboards
-    
-    # 데이터소스 provisioning 파일 복사
-    if [ -f "grafana/provisioning/datasources/prometheus.yml" ]; then
-        sudo cp grafana/provisioning/datasources/prometheus.yml /etc/grafana/provisioning/datasources/
-        log_success "Prometheus 데이터소스 provisioning 파일 복사 완료"
+    # Provisioning 파일들이 올바른 위치에 있는지 확인
+    if [ -f "monitoring/grafana/provisioning/datasources/prometheus.yml" ]; then
+        log_success "Prometheus 데이터소스 provisioning 파일 확인 완료"
     else
         log_warning "Prometheus 데이터소스 provisioning 파일을 찾을 수 없습니다"
     fi
     
-    # 대시보드 provisioning 파일 복사
-    if [ -f "grafana/provisioning/dashboards/dashboard.yml" ]; then
-        sudo cp grafana/provisioning/dashboards/dashboard.yml /etc/grafana/provisioning/dashboards/
-        log_success "대시보드 provisioning 설정 파일 복사 완료"
+    if [ -f "monitoring/grafana/provisioning/dashboards/dashboard.yml" ]; then
+        log_success "대시보드 provisioning 설정 파일 확인 완료"
     else
         log_warning "대시보드 provisioning 설정 파일을 찾을 수 없습니다"
     fi
     
-    # 대시보드 JSON 파일 복사
-    if [ -f "grafana/provisioning/dashboards/system-monitoring.json" ]; then
-        sudo cp grafana/provisioning/dashboards/system-monitoring.json /etc/grafana/provisioning/dashboards/
-        log_success "시스템 모니터링 대시보드 JSON 파일 복사 완료"
+    if [ -f "monitoring/grafana/dashboards/system-monitoring.json" ]; then
+        log_success "시스템 모니터링 대시보드 JSON 파일 확인 완료"
     else
         log_warning "시스템 모니터링 대시보드 JSON 파일을 찾을 수 없습니다"
     fi
     
-    # 소유권 설정
-    sudo chown -R grafana:grafana /etc/grafana/provisioning
-    
-    # Grafana 서비스 재시작 (provisioning 적용)
-    log_info "Grafana 서비스 재시작 중 (provisioning 적용)..."
-    sudo systemctl restart grafana-server
-    
-    # 서비스 재시작 확인
-    sleep 5
-    if sudo systemctl is-active --quiet grafana-server; then
-        log_success "Grafana 서비스 재시작 완료"
+    # Docker 컨테이너 재시작으로 provisioning 적용
+    log_info "Docker 컨테이너 재시작으로 provisioning 적용 중..."
+    if command -v docker-compose &> /dev/null; then
+        cd monitoring
+        docker-compose restart grafana
+        cd ..
+        log_success "Grafana Docker 컨테이너 재시작 완료"
         
         # 데이터소스 연결 확인
         log_info "Prometheus 데이터소스 연결 확인 중..."
@@ -1623,11 +1445,11 @@ EOF
             log_info "Grafana 웹 인터페이스에서 데이터소스 설정을 확인해주세요: http://localhost:3000/datasources"
         fi
     else
-        log_warning "Grafana 서비스 재시작에 문제가 있을 수 있습니다"
+        log_warning "docker-compose가 설치되지 않았습니다"
     fi
     
     # Grafana 설정 완료
-    log_success "Grafana Provisioning 설정 완료"
+    log_success "Grafana Docker Provisioning 설정 완료"
     log_info "익명 접근 및 iframe 임베딩이 설정되었습니다"
     log_info "Prometheus 데이터소스가 자동으로 추가됩니다"
     log_info "시스템 모니터링 대시보드가 자동으로 생성됩니다"
@@ -2876,11 +2698,12 @@ show_completion_info() {
     echo "    재시작: sudo systemctl restart proxmox-manager"
     echo "    로그 확인: sudo journalctl -u proxmox-manager -f"
     echo ""
-    echo "  모니터링 서비스:"
-    echo "    Prometheus: sudo systemctl status prometheus"
-    echo "    Grafana: sudo systemctl status grafana-server"
-    echo "    Grafana 재시작: sudo systemctl restart grafana-server"
-    echo "    Grafana 로그: sudo journalctl -u grafana-server -f"
+    echo "  모니터링 서비스 (Docker):"
+    echo "    상태 확인: cd monitoring && docker-compose ps"
+    echo "    시작: cd monitoring && docker-compose up -d"
+    echo "    중지: cd monitoring && docker-compose down"
+    echo "    재시작: cd monitoring && docker-compose restart"
+    echo "    로그 확인: cd monitoring && docker-compose logs -f"
     echo ""
     echo "  Vault 서비스:"
     echo "    상태 확인: docker exec vault-dev vault status"
