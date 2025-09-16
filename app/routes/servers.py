@@ -23,6 +23,69 @@ bp = Blueprint('servers', __name__)
 # 전역 작업 상태 dict
 tasks = {}
 
+def _remove_from_known_hosts(ip_address: str) -> bool:
+    """SSH known_hosts 파일에서 특정 IP 제거"""
+    try:
+        # 사용자 홈 디렉토리의 .ssh/known_hosts 파일 경로
+        home_dir = os.path.expanduser('~')
+        known_hosts_path = os.path.join(home_dir, '.ssh', 'known_hosts')
+        
+        if not os.path.exists(known_hosts_path):
+            print(f"ℹ️ known_hosts 파일이 존재하지 않음: {known_hosts_path}")
+            return True
+        
+        # ssh-keygen 명령어로 해당 IP의 키 제거
+        try:
+            result = subprocess.run([
+                'ssh-keygen', '-R', ip_address
+            ], capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                print(f"✅ ssh-keygen으로 {ip_address} 제거 성공")
+                return True
+            else:
+                print(f"⚠️ ssh-keygen 실행 결과: {result.stderr}")
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            print(f"⚠️ ssh-keygen 실행 실패: {e}")
+        
+        # ssh-keygen이 실패하면 수동으로 파일 편집
+        try:
+            print(f"🔧 수동으로 known_hosts에서 {ip_address} 제거 시도...")
+            
+            # 백업 파일 생성
+            backup_path = f"{known_hosts_path}.backup.{int(time.time())}"
+            subprocess.run(['cp', known_hosts_path, backup_path], check=True)
+            
+            # 해당 IP가 포함된 라인 제거
+            with open(known_hosts_path, 'r') as f:
+                lines = f.readlines()
+            
+            # IP가 포함되지 않은 라인들만 유지
+            filtered_lines = []
+            removed_count = 0
+            
+            for line in lines:
+                if ip_address not in line:
+                    filtered_lines.append(line)
+                else:
+                    removed_count += 1
+                    print(f"🗑️ 제거된 라인: {line.strip()}")
+            
+            # 수정된 내용을 파일에 쓰기
+            with open(known_hosts_path, 'w') as f:
+                f.writelines(filtered_lines)
+            
+            print(f"✅ known_hosts 수동 편집 완료: {removed_count}개 라인 제거")
+            return True
+            
+        except Exception as manual_error:
+            print(f"❌ known_hosts 수동 편집 실패: {manual_error}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ known_hosts 제거 중 오류: {e}")
+        return False
+
 def create_task(status, type, message):
     task_id = str(uuid.uuid4())
     tasks[task_id] = {
@@ -947,7 +1010,20 @@ def process_bulk_delete_terraform(server_names):
         if destroy_success:
             print(f"✅ Terraform destroy 성공: {deleted_from_tfvars}")
             
-            # 5. Prometheus 설정 업데이트 (삭제된 서버들 제거)
+            # 5. SSH known_hosts 정리 (삭제된 서버들의 IP 제거)
+            try:
+                for server_name in deleted_from_tfvars:
+                    server = Server.query.filter_by(name=server_name).first()
+                    if server and server.ip_address:
+                        # IP 주소에서 첫 번째 IP 추출
+                        first_ip = server.ip_address.split(',')[0].strip()
+                        if first_ip:
+                            _remove_from_known_hosts(first_ip)
+                            print(f"🧹 SSH known_hosts에서 {first_ip} 제거 완료")
+            except Exception as e:
+                print(f"⚠️ SSH known_hosts 정리 중 오류: {e}")
+            
+            # 6. Prometheus 설정 업데이트 (삭제된 서버들 제거)
             try:
                 from app.services.prometheus_service import PrometheusService
                 prometheus_service = PrometheusService()

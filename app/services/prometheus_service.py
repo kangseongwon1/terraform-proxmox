@@ -16,16 +16,34 @@ class PrometheusService:
     
     def __init__(self):
         # Docker 모니터링 시스템 우선, 그 다음 환경별 경로 사용
-        if os.path.exists("monitoring/prometheus.yml"):
+        current_dir = os.getcwd()
+        monitoring_path = os.path.join(current_dir, "monitoring", "prometheus.yml")
+        
+        print(f"🔧 PrometheusService 초기화")
+        print(f"🔧 현재 작업 디렉토리: {current_dir}")
+        print(f"🔧 모니터링 경로 확인: {monitoring_path}")
+        print(f"🔧 모니터링 파일 존재: {os.path.exists(monitoring_path)}")
+        
+        if os.path.exists(monitoring_path):
+            self.prometheus_config_path = monitoring_path
+            self.is_docker_mode = True
+            print(f"✅ Docker 모드 활성화: {self.prometheus_config_path}")
+        elif os.path.exists("monitoring/prometheus.yml"):
             self.prometheus_config_path = "monitoring/prometheus.yml"
             self.is_docker_mode = True
+            print(f"✅ Docker 모드 활성화 (상대경로): {self.prometheus_config_path}")
         elif os.name == 'nt':  # Windows
             self.prometheus_config_path = "prometheus.yml"
             self.is_docker_mode = False
+            print(f"ℹ️ Windows 모드: {self.prometheus_config_path}")
         else:  # Linux/Unix
             self.prometheus_config_path = "/etc/prometheus/prometheus.yml"
             self.is_docker_mode = False
+            print(f"ℹ️ Linux 모드: {self.prometheus_config_path}")
+        
         self.node_exporter_port = 9100
+        print(f"🔧 Docker 모드: {self.is_docker_mode}")
+        print(f"🔧 설정 파일 경로: {self.prometheus_config_path}")
         
     def update_prometheus_config(self, server_ips: List[str] = None) -> bool:
         """Prometheus 설정 파일 업데이트"""
@@ -485,14 +503,22 @@ class PrometheusService:
                 print("ℹ️ Windows 환경에서는 Prometheus 서비스 재시작을 스킵합니다.")
                 return True
             
-            # Prometheus 설정 파일 검증 (Docker 모드에서는 스킵)
-            if not self.is_docker_mode:
+            # Prometheus 설정 파일 검증
+            print(f"🔧 Docker 모드 상태: {self.is_docker_mode}")
+            print(f"🔧 설정 파일 경로: {self.prometheus_config_path}")
+            
+            # Docker 모드이거나 monitoring/ 경로를 사용하는 경우 promtool 검증 스킵
+            is_monitoring_path = 'monitoring' in self.prometheus_config_path
+            if self.is_docker_mode or is_monitoring_path:
+                print("ℹ️ Docker/모니터링 모드: promtool 검증을 스킵합니다.")
+            else:
                 print("🔧 Prometheus 설정 파일 검증 중...")
                 try:
                     result = subprocess.run(
                         ['promtool', 'check', 'config', self.prometheus_config_path],
                         capture_output=True,
-                        text=True
+                        text=True,
+                        timeout=10
                     )
                     
                     if result.returncode != 0:
@@ -500,10 +526,12 @@ class PrometheusService:
                         return False
                     else:
                         print("✅ Prometheus 설정 파일 검증 성공")
-                except FileNotFoundError:
-                    print("⚠️ promtool이 설치되지 않았습니다. 설정 파일 검증을 스킵합니다.")
-            else:
-                print("ℹ️ Docker 모드: 설정 파일 검증을 스킵합니다.")
+                except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                    print(f"⚠️ promtool 실행 실패: {e}")
+                    print("⚠️ 설정 파일 검증을 스킵하고 계속 진행합니다.")
+                except Exception as e:
+                    print(f"⚠️ promtool 실행 중 오류: {e}")
+                    print("⚠️ 설정 파일 검증을 스킵하고 계속 진행합니다.")
             
             # 방법 1: Prometheus API를 통한 설정 리로드 (가장 빠름)
             try:

@@ -97,6 +97,9 @@ class AnsibleService:
             env['ANSIBLE_SSH_PRIVATE_KEY_FILE'] = ssh_private_key
             env['ANSIBLE_HOST_KEY_CHECKING'] = 'False'  # 호스트 키 검증 비활성화
             env['ANSIBLE_PIPELINING'] = 'True'  # SSH 파이프라이닝으로 오버헤드 감소
+            env['ANSIBLE_SSH_ARGS'] = '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR'  # SSH 추가 옵션
+            env['ANSIBLE_STDOUT_CALLBACK'] = 'yaml'  # 출력 포맷
+            env['ANSIBLE_STDERR_CALLBACK'] = 'yaml'  # 에러 출력 포맷
             
             print(f"🔧 Ansible 명령어 실행: {' '.join(command)}")
             print(f"🔧 SSH 사용자: {ssh_user}")
