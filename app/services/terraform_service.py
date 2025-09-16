@@ -359,16 +359,16 @@ class TerraformService:
             # Proxmox 설정 자동 추가 (없는 경우에만)
             if 'proxmox_endpoint' not in tfvars:
                 try:
-    from config.config import Config
-except ImportError:
-    # 대안 방법으로 config 로드
-    import importlib.util
-    import os
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
-    spec = importlib.util.spec_from_file_location("config", config_path)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-    Config = config_module.Config
+                    from config.config import Config
+                except ImportError:
+                    # 대안 방법으로 config 로드
+                    import importlib.util
+                    import os
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    spec = importlib.util.spec_from_file_location("config", config_path)
+                    config_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(config_module)
+                    Config = config_module.Config
                 tfvars['proxmox_endpoint'] = Config.PROXMOX_ENDPOINT
                 tfvars['proxmox_username'] = Config.PROXMOX_USERNAME
                 tfvars['proxmox_node'] = Config.PROXMOX_NODE
@@ -378,16 +378,16 @@ except ImportError:
             # VM 기본 설정 추가 (없는 경우에만)
             if 'vm_username' not in tfvars:
                 try:
-    from config.config import Config
-except ImportError:
-    # 대안 방법으로 config 로드
-    import importlib.util
-    import os
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
-    spec = importlib.util.spec_from_file_location("config", config_path)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-    Config = config_module.Config
+                    from config.config import Config
+                except ImportError:
+                    # 대안 방법으로 config 로드
+                    import importlib.util
+                    import os
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    spec = importlib.util.spec_from_file_location("config", config_path)
+                    config_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(config_module)
+                    Config = config_module.Config
                 tfvars['vm_username'] = Config.SSH_USER
                 print("🔧 VM 기본 설정 자동 추가 완료")
             
@@ -409,16 +409,16 @@ except ImportError:
             
             if username is None:
                 try:
-    from config.config import Config
-except ImportError:
-    # 대안 방법으로 config 로드
-    import importlib.util
-    import os
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
-    spec = importlib.util.spec_from_file_location("config", config_path)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-    Config = config_module.Config
+                    from config.config import Config
+                except ImportError:
+                    # 대안 방법으로 config 로드
+                    import importlib.util
+                    import os
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    spec = importlib.util.spec_from_file_location("config", config_path)
+                    config_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(config_module)
+                    Config = config_module.Config
                 username = Config.SSH_USER
             
             # SSH 클라이언트 생성
@@ -427,16 +427,16 @@ except ImportError:
             
             # SSH 키 파일 경로
             try:
-    from config.config import Config
-except ImportError:
-    # 대안 방법으로 config 로드
-    import importlib.util
-    import os
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
-    spec = importlib.util.spec_from_file_location("config", config_path)
-    config_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config_module)
-    Config = config_module.Config
+                from config.config import Config
+            except ImportError:
+                # 대안 방법으로 config 로드
+                import importlib.util
+                import os
+                config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                spec = importlib.util.spec_from_file_location("config", config_path)
+                config_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(config_module)
+                Config = config_module.Config
             ssh_key_path = Config.SSH_PRIVATE_KEY_PATH.replace('~', os.path.expanduser('~'))
             
             print(f"🔍 SSH 연결 테스트: {username}@{ip_address}")
