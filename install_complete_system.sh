@@ -2461,6 +2461,16 @@ fi
 if ! ./venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
     echo "⚠️  가상환경 패키지 문제 감지. 자동 수정 중..."
     
+    # 가상환경 shebang 수정 (잘못된 경로 참조 문제 해결)
+    echo "🔧 가상환경 shebang 수정 중..."
+    VENV_PYTHON_PATH=$(which python3)
+    if [ -n "$VENV_PYTHON_PATH" ]; then
+        # venv/bin/python의 shebang을 현재 시스템의 python3로 수정
+        sed -i "1s|.*|#!$VENV_PYTHON_PATH|" ./venv/bin/python
+        sed -i "1s|.*|#!$VENV_PYTHON_PATH|" ./venv/bin/pip
+        echo "✅ 가상환경 shebang 수정 완료: $VENV_PYTHON_PATH"
+    fi
+    
     # 가상환경 활성화 및 패키지 재설치
     source ./venv/bin/activate
     pip install --upgrade python-dotenv flask flask-sqlalchemy flask-login requests paramiko
@@ -2700,19 +2710,19 @@ else
     echo "✅ 데이터베이스 파일이 이미 존재합니다"
 fi
 
-# systemd 서비스 재시작
+# systemd 서비스 재시작 (sudo 사용)
 echo "🔄 systemd 서비스 재시작 중..."
-systemctl daemon-reload
-systemctl restart proxmox-manager
+sudo systemctl daemon-reload
+sudo systemctl restart proxmox-manager
 
 # 서비스 상태 확인
 sleep 3
-if systemctl is-active --quiet proxmox-manager; then
+if sudo systemctl is-active --quiet proxmox-manager; then
     echo "✅ Proxmox Manager 서비스가 정상적으로 실행 중입니다"
     echo "🌐 웹 인터페이스: http://$(hostname -I | awk '{print $1}'):5000"
 else
     echo "❌ 서비스 시작 실패. 로그를 확인하세요:"
-    echo "   journalctl -u proxmox-manager -n 20"
+    echo "   sudo journalctl -u proxmox-manager -n 20"
 fi
 EOF
     
