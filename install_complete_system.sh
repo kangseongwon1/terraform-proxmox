@@ -2310,9 +2310,14 @@ EOF
 # Proxmox Manager 자동 복구 스크립트
 # 사용법: sudo systemctl start proxmox-manager (자동으로 이 스크립트가 실행됨)
 
-# 현재 디렉토리에서 실행
+# Proxmox Manager 프로젝트 디렉토리로 이동
+cd /data/terraform-proxmox || {
+    echo "❌ Proxmox Manager 디렉토리를 찾을 수 없습니다: /data/terraform-proxmox"
+    exit 1
+}
 
 echo "🔧 Proxmox Manager 자동 복구 시작..."
+echo "📁 작업 디렉토리: $(pwd)"
 
 # Vault Unseal 및 토큰 복원
 echo "🔐 Vault Unseal 및 토큰 복원 중..."
@@ -2409,6 +2414,7 @@ else
 fi
 
 # 가상환경 패키지 문제 해결
+# 현재 디렉토리에서 실행되므로 상대 경로 사용
 if ! ./venv/bin/python -c "import dotenv, flask, requests" 2>/dev/null; then
     echo "⚠️  가상환경 패키지 문제 감지. 자동 수정 중..."
     
@@ -2422,8 +2428,13 @@ fi
 
 # config.py import 문제 해결
 echo "🔍 config.py import 테스트 중..."
-if ! ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config import TerraformConfig" 2>/dev/null; then
+if ! ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config.config import TerraformConfig" 2>/dev/null; then
     echo "⚠️  config.py import 문제 감지. 자동 수정 중..."
+    
+    # config 디렉토리 생성 및 __init__.py 파일 생성
+    echo "📝 config 디렉토리 및 __init__.py 파일 생성 중..."
+    mkdir -p config
+    echo '"""Config 패키지 초기화 파일"""' > config/__init__.py
     
     # config.py 파일 자동 생성
     echo "📝 config.py 파일 자동 생성 중..."
@@ -2596,7 +2607,7 @@ PYEOF
     echo "✅ config.py 파일 생성 완료"
     
     # 다시 import 테스트
-    if ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config import TerraformConfig" 2>/dev/null; then
+    if ./venv/bin/python -c "import sys; sys.path.insert(0, '.'); from config.config import TerraformConfig" 2>/dev/null; then
         echo "✅ config.py import 문제 해결 완료"
     else
         echo "❌ config.py import 문제 해결 실패"
