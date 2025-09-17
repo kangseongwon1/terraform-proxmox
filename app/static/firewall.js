@@ -1,6 +1,6 @@
 // Datacenter Security Group 관리 시스템
 window.loadFirewallGroups = function() {
-    console.log('[firewall.js] Datacenter Security Group 목록 로드 시작');
+    logging('[firewall.js] Datacenter Security Group 목록 로드 시작');
     $('#main-content').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><br>로딩 중...</div>');
     
     $.ajax({
@@ -8,29 +8,29 @@ window.loadFirewallGroups = function() {
         method: 'GET',
         dataType: 'json',
         success: function(data) {
-            console.log('[firewall.js] Security Group 데이터 로드 성공:', data);
-            console.log('[firewall.js] data 타입:', typeof data);
-            console.log('[firewall.js] data 구조:', Object.keys(data));
-            console.log('[firewall.js] groups 배열:', data.groups);
-            console.log('[firewall.js] groups 타입:', typeof data.groups);
-            console.log('[firewall.js] groups 길이:', data.groups ? data.groups.length : 'undefined');
-            console.log('[firewall.js] groups 내용:', JSON.stringify(data.groups, null, 2));
+            logging('[firewall.js] Security Group 데이터 로드 성공:', data);
+            logging('[firewall.js] data 타입:', typeof data);
+            logging('[firewall.js] data 구조:', Object.keys(data));
+            logging('[firewall.js] groups 배열:', data.groups);
+            logging('[firewall.js] groups 타입:', typeof data.groups);
+            logging('[firewall.js] groups 길이:', data.groups ? data.groups.length : 'undefined');
+            logging('[firewall.js] groups 내용:', JSON.stringify(data.groups, null, 2));
             
             $.get('/firewall/groups/content', function(html) {
-                console.log('[firewall.js] HTML 템플릿 로드 성공');
+                logging('[firewall.js] HTML 템플릿 로드 성공');
                 $('#main-content').html(html);
                 renderSecurityGroups(data.groups || []);
             }).fail(function(xhr) {
-                console.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
+                logging.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
                 $('#main-content').html(`<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><br>HTML 템플릿 로드 실패</div>`);
             });
         },
         error: function(xhr, status, error) {
-            console.error('[firewall.js] Security Group 데이터 로드 실패:', xhr);
+            logging.error('[firewall.js] Security Group 데이터 로드 실패:', xhr);
             
             // API 호출 실패 시에도 HTML 템플릿은 로드하고 테스트 데이터 표시
       $.get('/firewall/groups/content', function(html) {
-                console.log('[firewall.js] HTML 템플릿 로드 성공 (API 실패 시)');
+                logging('[firewall.js] HTML 템플릿 로드 성공 (API 실패 시)');
         $('#main-content').html(html);
                 
                 // 테스트 데이터로 표시
@@ -52,7 +52,7 @@ window.loadFirewallGroups = function() {
                     }
                 ];
                 
-                console.log('[firewall.js] 테스트 데이터로 렌더링:', testGroups);
+                logging('[firewall.js] 테스트 데이터로 렌더링:', testGroups);
                 renderSecurityGroups(testGroups);
                 
                 // 오류 메시지 표시
@@ -72,7 +72,7 @@ window.loadFirewallGroups = function() {
                 // 오류 메시지를 테이블 위에 표시
                 $('#fw-group-tbody').before(`<tr><td colspan="4" class="text-center text-warning"><i class="fas fa-exclamation-triangle"></i> ${errorMsg} (테스트 데이터 표시)</td></tr>`);
             }).fail(function(xhr) {
-                console.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
+                logging.error('[firewall.js] HTML 템플릿 로드 실패:', xhr);
                 $('#main-content').html(`<div class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-2x"></i><br>HTML 템플릿 로드 실패</div>`);
             });
         }
@@ -81,32 +81,32 @@ window.loadFirewallGroups = function() {
 
 // Security Group 목록 렌더링
 function renderSecurityGroups(groups) {
-    console.log('[firewall.js] Security Group 목록 렌더링 시작');
-    console.log('[firewall.js] groups:', groups);
-    console.log('[firewall.js] groups 타입:', typeof groups);
-    console.log('[firewall.js] groups 길이:', groups ? groups.length : 'undefined');
-    console.log('[firewall.js] groups 배열 여부:', Array.isArray(groups));
+    logging('[firewall.js] Security Group 목록 렌더링 시작');
+    logging('[firewall.js] groups:', groups);
+    logging('[firewall.js] groups 타입:', typeof groups);
+    logging('[firewall.js] groups 길이:', groups ? groups.length : 'undefined');
+    logging('[firewall.js] groups 배열 여부:', Array.isArray(groups));
     
     const $tbody = $('#fw-group-tbody');
-    console.log('[firewall.js] tbody 요소 찾기:', $tbody.length > 0 ? '성공' : '실패');
+    logging('[firewall.js] tbody 요소 찾기:', $tbody.length > 0 ? '성공' : '실패');
     
     if (!$tbody.length) {
-        console.error('[firewall.js] #fw-group-tbody 요소를 찾을 수 없습니다!');
+        logging.error('[firewall.js] #fw-group-tbody 요소를 찾을 수 없습니다!');
         return;
     }
     
     $tbody.empty();
-    console.log('[firewall.js] tbody 비움 완료');
+    logging('[firewall.js] tbody 비움 완료');
     
     if (!groups || !groups.length) {
-        console.log('[firewall.js] 그룹이 없음, 빈 메시지 표시');
+        logging('[firewall.js] 그룹이 없음, 빈 메시지 표시');
         $tbody.append('<tr><td colspan="4" class="text-center text-muted">등록된 Security Group이 없습니다.</td></tr>');
       return;
     }
     
-    console.log('[firewall.js] 그룹 렌더링 시작, 개수:', groups.length);
+    logging('[firewall.js] 그룹 렌더링 시작, 개수:', groups.length);
     groups.forEach((group, index) => {
-        console.log(`[firewall.js] Security Group ${index + 1}:`, group);
+        logging(`[firewall.js] Security Group ${index + 1}:`, group);
         
         const rowHtml = `
             <tr>
@@ -127,16 +127,16 @@ function renderSecurityGroups(groups) {
         </tr>
         `;
         
-        console.log(`[firewall.js] Security Group ${index + 1} HTML:`, rowHtml);
+        logging(`[firewall.js] Security Group ${index + 1} HTML:`, rowHtml);
         $tbody.append(rowHtml);
-        console.log(`[firewall.js] Security Group ${index + 1} 추가 완료`);
+        logging(`[firewall.js] Security Group ${index + 1} 추가 완료`);
     });
-    console.log('[firewall.js] 그룹 렌더링 완료');
+    logging('[firewall.js] 그룹 렌더링 완료');
 }
 
 // Security Group 설정 모달 열기
 function openSecurityGroupConfig(groupName) {
-    console.log('[firewall.js] Security Group 설정 모달 열기:', groupName);
+    logging('[firewall.js] Security Group 설정 모달 열기:', groupName);
     
     // 모달에 그룹 이름 저장
     $('#security-group-config-modal').data('group-name', groupName);
@@ -150,14 +150,14 @@ function openSecurityGroupConfig(groupName) {
 
 // Security Group 상세 정보 로드
 function loadSecurityGroupDetail(groupName) {
-    console.log('[firewall.js] Security Group 상세 정보 로드:', groupName);
+    logging('[firewall.js] Security Group 상세 정보 로드:', groupName);
     
     $.ajax({
         url: `/api/firewall/groups/${groupName}`,
         method: 'GET',
         dataType: 'json',
         success: function(data) {
-            console.log('[firewall.js] Security Group 상세 정보 로드 성공:', data);
+            logging('[firewall.js] Security Group 상세 정보 로드 성공:', data);
             
             if (data.success && data.group) {
                 const group = data.group;
@@ -172,7 +172,7 @@ function loadSecurityGroupDetail(groupName) {
             }
         },
         error: function(xhr) {
-            console.error('[firewall.js] Security Group 상세 정보 로드 실패:', xhr);
+            logging.error('[firewall.js] Security Group 상세 정보 로드 실패:', xhr);
             alert('Security Group 상세 정보 로드에 실패했습니다.');
         }
     });
@@ -180,7 +180,7 @@ function loadSecurityGroupDetail(groupName) {
 
 // Security Group 규칙 렌더링
 function renderSecurityGroupRules(rules) {
-    console.log('[firewall.js] Security Group 규칙 렌더링:', rules);
+    logging('[firewall.js] Security Group 규칙 렌더링:', rules);
     
     const $tbody = $('#sg-rules-tbody');
     $tbody.empty();
@@ -191,7 +191,7 @@ function renderSecurityGroupRules(rules) {
     }
     
     rules.forEach((rule, index) => {
-        console.log(`[firewall.js] 규칙 ${index + 1}:`, rule);
+        logging(`[firewall.js] 규칙 ${index + 1}:`, rule);
         
         // 매크로 정보 표시
         const macroInfo = rule.macro ? `<br><small class="text-info"><i class="fas fa-tag"></i> ${rule.macro}</small>` : '';
@@ -272,7 +272,7 @@ function handleMacroSelection() {
         $protocolSelect.addClass('bg-light');
         $portInput.addClass('bg-light');
         
-        console.log(`[firewall.js] 매크로 선택: ${selectedMacro} (${macro.protocol}:${macro.port})`);
+        logging(`[firewall.js] 매크로 선택: ${selectedMacro} (${macro.protocol}:${macro.port})`);
     } else {
         // 매크로가 선택되지 않았거나 직접 입력인 경우
         $protocolSelect.prop('disabled', false);
@@ -282,13 +282,13 @@ function handleMacroSelection() {
         $protocolSelect.removeClass('bg-light');
         $portInput.removeClass('bg-light');
         
-        console.log('[firewall.js] 직접 입력 모드');
+        logging('[firewall.js] 직접 입력 모드');
     }
 }
 
 // 이벤트 리스너들
 $(function() {
-    console.log('[firewall.js] Datacenter Security Group 관리 시스템 초기화');
+    logging('[firewall.js] Datacenter Security Group 관리 시스템 초기화');
     
     // 매크로 선택 이벤트
     $(document).on('change', '#macro-select', function() {
@@ -305,7 +305,7 @@ $(function() {
     
     // 페이지 로드 시 자동으로 Security Group 데이터 로드
     if (window.location.hash === '#firewall-groups' || window.location.pathname.includes('firewall')) {
-        console.log('[firewall.js] 방화벽 페이지 감지, 데이터 자동 로드');
+        logging('[firewall.js] 방화벽 페이지 감지, 데이터 자동 로드');
         window.loadFirewallGroups();
     }
     
@@ -324,7 +324,7 @@ $(function() {
             description: formData.get('description')
         };
         
-        console.log('[firewall.js] Security Group 생성:', groupData);
+        logging('[firewall.js] Security Group 생성:', groupData);
         
         $.ajax({
             url: '/api/firewall/groups',
@@ -332,7 +332,7 @@ $(function() {
             contentType: 'application/json',
             data: JSON.stringify(groupData),
             success: function(data) {
-                console.log('[firewall.js] Security Group 생성 성공:', data);
+                logging('[firewall.js] Security Group 생성 성공:', data);
                 
                 if (data.success) {
                     $('#create-security-group-modal').modal('hide');
@@ -347,7 +347,7 @@ $(function() {
                 }
             },
             error: function(xhr) {
-                console.error('[firewall.js] Security Group 생성 실패:', xhr);
+                logging.error('[firewall.js] Security Group 생성 실패:', xhr);
                 alert('Security Group 생성에 실패했습니다.');
             }
         });
@@ -364,13 +364,13 @@ $(function() {
         if (!confirm('정말 이 Security Group을 삭제하시겠습니까?')) return;
         
         const groupName = $(this).data('group');
-        console.log('[firewall.js] Security Group 삭제:', groupName);
+        logging('[firewall.js] Security Group 삭제:', groupName);
         
         $.ajax({
             url: `/api/firewall/groups/${groupName}`,
             method: 'DELETE',
             success: function(data) {
-                console.log('[firewall.js] Security Group 삭제 성공:', data);
+                logging('[firewall.js] Security Group 삭제 성공:', data);
                 
                 if (data.success) {
                     // Security Group 목록 새로고침
@@ -382,7 +382,7 @@ $(function() {
                 }
             },
             error: function(xhr) {
-                console.error('[firewall.js] Security Group 삭제 실패:', xhr);
+                logging.error('[firewall.js] Security Group 삭제 실패:', xhr);
                 alert('Security Group 삭제에 실패했습니다.');
       }
     });
@@ -393,13 +393,13 @@ $(function() {
         if (!confirm('정말 이 Security Group을 삭제하시겠습니까?')) return;
         
         const groupName = $('#security-group-config-modal').data('group-name');
-        console.log('[firewall.js] Security Group 설정 모달에서 삭제:', groupName);
+        logging('[firewall.js] Security Group 설정 모달에서 삭제:', groupName);
         
     $.ajax({
             url: `/api/firewall/groups/${groupName}`,
             method: 'DELETE',
             success: function(data) {
-                console.log('[firewall.js] Security Group 삭제 성공:', data);
+                logging('[firewall.js] Security Group 삭제 성공:', data);
                 
                 if (data.success) {
                     $('#security-group-config-modal').modal('hide');
@@ -413,7 +413,7 @@ $(function() {
         }
             },
             error: function(xhr) {
-                console.error('[firewall.js] Security Group 삭제 실패:', xhr);
+                logging.error('[firewall.js] Security Group 삭제 실패:', xhr);
                 alert('Security Group 삭제에 실패했습니다.');
       }
     });
@@ -426,7 +426,7 @@ $(function() {
         const groupName = $('#security-group-config-modal').data('group-name');
         const formData = new FormData(this);
         
-        console.log('[firewall.js] Security Group 이름 확인:', groupName);
+        logging('[firewall.js] Security Group 이름 확인:', groupName);
         
         if (!groupName) {
             alert('Security Group 이름을 찾을 수 없습니다. 페이지를 새로고침하고 다시 시도해주세요.');
@@ -443,8 +443,8 @@ $(function() {
             macro: formData.get('macro')  // 매크로 정보 추가
         };
         
-        console.log('[firewall.js] Security Group 규칙 추가:', groupName, ruleData);
-        console.log('[firewall.js] 전송할 데이터:', JSON.stringify(ruleData, null, 2));
+        logging('[firewall.js] Security Group 규칙 추가:', groupName, ruleData);
+        logging('[firewall.js] 전송할 데이터:', JSON.stringify(ruleData, null, 2));
         
         $.ajax({
             url: `/api/firewall/groups/${groupName}/rules`,
@@ -452,7 +452,7 @@ $(function() {
             contentType: 'application/json',
             data: JSON.stringify(ruleData),
             success: function(data) {
-                console.log('[firewall.js] Security Group 규칙 추가 성공:', data);
+                logging('[firewall.js] Security Group 규칙 추가 성공:', data);
                 
                 if (data.success) {
                     $('#add-sg-rule-form')[0].reset();
@@ -466,7 +466,7 @@ $(function() {
                 }
             },
             error: function(xhr) {
-                console.error('[firewall.js] Security Group 규칙 추가 실패:', xhr);
+                logging.error('[firewall.js] Security Group 규칙 추가 실패:', xhr);
                 alert('Security Group 규칙 추가에 실패했습니다.');
             }
         });
@@ -479,13 +479,13 @@ $(function() {
         const groupName = $('#security-group-config-modal').data('group-name');
         const ruleId = $(this).data('rule-id');
         
-        console.log('[firewall.js] Security Group 규칙 삭제:', groupName, ruleId);
+        logging('[firewall.js] Security Group 규칙 삭제:', groupName, ruleId);
         
     $.ajax({
             url: `/api/firewall/groups/${groupName}/rules/${ruleId}`,
             method: 'DELETE',
             success: function(data) {
-                console.log('[firewall.js] Security Group 규칙 삭제 성공:', data);
+                logging('[firewall.js] Security Group 규칙 삭제 성공:', data);
                 
                 if (data.success) {
                     // Security Group 상세 정보 다시 로드
@@ -497,7 +497,7 @@ $(function() {
                 }
             },
             error: function(xhr) {
-                console.error('[firewall.js] Security Group 규칙 삭제 실패:', xhr);
+                logging.error('[firewall.js] Security Group 규칙 삭제 실패:', xhr);
                 alert('Security Group 규칙 삭제에 실패했습니다.');
       }
     });

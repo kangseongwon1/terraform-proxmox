@@ -1,6 +1,6 @@
 // iam.js
 $(function() {
-  console.log('[iam.js] iam.js loaded');
+  logging('[iam.js] iam.js loaded');
   let PERMISSIONS = [];
   let USERS = {};
   let overlayUser = null;
@@ -79,7 +79,7 @@ $(function() {
     
     // PERMISSIONS가 로드되지 않은 경우 기본값 설정
     if (!PERMISSIONS || PERMISSIONS.length === 0) {
-      console.warn('[iam.js] PERMISSIONS가 로드되지 않음, 기본 권한 목록 사용');
+      logging.warn('[iam.js] PERMISSIONS가 로드되지 않음, 기본 권한 목록 사용');
       PERMISSIONS = [
         'view_all', 'create_server', 'delete_server', 'start_server', 'stop_server',
         'manage_users', 'manage_roles', 'view_logs', 'manage_storage', 'manage_network'
@@ -205,15 +205,15 @@ $(function() {
 
   // 권한 관리 버튼 클릭 시 오버레이 띄우기
   $(document).off('click', '.iam-expand-btn').on('click', '.iam-expand-btn', function(e) {
-    console.log('[iam.js] .iam-expand-btn 클릭', $(this).data('username'));
-    console.log('[iam.js] 현재 USERS:', USERS);
-    console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
+    logging('[iam.js] .iam-expand-btn 클릭', $(this).data('username'));
+    logging('[iam.js] 현재 USERS:', USERS);
+    logging('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
     
     e.stopPropagation();
     const username = $(this).data('username');
     
     if (!USERS[username]) {
-      console.error('[iam.js] 사용자 정보를 찾을 수 없음:', username);
+      logging.error('[iam.js] 사용자 정보를 찾을 수 없음:', username);
       showIAMAlert('danger', '사용자 정보를 찾을 수 없습니다. 페이지를 새로고침해주세요.');
       return;
     }
@@ -221,8 +221,8 @@ $(function() {
     overlayUser = username;
     selectedPerms = [...(USERS[username].permissions || [])];
     
-    console.log('[iam.js] 선택된 사용자:', USERS[username]);
-    console.log('[iam.js] 선택된 권한:', selectedPerms);
+    logging('[iam.js] 선택된 사용자:', USERS[username]);
+    logging('[iam.js] 선택된 권한:', selectedPerms);
     
     const html = renderPermCardsOverlay(username);
     $('#iam-overlay-content').html(html);
@@ -231,7 +231,7 @@ $(function() {
 
   // 오버레이 닫기
   $(document).off('click', '#iam-overlay-close').on('click', '#iam-overlay-close', function() {
-    console.log('[iam.js] #iam-overlay-close 클릭');
+    logging('[iam.js] #iam-overlay-close 클릭');
     $('#iam-overlay').fadeOut(120);
     overlayUser = null;
     selectedPerms = [];
@@ -241,7 +241,7 @@ $(function() {
   // 오버레이 바깥 클릭 시 닫기
   $(document).off('mousedown', '#iam-overlay').on('mousedown', '#iam-overlay', function(e) {
     if (e.target === this) {
-      console.log('[iam.js] #iam-overlay 바깥 클릭');
+      logging('[iam.js] #iam-overlay 바깥 클릭');
       $('#iam-overlay').fadeOut(120);
       overlayUser = null;
       selectedPerms = [];
@@ -325,7 +325,7 @@ $(function() {
 
   // 권한 저장 버튼 클릭 (오버레이 내부)
   $(document).off('click', '.iam-save-perm-btn').on('click', '.iam-save-perm-btn', function() {
-    console.log('[iam.js] .iam-save-perm-btn 클릭', $(this).data('username'), selectedPerms);
+    logging('[iam.js] .iam-save-perm-btn 클릭', $(this).data('username'), selectedPerms);
     const username = $(this).data('username');
     $.ajax({
       url: `/admin/iam/${username}/permissions`,
@@ -333,15 +333,15 @@ $(function() {
       contentType: 'application/json',
       data: JSON.stringify({ permissions: selectedPerms }),
       beforeSend: function() {
-        console.log('[iam.js] /admin/iam/permissions 요청 전', username, selectedPerms);
+        logging('[iam.js] /admin/iam/permissions 요청 전', username, selectedPerms);
       },
       success: function(res) {
-        console.log('[iam.js] /admin/iam/permissions 성공', res);
+        logging('[iam.js] /admin/iam/permissions 성공', res);
         showIAMAlert('success', res.message);
         loadIAM();
       },
       error: function(xhr) {
-        console.error('[iam.js] /admin/iam/permissions 실패', xhr);
+        logging.error('[iam.js] /admin/iam/permissions 실패', xhr);
         let errorMsg = '권한 변경 실패';
         
         if (xhr.status === 403) {
@@ -357,13 +357,13 @@ $(function() {
 
   // 사용자 추가 버튼 클릭
   $(document).off('click', '#add-user-btn').on('click', '#add-user-btn', function() {
-    console.log('[iam.js] #add-user-btn 클릭');
+    logging('[iam.js] #add-user-btn 클릭');
     $('#add-user-modal').modal('show');
   });
 
   // 사용자 추가 저장 버튼 클릭
   $(document).off('click', '#save-user-btn').on('click', '#save-user-btn', function() {
-    console.log('[iam.js] #save-user-btn 클릭');
+    logging('[iam.js] #save-user-btn 클릭');
     addNewUser();
   });
 
@@ -403,7 +403,7 @@ $(function() {
     const logData = { ...formData };
     delete logData.password;
     delete logData.confirm_password;
-    console.log('[iam.js] 새 사용자 추가 요청:', logData);
+    logging('[iam.js] 새 사용자 추가 요청:', logData);
 
     $.ajax({
       url: '/api/users',
@@ -411,14 +411,14 @@ $(function() {
       contentType: 'application/json',
       data: JSON.stringify(formData),
       success: function(res) {
-        console.log('[iam.js] 사용자 추가 성공:', res);
+        logging('[iam.js] 사용자 추가 성공:', res);
         showIAMAlert('success', res.message);
         $('#add-user-modal').modal('hide');
         resetAddUserForm();
         loadIAM(); // 목록 새로고침
       },
       error: function(xhr) {
-        console.error('[iam.js] 사용자 추가 실패:', xhr);
+        logging.error('[iam.js] 사용자 추가 실패:', xhr);
         let errorMsg = '사용자 추가 실패';
         
         if (xhr.status === 403) {
@@ -441,7 +441,7 @@ $(function() {
   // 사용자 삭제 버튼 클릭
   $(document).off('click', '.iam-delete-btn').on('click', '.iam-delete-btn', function() {
     const username = $(this).data('username');
-    console.log('[iam.js] .iam-delete-btn 클릭', username);
+    logging('[iam.js] .iam-delete-btn 클릭', username);
     
     if (confirm(`정말로 사용자 '${username}'을(를) 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
       deleteUser(username);
@@ -450,18 +450,18 @@ $(function() {
 
   // 사용자 삭제 함수
   function deleteUser(username) {
-    console.log('[iam.js] 사용자 삭제 요청:', username);
+    logging('[iam.js] 사용자 삭제 요청:', username);
     
     $.ajax({
       url: `/api/users/${username}`,
       method: 'DELETE',
       success: function(res) {
-        console.log('[iam.js] 사용자 삭제 성공:', res);
+        logging('[iam.js] 사용자 삭제 성공:', res);
         showIAMAlert('success', res.message);
         loadIAM(); // 목록 새로고침
       },
       error: function(xhr) {
-        console.error('[iam.js] 사용자 삭제 실패:', xhr);
+        logging.error('[iam.js] 사용자 삭제 실패:', xhr);
         let errorMsg = '사용자 삭제 실패';
         
         if (xhr.status === 403) {
@@ -542,15 +542,15 @@ $(function() {
 
   // 초기 로드
   window.loadIAM = function() {
-    console.log('[iam.js] loadIAM 호출');
-    console.log('[iam.js] 현재 USERS:', USERS);
-    console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
+    logging('[iam.js] loadIAM 호출');
+    logging('[iam.js] 현재 USERS:', USERS);
+    logging('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
     
     $('#iam-loading').removeClass('d-none');
     $.get('/admin/iam', function(res) {
-      console.log('[iam.js] /admin/iam 응답:', res);
-      console.log('[iam.js] 응답에서 users:', res.users);
-      console.log('[iam.js] 응답에서 permissions:', res.all_permissions);
+      logging('[iam.js] /admin/iam 응답:', res);
+      logging('[iam.js] 응답에서 users:', res.users);
+      logging('[iam.js] 응답에서 permissions:', res.all_permissions);
       
       // users 배열을 username을 키로 하는 객체로 변환
       USERS = {};
@@ -562,8 +562,8 @@ $(function() {
       
       PERMISSIONS = res.all_permissions || [];
       
-      console.log('[iam.js] 변환된 USERS:', USERS);
-      console.log('[iam.js] 설정된 PERMISSIONS:', PERMISSIONS);
+      logging('[iam.js] 변환된 USERS:', USERS);
+      logging('[iam.js] 설정된 PERMISSIONS:', PERMISSIONS);
       
       renderSummary();
       renderTable();
@@ -573,9 +573,9 @@ $(function() {
       $('#iam-overlay').hide();
       $('#iam-overlay-content').empty();
     }).fail(function(xhr) {
-      console.error('[iam.js] /admin/iam 실패:', xhr);
-      console.error('[iam.js] 응답 상태:', xhr.status);
-      console.error('[iam.js] 응답 텍스트:', xhr.responseText);
+      logging.error('[iam.js] /admin/iam 실패:', xhr);
+      logging.error('[iam.js] 응답 상태:', xhr.status);
+      logging.error('[iam.js] 응답 텍스트:', xhr.responseText);
       
       let errorMsg = '사용자 목록을 불러올 수 없습니다.';
       

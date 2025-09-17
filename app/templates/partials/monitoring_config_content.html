@@ -196,11 +196,11 @@ function loadConfig() {
                 $('#cpu_warning_threshold').val(config.alerts.cpu_warning_threshold);
                 $('#cpu_critical_threshold').val(config.alerts.cpu_critical_threshold);
                 
-                console.log('설정 로드 완료');
+                logging('설정 로드 완료');
             }
         })
         .catch(function(error) {
-            console.error('설정 로드 실패:', error);
+            logging.error('설정 로드 실패:', error);
             alert('설정을 로드할 수 없습니다.');
         });
 }

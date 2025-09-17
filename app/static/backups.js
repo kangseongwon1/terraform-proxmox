@@ -2,7 +2,7 @@
  * 백업 관리 JavaScript
  */
 
-console.log('[backups.js] 백업 관리 페이지 로드됨');
+logging('[backups.js] 백업 관리 페이지 로드됨');
 
 // 전역 변수 (중복 선언 방지)
 if (typeof window.backupData === 'undefined') {
@@ -11,7 +11,7 @@ if (typeof window.backupData === 'undefined') {
 
 // 페이지 로드 시 실행
 $(document).ready(function() {
-    console.log('[backups.js] 페이지 초기화 시작');
+    logging('[backups.js] 페이지 초기화 시작');
     
     // 초기 통계값 설정
     $('#backup-count').text('0개');
@@ -19,7 +19,7 @@ $(document).ready(function() {
     
     // 새로고침 버튼 이벤트
     $('#refresh-backups').on('click', function() {
-        console.log('[backups.js] 새로고침 버튼 클릭');
+        logging('[backups.js] 새로고침 버튼 클릭');
         loadBackupData();
     });
     
@@ -30,7 +30,7 @@ $(document).ready(function() {
  * 백업 데이터 로드
  */
 function loadBackupData() {
-    console.log('[backups.js] 백업 데이터 로드 시작');
+    logging('[backups.js] 백업 데이터 로드 시작');
     
     $('#backups-tbody').html('<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> 백업 목록을 불러오는 중...</td></tr>');
     
@@ -39,15 +39,15 @@ function loadBackupData() {
         method: 'GET',
         timeout: 30000,
         success: function(response) {
-            console.log('[backups.js] API 응답:', response);
+            logging('[backups.js] API 응답:', response);
             
             if (response.success && response.data) {
                 const rawBackups = response.data.backups || [];
-                console.log('[backups.js] 백업 데이터:', rawBackups);
+                logging('[backups.js] 백업 데이터:', rawBackups);
                 
                 // VM별로 그룹화
                 window.backupData = groupBackupsByVM(rawBackups);
-                console.log('[backups.js] 그룹화된 데이터:', window.backupData);
+                logging('[backups.js] 그룹화된 데이터:', window.backupData);
                 
                 // 백업 통계 업데이트
                 updateBackupStats();
@@ -58,7 +58,7 @@ function loadBackupData() {
             }
         },
         error: function(xhr, status, error) {
-            console.error('[backups.js] API 호출 실패:', xhr, status, error);
+            logging.error('[backups.js] API 호출 실패:', xhr, status, error);
             $('#backups-tbody').html('<tr><td colspan="6" class="text-center text-danger">백업 목록을 불러오는데 실패했습니다.</td></tr>');
         }
     });
@@ -68,15 +68,15 @@ function loadBackupData() {
  * VM별로 백업 그룹화
  */
 function groupBackupsByVM(rawBackups) {
-    console.log('[backups.js] 그룹화 시작, 원본 데이터:', rawBackups);
+    logging('[backups.js] 그룹화 시작, 원본 데이터:', rawBackups);
     
     const vmGroups = {};
     
     rawBackups.forEach((backup, index) => {
-        console.log(`[backups.js] 백업 ${index}:`, backup);
+        logging(`[backups.js] 백업 ${index}:`, backup);
         
         const vmKey = `${backup.vm_name || backup.vm_id}`;
-        console.log(`[backups.js] VM 키: ${vmKey}`);
+        logging(`[backups.js] VM 키: ${vmKey}`);
         
         if (!vmGroups[vmKey]) {
             vmGroups[vmKey] = {
@@ -87,7 +87,7 @@ function groupBackupsByVM(rawBackups) {
                 latest_backup: null,
                 total_size_gb: 0
             };
-            console.log(`[backups.js] 새 VM 그룹 생성:`, vmGroups[vmKey]);
+            logging(`[backups.js] 새 VM 그룹 생성:`, vmGroups[vmKey]);
         }
         
         vmGroups[vmKey].backups.push(backup);
@@ -101,7 +101,7 @@ function groupBackupsByVM(rawBackups) {
     });
     
     const result = Object.values(vmGroups);
-    console.log('[backups.js] 그룹화 결과:', result);
+    logging('[backups.js] 그룹화 결과:', result);
     return result;
 }
 
@@ -117,10 +117,10 @@ function renderBackupTable() {
     }
     
     const rows = window.backupData.map((vm, index) => {
-        console.log(`[backups.js] VM ${index} 렌더링:`, vm);
+        logging(`[backups.js] VM ${index} 렌더링:`, vm);
         
         const latestBackup = vm.latest_backup;
-        console.log(`[backups.js] VM ${vm.vm_name} 최신 백업:`, latestBackup);
+        logging(`[backups.js] VM ${vm.vm_name} 최신 백업:`, latestBackup);
         
         const creationTime = latestBackup ? formatDateTime(latestBackup.ctime) : '-';
         const backupFile = latestBackup ? getBackupFileName(latestBackup.filename || latestBackup.name) : '-';
@@ -137,11 +137,11 @@ function renderBackupTable() {
             </tr>
         `;
         
-        console.log(`[backups.js] VM ${vm.vm_name} 생성된 행:`, row);
+        logging(`[backups.js] VM ${vm.vm_name} 생성된 행:`, row);
         return row;
     }).join('');
     
-    console.log('[backups.js] 전체 생성된 HTML:', rows);
+    logging('[backups.js] 전체 생성된 HTML:', rows);
     tbody.html(rows);
     
     // 행 클릭 이벤트 추가
@@ -153,14 +153,14 @@ function renderBackupTable() {
         }
     });
     
-    console.log('[backups.js] 테이블 렌더링 완료, 행 수:', window.backupData.length);
+    logging('[backups.js] 테이블 렌더링 완료, 행 수:', window.backupData.length);
 }
 
 /**
  * VM 백업 상세 모달 표시
  */
 function showVMBackupDetail(vmData) {
-    console.log('[backups.js] VM 백업 상세 표시:', vmData);
+    logging('[backups.js] VM 백업 상세 표시:', vmData);
     
     // 모달 제목 설정
     $('#vm-backup-modal-title').text(`${vmData.vm_name} (ID: ${vmData.vm_id}) 백업 목록`);
@@ -217,7 +217,7 @@ function showVMBackupDetail(vmData) {
  * 백업 복원
  */
 function restoreBackup(node, vmId, filename) {
-    console.log('[backups.js] 백업 복원:', { node, vmId, filename });
+    logging('[backups.js] 백업 복원:', { node, vmId, filename });
     
     if (!confirm('정말로 이 백업으로 복원하시겠습니까?\\n\\n⚠️ 현재 VM의 모든 데이터가 백업 시점으로 되돌아갑니다.')) {
         return;
@@ -240,7 +240,7 @@ function restoreBackup(node, vmId, filename) {
             filename: filename
         }),
         success: function(response) {
-            console.log('[backups.js] 백업 복원 성공:', response);
+            logging('[backups.js] 백업 복원 성공:', response);
             alert('백업 복원이 시작되었습니다.');
             
             // 모달 닫기
@@ -252,7 +252,7 @@ function restoreBackup(node, vmId, filename) {
             }, 2000);
         },
         error: function(xhr, status, error) {
-            console.error('[backups.js] 백업 복원 실패:', xhr, status, error);
+            logging.error('[backups.js] 백업 복원 실패:', xhr, status, error);
             let errorMessage = '백업 복원에 실패했습니다.';
             
             if (xhr.responseJSON && xhr.responseJSON.error) {
@@ -273,7 +273,7 @@ function restoreBackup(node, vmId, filename) {
  * 백업 삭제
  */
 function deleteBackup(node, filename, buttonElement) {
-    console.log('[backups.js] 백업 삭제:', { node, filename });
+    logging('[backups.js] 백업 삭제:', { node, filename });
     
     if (!confirm('정말로 이 백업을 삭제하시겠습니까?\\n\\n⚠️ 삭제된 백업은 복구할 수 없습니다.')) {
         return;
@@ -296,7 +296,7 @@ function deleteBackup(node, filename, buttonElement) {
             filename: filename
         }),
         success: function(response) {
-            console.log('[backups.js] 백업 삭제 성공:', response);
+            logging('[backups.js] 백업 삭제 성공:', response);
             alert('백업이 성공적으로 삭제되었습니다.');
             
             // 테이블에서 해당 행 제거
@@ -315,7 +315,7 @@ function deleteBackup(node, filename, buttonElement) {
             }, 1000);
         },
         error: function(xhr, status, error) {
-            console.error('[backups.js] 백업 삭제 실패:', xhr, status, error);
+            logging.error('[backups.js] 백업 삭제 실패:', xhr, status, error);
             let errorMessage = '백업 삭제에 실패했습니다.';
             
             if (xhr.responseJSON && xhr.responseJSON.error) {
@@ -343,7 +343,7 @@ function updateBackupStats() {
         totalSizeGB += vm.total_size_gb;
     });
     
-    console.log('[backups.js] 백업 통계:', { totalBackupCount, totalSizeGB });
+    logging('[backups.js] 백업 통계:', { totalBackupCount, totalSizeGB });
     
     // 헤더 배지 업데이트
     $('#backup-count').text(`${totalBackupCount}개`);

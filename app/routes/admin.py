@@ -261,7 +261,7 @@ def admin_iam_api():
 def iam():
     """IAM 관리"""
     users = User.query.all()
-    return render_template('admin/iam.html', users=users)
+    return render_template('admin_iam.html', users=users)
 
 @bp.route('/iam/<username>/permissions', methods=['POST'])
 @login_required

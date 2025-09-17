@@ -951,16 +951,16 @@
         
         // 버전 파라미터가 있으면 캐시 무효화
         if (scriptUrl.includes('?v=')) {
-          console.log(`[loadSPA] 캐시 무효화로 스크립트 재로드: ${scriptName}`);
+          logging(`[loadSPA] 캐시 무효화로 스크립트 재로드: ${scriptName}`);
           // 기존 스크립트 제거
           $('script[src*="' + scriptName + '"]').remove();
         }
         
-        console.log(`[loadSPA] 스크립트 로드: ${scriptName}`);
+        logging(`[loadSPA] 스크립트 로드: ${scriptName}`);
         $.getScript(scriptUrl).done(function() {
-          console.log(`[loadSPA] 스크립트 로드 완료: ${scriptName}`);
+          logging(`[loadSPA] 스크립트 로드 완료: ${scriptName}`);
         }).fail(function() {
-          console.error(`[loadSPA] 스크립트 로드 실패: ${scriptName}`);
+          logging.error(`[loadSPA] 스크립트 로드 실패: ${scriptName}`);
         });
       }
     });
@@ -1050,7 +1050,7 @@
   // URL 해시 기반 라우팅 함수
   function handleRoute() {
     const hash = window.location.hash || '#dashboard';
-    console.log('[index.html] 현재 해시:', hash);
+    logging('[index.html] 현재 해시:', hash);
     
     switch(hash) {
       case '#dashboard':
@@ -1068,7 +1068,7 @@
       case '#firewall-groups':
         loadSPA('/firewall/groups/content', '/static/firewall.js?v=' + Date.now(), function() {
           if (window.loadFirewallGroups) {
-            console.log('[index.html] 방화벽 그룹 데이터 자동 로드');
+            logging('[index.html] 방화벽 그룹 데이터 자동 로드');
             window.loadFirewallGroups();
           }
         });
@@ -1090,7 +1090,7 @@
   // 초기 진입 시 URL 해시에 따른 페이지 로드
   $(document).ready(function() {
     const hash = window.location.hash || '#dashboard';
-    console.log('[index.html] 초기 해시:', hash);
+    logging('[index.html] 초기 해시:', hash);
     
     // 사이드바 메뉴 활성화 상태 설정
     $('.sidebar .nav-link').removeClass('active');
@@ -1108,7 +1108,7 @@
     } else if (hash === '#firewall-groups') {
       loadSPA('/firewall/groups/content', '/static/firewall.js?v=' + Date.now(), function() {
         if (window.loadFirewallGroups) {
-          console.log('[index.html] 방화벽 그룹 데이터 자동 로드');
+          logging('[index.html] 방화벽 그룹 데이터 자동 로드');
           window.loadFirewallGroups();
         }
       });
@@ -1136,7 +1136,7 @@
   // 브라우저 뒤로가기/앞으로가기 버튼 처리
   $(window).on('popstate', function() {
     const hash = window.location.hash || '#dashboard';
-    console.log('[index.html] popstate 해시:', hash);
+    logging('[index.html] popstate 해시:', hash);
     
     // 사이드바 메뉴 활성화 상태 설정
     $('.sidebar .nav-link').removeClass('active');
@@ -1154,7 +1154,7 @@
     } else if (hash === '#firewall-groups') {
       loadSPA('/firewall/groups/content', '/static/firewall.js?v=' + Date.now(), function() {
         if (window.loadFirewallGroups) {
-          console.log('[index.html] 방화벽 그룹 데이터 자동 로드');
+          logging('[index.html] 방화벽 그룹 데이터 자동 로드');
           window.loadFirewallGroups();
         }
       });
