@@ -409,7 +409,7 @@ $(function() {
     console.log('[iam.js] 새 사용자 추가 요청:', logData);
 
     $.ajax({
-      url: '/api/users',
+      url: '/admin/api/users',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(formData),
@@ -456,7 +456,7 @@ $(function() {
     console.log('[iam.js] 사용자 삭제 요청:', username);
     
     $.ajax({
-      url: `/api/users/${username}`,
+      url: `/admin/api/users/${username}`,
       method: 'DELETE',
       success: function(res) {
         console.log('[iam.js] 사용자 삭제 성공:', res);
@@ -514,7 +514,7 @@ $(function() {
       return;
     }
     $.ajax({
-      url: `/api/users/${username}/password`,
+      url: `/admin/api/users/${username}/password`,
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ new_password: newPassword, confirm_password: confirmPassword }),
