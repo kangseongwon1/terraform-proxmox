@@ -416,16 +416,17 @@ def remove_firewall_group_compat(server_name):
         print(f"💥 방화벽 그룹 제거 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/instances/multi-server-summary')
-@login_required
-def multi_server_summary():
-    """멀티 서버 요약 (호환성)"""
-    try:
-        from flask import render_template
-        return render_template('partials/multi_server_summary.html')
-    except Exception as e:
-        print(f"💥 멀티 서버 요약 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# HTML 렌더링 엔드포인트는 main.py로 이동됨
+# @bp.route('/instances/multi-server-summary')
+# @login_required
+# def multi_server_summary():
+#     """멀티 서버 요약 (호환성)"""
+#     try:
+#         from flask import render_template
+#         return render_template('partials/multi_server_summary.html')
+#     except Exception as e:
+#         print(f"💥 멀티 서버 요약 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @bp.route('/favicon.ico')
 def favicon():

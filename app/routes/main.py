@@ -252,3 +252,13 @@ def backups_content():
         print(f"💥 /backups/content 예외 발생: {str(e)}")
         return render_template('partials/backups_content.html', data={'backups': [], 'node_stats': {}, 'total_count': 0, 'total_size_gb': 0})
 
+@bp.route('/instances/multi-server-summary')
+@login_required
+def multi_server_summary():
+    """멀티 서버 요약"""
+    try:
+        return render_template('partials/multi_server_summary.html')
+    except Exception as e:
+        print(f"💥 멀티 서버 요약 예외 발생: {str(e)}")
+        return render_template('partials/multi_server_summary.html')
+

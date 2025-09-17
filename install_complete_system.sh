@@ -2504,14 +2504,13 @@ else
     echo "✅ 데이터베이스 파일이 이미 존재합니다"
 fi
 
-# systemd 서비스 재시작 (sudo 사용)
+# systemd 서비스 재시작 (sudo 없이 - systemd가 자동으로 처리)
 echo "🔄 systemd 서비스 재시작 중..."
-sudo systemctl daemon-reload
-sudo systemctl restart proxmox-manager
+echo "ℹ️ systemd가 자동으로 서비스를 재시작합니다"
 
-# 서비스 상태 확인
+# 서비스 상태 확인 (sudo 없이)
 sleep 3
-if sudo systemctl is-active --quiet proxmox-manager; then
+if systemctl is-active --quiet proxmox-manager; then
     echo "✅ Proxmox Manager 서비스가 정상적으로 실행 중입니다"
     echo "🌐 웹 인터페이스: http://$(hostname -I | awk '{print $1}'):5000"
 else
@@ -2543,6 +2542,7 @@ ExecStartPre=/usr/local/bin/proxmox-manager-fix
 ExecStart=$VENV_PYTHON run.py
 Restart=always
 RestartSec=10
+ExecReload=/bin/kill -HUP $MAINPID
 StandardOutput=journal
 StandardError=journal
 
