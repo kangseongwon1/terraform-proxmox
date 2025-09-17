@@ -4,10 +4,15 @@
 
 """랜더링 용"""
 from flask import Blueprint, render_template, current_app, jsonify, request, send_from_directory
+import logging
 from flask_login import login_required, current_user
 from app.models import User, Server, Notification
 from app.services import ProxmoxService
 import json
+
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('main', __name__)
 
@@ -56,7 +61,7 @@ def instances_content():
     }
     
     try:
-        print("🔍 /instances/content 호출됨")
+        logger.info("🔍 /instances/content 호출됨")
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_all_vms()
         
@@ -112,7 +117,7 @@ def instances_content():
         
         return render_template('partials/instances_content.html', servers=server_list, roles=roles, server_data=servers)
     except Exception as e:
-        print(f"💥 /instances/content 예외 발생: {str(e)}")
+        logger.error(f"/instances/content 예외 발생: {str(e)}")
         return render_template('partials/instances_content.html', servers=[], roles=roles, server_data={})
 
 @bp.route('/dashboard/content')
@@ -120,11 +125,11 @@ def instances_content():
 def dashboard_content():
     """대시보드 콘텐츠 (기존 템플릿 호환)"""
     try:
-        print("🔍 /dashboard/content 호출됨")
+        logger.info("🔍 /dashboard/content 호출됨")
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_all_vms()
         
-        print(f"🔍 get_all_vms 결과: {result}")
+        logger.info(f"🔍 get_all_vms 결과: {result}")
         
         if result['success']:
             servers = result['data']['servers']
@@ -133,10 +138,10 @@ def dashboard_content():
             running = stats.get('running_servers', 0)
             stopped = stats.get('stopped_servers', 0)
             
-            print(f"🔍 서버 수: {len(servers)}")
-            print(f"🔍 통계: total={total}, running={running}, stopped={stopped}")
+            logger.info(f"🔍 서버 수: {len(servers)}")
+            logger.info(f"🔍 통계: total={total}, running={running}, stopped={stopped}")
         else:
-            print(f"❌ get_all_vms 실패: {result.get('message', '알 수 없는 오류')}")
+            logger.error(f"get_all_vms 실패: {result.get('message', '알 수 없는 오류')}")
             # 데이터베이스에서 직접 조회
             with proxmox_service._get_db_connection() as conn:
                 cursor = conn.cursor()
@@ -172,7 +177,7 @@ def dashboard_content():
         return render_template('partials/dashboard_content.html', 
                              servers=servers, total=total, running=running, stopped=stopped)
     except Exception as e:
-        print(f"💥 /dashboard/content 예외 발생: {str(e)}")
+        logger.error(f"/dashboard/content 예외 발생: {str(e)}")
         import traceback
         traceback.print_exc()
         return render_template('partials/dashboard_content.html', servers=[], total=0, running=0, stopped=0)
@@ -182,22 +187,22 @@ def dashboard_content():
 def storage_content():
     """스토리지 콘텐츠 (기존 템플릿 호환)"""
     try:
-        print("🔍 /storage/content 호출됨")
+        logger.info("🔍 /storage/content 호출됨")
         proxmox_service = ProxmoxService()
         result = proxmox_service.get_storage_info()
         
-        print(f"🔍 get_storage_info 결과: {result}")
+        logger.info(f"🔍 get_storage_info 결과: {result}")
         
         if result['success']:
             storages = result['data']
-            print(f"🔍 스토리지 수: {len(storages)}")
+            logger.info(f"🔍 스토리지 수: {len(storages)}")
         else:
-            print(f"❌ get_storage_info 실패: {result.get('message', '알 수 없는 오류')}")
+            logger.error(f"get_storage_info 실패: {result.get('message', '알 수 없는 오류')}")
             storages = []
         
         return render_template('partials/storage_content.html', storages=storages)
     except Exception as e:
-        print(f"💥 /storage/content 예외 발생: {str(e)}")
+        logger.error(f"/storage/content 예외 발생: {str(e)}")
         import traceback
         traceback.print_exc()
         return render_template('partials/storage_content.html', storages=[])
@@ -207,11 +212,11 @@ def storage_content():
 def admin_iam_content():
     """관리자 IAM 콘텐츠 (기존 템플릿 호환)"""
     try:
-        print("🔍 /admin/iam/content 호출됨")
+        logger.info("🔍 /admin/iam/content 호출됨")
         users = User.query.all()
         return render_template('partials/admin_iam_content.html', users=users)
     except Exception as e:
-        print(f"💥 /admin/iam/content 예외 발생: {str(e)}")
+        logger.error(f"/admin/iam/content 예외 발생: {str(e)}")
         return render_template('partials/admin_iam_content.html', users=[])
 
 @bp.route('/firewall/groups/content')
@@ -219,11 +224,11 @@ def admin_iam_content():
 def firewall_groups_content():
     """방화벽 그룹 콘텐츠 (기존 템플릿 호환)"""
     try:
-        print("🔍 /firewall/groups/content 호출됨")
+        logger.info("🔍 /firewall/groups/content 호출됨")
         # 방화벽 그룹 데이터는 JavaScript에서 AJAX로 가져옴
         return render_template('partials/firewall_groups_content.html')
     except Exception as e:
-        print(f"💥 /firewall/groups/content 예외 발생: {str(e)}")
+        logger.error(f"/firewall/groups/content 예외 발생: {str(e)}")
         return render_template('partials/firewall_groups_content.html')
 
 @bp.route('/firewall/group-detail/content')
@@ -231,11 +236,11 @@ def firewall_groups_content():
 def firewall_group_detail_content():
     """방화벽 그룹 상세 콘텐츠 (기존 템플릿 호환)"""
     try:
-        print("🔍 /firewall/group-detail/content 호출됨")
+        logger.info("🔍 /firewall/group-detail/content 호출됨")
         group_name = request.args.get('group')
         return render_template('partials/firewall_group_detail_content.html', group_name=group_name)
     except Exception as e:
-        print(f"💥 /firewall/group-detail/content 예외 발생: {str(e)}")
+        logger.error(f"/firewall/group-detail/content 예외 발생: {str(e)}")
         return render_template('partials/firewall_group_detail_content.html', group_name='')
 
 @bp.route('/backups/content')
@@ -249,7 +254,7 @@ def backups_content():
         data = result['data'] if result.get('success') else {'backups': [], 'node_stats': {}, 'total_count': 0, 'total_size_gb': 0}
         return render_template('partials/backups_content.html', data=data)
     except Exception as e:
-        print(f"💥 /backups/content 예외 발생: {str(e)}")
+        logger.error(f"/backups/content 예외 발생: {str(e)}")
         return render_template('partials/backups_content.html', data={'backups': [], 'node_stats': {}, 'total_count': 0, 'total_size_gb': 0})
 
 @bp.route('/instances/multi-server-summary')
@@ -259,6 +264,6 @@ def multi_server_summary():
     try:
         return render_template('partials/multi_server_summary.html')
     except Exception as e:
-        print(f"💥 멀티 서버 요약 예외 발생: {str(e)}")
+        logger.error(f"멀티 서버 요약 예외 발생: {str(e)}")
         return render_template('partials/multi_server_summary.html')
 

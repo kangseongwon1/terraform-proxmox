@@ -181,7 +181,7 @@ def get_profile_api():
         }
         return jsonify(user_data)
     except Exception as e:
-        print(f"💥 프로필 API 오류: {str(e)}")
+        logger.error(f"프로필 API 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/session/refresh', methods=['POST'])
@@ -212,7 +212,7 @@ def refresh_session():
             }
         })
     except Exception as e:
-        print(f"💥 세션 갱신 오류: {str(e)}")
+        logger.error(f"세션 갱신 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/session/check', methods=['GET'])
@@ -234,5 +234,5 @@ def check_session():
                 'message': '로그인이 필요합니다.'
             }), 401
     except Exception as e:
-        print(f"💥 세션 상태 확인 오류: {str(e)}")
+        logger.error(f"세션 상태 확인 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 

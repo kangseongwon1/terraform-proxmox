@@ -60,7 +60,7 @@ def get_users():
         
         return jsonify({'users': user_data})
     except Exception as e:
-        print(f"💥 사용자 목록 조회 실패: {str(e)}")
+        logger.error(f"사용자 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/current-user', methods=['GET'])
@@ -82,7 +82,7 @@ def get_current_user():
         }
         return jsonify(user_data)
     except Exception as e:
-        print(f"💥 현재 사용자 정보 조회 실패: {str(e)}")
+        logger.error(f"현재 사용자 정보 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/debug/user-info', methods=['GET'])
@@ -102,7 +102,7 @@ def debug_user_info():
         }
         return jsonify(debug_info)
     except Exception as e:
-        print(f"💥 사용자 정보 디버깅 실패: {str(e)}")
+        logger.error(f"사용자 정보 디버깅 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/users', methods=['POST'])
@@ -143,7 +143,7 @@ def create_user():
         })
         
     except Exception as e:
-        print(f"💥 사용자 생성 실패: {str(e)}")
+        logger.error(f"사용자 생성 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/users/<username>/delete', methods=['POST'])
@@ -168,7 +168,7 @@ def delete_user(username):
         })
         
     except Exception as e:
-        print(f"💥 사용자 삭제 실패: {str(e)}")
+        logger.error(f"사용자 삭제 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -249,7 +249,7 @@ def admin_iam_api():
         })
         
     except Exception as e:
-        print(f"💥 관리자 IAM API 실패: {str(e)}")
+        logger.error(f"관리자 IAM API 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -338,7 +338,7 @@ def admin_iam_set_permissions(username):
         })
         
     except Exception as e:
-        print(f"💥 사용자 권한 설정 실패: {str(e)}")
+        logger.error(f"사용자 권한 설정 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/admin/iam/<username>/role', methods=['POST'])
@@ -365,7 +365,7 @@ def admin_iam_set_role(username):
         })
         
     except Exception as e:
-        print(f"💥 사용자 역할 설정 실패: {str(e)}")
+        logger.error(f"사용자 역할 설정 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500        
 
 @bp.route('/api/users/<username>/password', methods=['POST'])
@@ -403,6 +403,6 @@ def change_user_password(username):
         })
         
     except Exception as e:
-        print(f"💥 사용자 비밀번호 변경 실패: {str(e)}")
+        logger.error(f"사용자 비밀번호 변경 실패: {str(e)}")
         db.session.rollback()
         return jsonify({'error': str(e)}), 500        

@@ -2,6 +2,7 @@
 모니터링 관련 라우트 - .env 파일 중심, 경고/위험 서버 상세 정보 추가
 """
 from flask import Blueprint, jsonify, request, render_template
+import logging
 from flask_login import login_required
 import requests
 import json
@@ -12,6 +13,10 @@ from datetime import datetime, timedelta
 from app.models import Server
 from app import db
 from sqlalchemy import text
+
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('monitoring', __name__, url_prefix='/monitoring')
 
@@ -184,7 +189,7 @@ def get_server_health_details(server_ip):
         }
         
     except Exception as e:
-        print(f"서버 건강 상태 조회 오류 ({server_ip}): {e}")
+        logger.info(f"서버 건강 상태 조회 오류 ({server_ip}): {e}")
         return {
             'server_ip': server_ip,
             'status': 'unknown',
@@ -249,7 +254,7 @@ def get_current_alerts():
         return get_current_alerts._alerts
         
     except Exception as e:
-        print(f"알림 목록 조회 오류: {e}")
+        logger.info(f"알림 목록 조회 오류: {e}")
         return []
 
 def add_alert(alert):
@@ -268,12 +273,12 @@ def add_alert(alert):
         
         if not existing_alert:
             get_current_alerts._alerts.append(alert)
-            print(f"새 알림 추가: {alert['message']}")
+            logger.info(f"새 알림 추가: {alert['message']}")
         
         return True
         
     except Exception as e:
-        print(f"알림 추가 오류: {e}")
+        logger.info(f"알림 추가 오류: {e}")
         return False
 
 def acknowledge_alert(alert_id):
@@ -284,13 +289,13 @@ def acknowledge_alert(alert_id):
             if alert['id'] == alert_id:
                 alert['acknowledged'] = True
                 alert['acknowledged_at'] = datetime.now().isoformat()
-                print(f"알림 확인 처리: {alert_id}")
+                logger.info(f"알림 확인 처리: {alert_id}")
                 return True
         
         return False
         
     except Exception as e:
-        print(f"알림 확인 처리 오류: {e}")
+        logger.info(f"알림 확인 처리 오류: {e}")
         return False
 
 def clear_old_alerts():
@@ -305,10 +310,10 @@ def clear_old_alerts():
             if (current_time - datetime.fromisoformat(alert['timestamp'])).total_seconds() < 86400
         ]
         
-        print(f"오래된 알림 정리 완료")
+        logger.info(f"오래된 알림 정리 완료")
         
     except Exception as e:
-        print(f"오래된 알림 정리 오류: {e}")
+        logger.info(f"오래된 알림 정리 오류: {e}")
 
 # ============================================================================
 # 기존 라우트들
@@ -422,7 +427,7 @@ def get_grafana_dashboard():
             })
             
     except Exception as e:
-        print(f"Grafana 대시보드 정보 조회 오류: {e}")
+        logger.info(f"Grafana 대시보드 정보 조회 오류: {e}")
         return jsonify({'error': str(e)}), 500
 
 def get_dashboard_info():
@@ -459,7 +464,7 @@ def get_dashboard_info():
         }
         
     except Exception as e:
-        print(f"대시보드 정보 읽기 오류: {e}")
+        logger.info(f"대시보드 정보 읽기 오류: {e}")
         # 오류 시 .env 기본 설정 반환
         grafana_config = get_grafana_config()
         return {
@@ -540,7 +545,7 @@ def create_grafana_embed_url(dashboard_info, selected_server):
             
             # 첫 번째 형식 사용 (Grafana에서 실제 사용하는 형식)
             embed_url += server_filters[0]
-            print(f"서버 필터링 적용: {selected_server} -> {server_filters[0]}")
+            logger.info(f"서버 필터링 적용: {selected_server} -> {server_filters[0]}")
         
         # 시간 범위 설정 (.env에서 설정)
         monitoring_config = get_monitoring_config()
@@ -562,7 +567,7 @@ def create_grafana_embed_url(dashboard_info, selected_server):
         return embed_url
         
     except Exception as e:
-        print(f"임베드 URL 생성 오류: {e}")
+        logger.info(f"임베드 URL 생성 오류: {e}")
         return dashboard_info.get('embed_url', '')
 
 @bp.route('/config', methods=['GET'])
@@ -616,7 +621,7 @@ def get_actual_servers():
             # SQLAlchemy 2.0 호환 방식으로 DB 연결 테스트
             db.session.execute(text('SELECT 1'))
         except Exception as db_error:
-            print(f"데이터베이스 연결 오류: {db_error}")
+            logger.info(f"데이터베이스 연결 오류: {db_error}")
             return []  # 더미 데이터 제거 - 빈 배열 반환
         
         # Server 모델 접근 시도
@@ -649,15 +654,15 @@ def get_actual_servers():
                     'vmid': server.vmid
                 })
             
-            print(f"DB에서 {len(servers)}개 서버 로드 완료")
+            logger.info(f"DB에서 {len(servers)}개 서버 로드 완료")
             return servers
             
         except Exception as model_error:
-            print(f"Server 모델 접근 오류: {model_error}")
+            logger.info(f"Server 모델 접근 오류: {model_error}")
             return []  # 더미 데이터 제거 - 빈 배열 반환
         
     except Exception as e:
-        print(f"서버 목록 조회 오류: {e}")
+        logger.info(f"서버 목록 조회 오류: {e}")
         return []  # 더미 데이터 제거 - 빈 배열 반환
 
 def determine_server_status(server):
@@ -677,7 +682,7 @@ def determine_server_status(server):
         return server_status
         
     except Exception as e:
-        print(f"서버 상태 확인 오류 ({server.name}): {e}")
+        logger.info(f"서버 상태 확인 오류 ({server.name}): {e}")
         return 'healthy'
 
 def get_real_server_status(server_ip):
@@ -709,7 +714,7 @@ def get_real_server_status(server_ip):
         return status
         
     except Exception as e:
-        print(f"서버 {server_ip} 상태 확인 실패: {e}")
+        logger.info(f"서버 {server_ip} 상태 확인 실패: {e}")
         return 'healthy'
 
 def get_prometheus_metric(query):
@@ -728,7 +733,7 @@ def get_prometheus_metric(query):
         
         return 0
     except Exception as e:
-        print(f"Prometheus 메트릭 가져오기 실패: {e}")
+        logger.info(f"Prometheus 메트릭 가져오기 실패: {e}")
         return 0
 
 def get_network_latency(server_ip):
@@ -754,7 +759,7 @@ def get_network_latency(server_ip):
         
         return 999  # ping 실패 시 높은 값 반환
     except Exception as e:
-        print(f"네트워크 지연 측정 실패: {e}")
+        logger.info(f"네트워크 지연 측정 실패: {e}")
         return 999
 
 @bp.route('/servers/<server_ip>/metrics', methods=['GET'])

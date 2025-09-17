@@ -48,7 +48,7 @@ def get_notifications():
         resp.headers['Expires'] = '0'
         return resp
     except Exception as e:
-        print(f"💥 알림 목록 조회 실패: {str(e)}")
+        logger.error(f"알림 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/latest', methods=['GET'])
@@ -116,7 +116,7 @@ def get_latest_notification():
         resp.headers['Expires'] = '0'
         return resp
     except Exception as e:
-        print(f"💥 최신 알림 조회 실패: {str(e)}")
+        logger.error(f"최신 알림 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/stream', methods=['GET'])
@@ -194,7 +194,7 @@ def get_notification_by_id(notification_id: int):
             }
         })
     except Exception as e:
-        print(f"💥 알림 단건 조회 실패: {str(e)}")
+        logger.error(f"알림 단건 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/<int:notification_id>/read', methods=['POST'])
@@ -212,7 +212,7 @@ def mark_notification_read(notification_id):
         
         return jsonify({'success': True, 'message': '알림이 읽음으로 표시되었습니다.'})
     except Exception as e:
-        print(f"💥 알림 읽음 표시 실패: {str(e)}")
+        logger.error(f"알림 읽음 표시 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/unread-count', methods=['GET'])
@@ -226,7 +226,7 @@ def get_unread_notification_count():
             'count': count
         })
     except Exception as e:
-        print(f"💥 읽지 않은 알림 개수 조회 실패: {str(e)}")
+        logger.error(f"읽지 않은 알림 개수 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/<int:notification_id>', methods=['DELETE'])
@@ -252,7 +252,7 @@ def delete_notification(notification_id):
         })
         
     except Exception as e:
-        print(f"💥 개별 알림 삭제 실패: {str(e)}")
+        logger.error(f"개별 알림 삭제 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/clear-all', methods=['POST'])
@@ -272,5 +272,5 @@ def clear_all_notifications():
         })
         
     except Exception as e:
-        print(f"💥 모든 알림 삭제 실패: {str(e)}")
+        logger.error(f"모든 알림 삭제 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500 
