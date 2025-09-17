@@ -1,6 +1,6 @@
 // session_manager.js - 세션 자동 갱신 및 관리
 $(function() {
-  logging('[session_manager.js] 세션 관리자 초기화');
+  console.log('[session_manager.js] 세션 관리자 초기화');
   
   // 세션 갱신 간격 (5분마다)
   const SESSION_REFRESH_INTERVAL = 5 * 60 * 1000; // 5분
@@ -20,20 +20,20 @@ $(function() {
       timeout: 10000,
       success: function(response) {
         if (response.authenticated) {
-          logging('[session_manager.js] 세션 유효함');
+          console.log('[session_manager.js] 세션 유효함');
           // 세션이 유효하면 갱신 타이머 시작
           startSessionRefreshTimer();
         } else {
-          logging('[session_manager.js] 세션 만료됨');
+          console.log('[session_manager.js] 세션 만료됨');
           handleSessionExpired();
         }
       },
       error: function(xhr) {
         if (xhr.status === 401) {
-          logging('[session_manager.js] 세션 만료됨 (401)');
+          console.log('[session_manager.js] 세션 만료됨 (401)');
           handleSessionExpired();
         } else {
-          logging('[session_manager.js] 세션 상태 확인 실패:', xhr.status);
+          console.log('[session_manager.js] 세션 상태 확인 실패:', xhr.status);
         }
       }
     });
@@ -44,7 +44,7 @@ $(function() {
     if (isRefreshing) return;
     
     isRefreshing = true;
-    logging('[session_manager.js] 세션 갱신 시작');
+    console.log('[session_manager.js] 세션 갱신 시작');
     
     $.ajax({
       url: '/api/session/refresh',
@@ -52,16 +52,16 @@ $(function() {
       timeout: 10000,
       success: function(response) {
         if (response.success) {
-          logging('[session_manager.js] 세션 갱신 성공');
+          console.log('[session_manager.js] 세션 갱신 성공');
           // 성공 알림 표시 (조용히)
           showSessionNotification('success', '세션이 갱신되었습니다.', 2000);
         } else {
-          logging('[session_manager.js] 세션 갱신 실패:', response.error);
+          console.log('[session_manager.js] 세션 갱신 실패:', response.error);
           handleSessionExpired();
         }
       },
       error: function(xhr) {
-        logging('[session_manager.js] 세션 갱신 오류:', xhr.status);
+        console.log('[session_manager.js] 세션 갱신 오류:', xhr.status);
         if (xhr.status === 401) {
           handleSessionExpired();
         }
@@ -74,7 +74,7 @@ $(function() {
   
   // 세션 만료 처리
   function handleSessionExpired() {
-    logging('[session_manager.js] 세션 만료 처리 시작');
+    console.log('[session_manager.js] 세션 만료 처리 시작');
     
     // 타이머 정리
     stopSessionTimers();
@@ -83,7 +83,7 @@ $(function() {
     if (!window.location.pathname.includes('/auth/login')) {
       // 작업 중인 AJAX 요청이 있는지 확인
       if ($.active > 0) {
-        logging('[session_manager.js] 진행 중인 AJAX 요청이 있습니다. 잠시 후 다시 시도합니다.');
+        console.log('[session_manager.js] 진행 중인 AJAX 요청이 있습니다. 잠시 후 다시 시도합니다.');
         setTimeout(handleSessionExpired, 2000);
         return;
       }
@@ -111,7 +111,7 @@ $(function() {
       refreshSession();
     }, SESSION_REFRESH_INTERVAL);
     
-    logging('[session_manager.js] 세션 갱신 타이머 시작 (5분 간격)');
+    console.log('[session_manager.js] 세션 갱신 타이머 시작 (5분 간격)');
   }
   
   // 세션 상태 확인 타이머 시작
@@ -124,7 +124,7 @@ $(function() {
       checkSessionStatus();
     }, SESSION_CHECK_INTERVAL);
     
-    logging('[session_manager.js] 세션 상태 확인 타이머 시작 (30초 간격)');
+    console.log('[session_manager.js] 세션 상태 확인 타이머 시작 (30초 간격)');
   }
   
   // 모든 타이머 정리
@@ -137,7 +137,7 @@ $(function() {
       clearInterval(sessionCheckTimer);
       sessionCheckTimer = null;
     }
-    logging('[session_manager.js] 모든 세션 타이머 정리됨');
+    console.log('[session_manager.js] 모든 세션 타이머 정리됨');
   }
   
   // 세션 알림 표시
@@ -198,9 +198,9 @@ $(function() {
       localStorage.setItem('lastPage', window.location.pathname);
       localStorage.setItem('lastPageTitle', document.title);
       
-      logging('[session_manager.js] 작업 상태 저장 완료');
+      console.log('[session_manager.js] 작업 상태 저장 완료');
     } catch (e) {
-      logging('[session_manager.js] 작업 상태 저장 실패:', e);
+      console.log('[session_manager.js] 작업 상태 저장 실패:', e);
     }
   }
   
@@ -226,16 +226,16 @@ $(function() {
           $('#multi-server-options').show();
         }
         
-        logging('[session_manager.js] 서버 생성 폼 상태 복원 완료');
+        console.log('[session_manager.js] 서버 생성 폼 상태 복원 완료');
       }
     } catch (e) {
-      logging('[session_manager.js] 작업 상태 복원 실패:', e);
+      console.log('[session_manager.js] 작업 상태 복원 실패:', e);
     }
   }
   
   // 페이지 로드 시 세션 관리 시작
   function initializeSessionManager() {
-    logging('[session_manager.js] 세션 관리자 초기화 시작');
+    console.log('[session_manager.js] 세션 관리자 초기화 시작');
     
     // 현재 페이지가 로그인 페이지가 아닌 경우에만 세션 관리 시작
     if (!window.location.pathname.includes('/auth/login')) {
@@ -267,7 +267,7 @@ $(function() {
       // 사용자 활동 이벤트 리스너
       $(document).on('mousemove keypress click scroll', resetUserActivityTimer);
       
-      logging('[session_manager.js] 세션 관리자 초기화 완료');
+      console.log('[session_manager.js] 세션 관리자 초기화 완료');
     }
   }
   

@@ -1,6 +1,6 @@
 // dashboard.js
 $(function() {
-  logging('[dashboard.js] dashboard.js loaded');
+  console.log('[dashboard.js] dashboard.js loaded');
   
   // 숫자 포맷팅 함수
   function format2f(val) {
@@ -19,7 +19,7 @@ $(function() {
   };
   
   function updateDashboardStats(stats) {
-    logging('[dashboard.js] updateDashboardStats', stats);
+    console.log('[dashboard.js] updateDashboardStats', stats);
     
     // 기본 서버 통계
     $('#total-servers').text(stats.total_servers);
@@ -64,11 +64,11 @@ $(function() {
   
   // 대시보드 서버 요약 패널 렌더링
   window.loadDashboardServers = function() {
-    logging('[dashboard.js] loadDashboardServers 호출');
+    console.log('[dashboard.js] loadDashboardServers 호출');
     $('#server-summary-container').html('<div class="text-center text-muted py-4">서버 정보를 불러오는 중...</div>');
     
     $.get('/api/all_server_status', function(res) {
-      logging('[dashboard.js] /all_server_status 응답:', res);
+      console.log('[dashboard.js] /all_server_status 응답:', res);
       const servers = res.servers || {};
       let html = '';
       
@@ -135,22 +135,22 @@ $(function() {
         updateDashboardStats(res.stats);
       }
     }).fail(function(xhr) {
-      logging.error('[dashboard.js] /all_server_status 실패:', xhr);
+      console.error('[dashboard.js] /all_server_status 실패:', xhr);
       $('#server-summary-container').html('<div class="text-center text-danger py-4">서버 정보를 불러오지 못했습니다.</div>');
     });
   };
   
   // 대시보드 스토리지 요약 패널 렌더링
   window.loadDashboardStorage = function() {
-    logging('[dashboard.js] loadDashboardStorage 호출');
+    console.log('[dashboard.js] loadDashboardStorage 호출');
     $('#dashboard-storage-panel').html('<div class="text-center text-muted py-4">스토리지 정보를 불러오는 중...</div>');
     
     $.get('/api/proxmox_storage', function(res) {
-      logging('[dashboard.js] /proxmox_storage 응답:', res);
+      console.log('[dashboard.js] /proxmox_storage 응답:', res);
       
       // API 응답 구조에 맞게 수정 - storage 키가 아닌 data 키로 접근
       const storages = (res.success && res.data) ? res.data : [];
-      logging('[dashboard.js] 처리된 스토리지 데이터:', storages);
+      console.log('[dashboard.js] 처리된 스토리지 데이터:', storages);
       
       let html = '';
       
@@ -179,13 +179,13 @@ $(function() {
       
       $('#dashboard-storage-panel').html(html);
     }).fail(function(xhr) {
-      logging.error('[dashboard.js] 스토리지 정보 로드 실패:', xhr);
+      console.error('[dashboard.js] 스토리지 정보 로드 실패:', xhr);
       $('#dashboard-storage-panel').html('<div class="text-center text-danger py-4">스토리지 정보를 불러오지 못했습니다.</div>');
     });
   };
   
   // 최초 진입/새로고침/탭 전환 시 항상 최신 상태로 갱신
-  logging('[dashboard.js] 대시보드 데이터 로드 시작');
+  console.log('[dashboard.js] 대시보드 데이터 로드 시작');
   
   // 초기화 플래그 설정
   window.dashboardInitialized = true;
@@ -197,7 +197,7 @@ $(function() {
   let serverSummaryExpanded = false;
   
   $('#toggle-server-summary-btn').on('click', function() {
-    logging('[dashboard.js] 토글 버튼 클릭됨');
+    console.log('[dashboard.js] 토글 버튼 클릭됨');
     const container = $('#server-summary-container');
     const icon = $('#toggle-server-summary-icon');
     
@@ -206,19 +206,19 @@ $(function() {
       container.removeClass('expanded maximized');
       icon.removeClass('fa-compress-alt').addClass('fa-expand-alt');
       serverSummaryExpanded = false;
-      logging('[dashboard.js] 서버 요약 축소됨');
+      console.log('[dashboard.js] 서버 요약 축소됨');
     } else {
       // 확장
       container.addClass('expanded');
       icon.removeClass('fa-expand-alt').addClass('fa-compress-alt');
       serverSummaryExpanded = true;
-      logging('[dashboard.js] 서버 요약 확장됨');
+      console.log('[dashboard.js] 서버 요약 확장됨');
     }
   });
   
   // 서버 요약 컨테이너 더블클릭으로 최대화/복원 (이벤트 위임 사용)
   $(document).on('dblclick', '#server-summary-container', function(e) {
-    logging('[dashboard.js] 서버 요약 컨테이너 더블클릭됨');
+    console.log('[dashboard.js] 서버 요약 컨테이너 더블클릭됨');
     e.preventDefault();
     e.stopPropagation();
     
@@ -230,24 +230,24 @@ $(function() {
       container.removeClass('maximized');
       icon.removeClass('fa-compress-alt').addClass('fa-expand-alt');
       serverSummaryExpanded = false;
-      logging('[dashboard.js] 서버 요약 최대화에서 복원됨');
+      console.log('[dashboard.js] 서버 요약 최대화에서 복원됨');
     } else {
       // 최대화
       container.addClass('maximized');
       icon.removeClass('fa-expand-alt').addClass('fa-compress-alt');
       serverSummaryExpanded = true;
-      logging('[dashboard.js] 서버 요약 최대화됨');
+      console.log('[dashboard.js] 서버 요약 최대화됨');
     }
   });
   
   // 새로고침 버튼 이벤트
   $('#dashboard-refresh-btn').on('click', function() {
-    logging('[dashboard.js] #dashboard-refresh-btn 클릭');
+    console.log('[dashboard.js] #dashboard-refresh-btn 클릭');
     loadDashboardServers();
   });
   
   $('#dashboard-storage-refresh-btn').on('click', function() {
-    logging('[dashboard.js] #dashboard-storage-refresh-btn 클릭');
+    console.log('[dashboard.js] #dashboard-storage-refresh-btn 클릭');
     loadDashboardStorage();
   });
 }); 

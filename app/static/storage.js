@@ -1,6 +1,6 @@
 // storage.js
 $(function() {
-  logging('[storage.js] storage.js loaded');
+  console.log('[storage.js] storage.js loaded');
   
   // 숫자 포맷팅 함수 (index.html에서 가져옴)
   function format2f(val) {
@@ -9,18 +9,18 @@ $(function() {
   }
   
   window.loadStorageInfo = function() {
-    logging('[storage.js] loadStorageInfo 호출');
+    console.log('[storage.js] loadStorageInfo 호출');
     
     // 로딩 상태 표시
     $('#storage-table').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-3x mb-3"></i><br>스토리지 정보를 불러오는 중...</div>');
     
     // 실제 API 연동
     $.get('/api/proxmox_storage', function(res) {
-      logging('[storage.js] API 응답:', res);
+      console.log('[storage.js] API 응답:', res);
       
       // API 응답 구조에 맞게 수정
       const storages = (res.success && res.data) ? res.data : [];
-      logging('[storage.js] 처리된 스토리지 데이터:', storages);
+      console.log('[storage.js] 처리된 스토리지 데이터:', storages);
       
       let html = '';
       
@@ -79,9 +79,9 @@ $(function() {
       }
       
       $('#storage-table').html(html);
-      logging('[storage.js] 스토리지 테이블 렌더링 완료');
+      console.log('[storage.js] 스토리지 테이블 렌더링 완료');
     }).fail(function(xhr) {
-      logging.error('[storage.js] 스토리지 정보 로드 실패:', xhr);
+      console.error('[storage.js] 스토리지 정보 로드 실패:', xhr);
       $('#storage-table').html('<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i><br>스토리지 정보를 불러오지 못했습니다.</div>');
     });
   };
@@ -90,7 +90,7 @@ $(function() {
   loadStorageInfo();
   
   $('#storage-refresh-btn').on('click', function() {
-    logging('[storage.js] #storage-refresh-btn 클릭');
+    console.log('[storage.js] #storage-refresh-btn 클릭');
     loadStorageInfo();
   });
 }); 

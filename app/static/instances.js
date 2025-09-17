@@ -3,7 +3,7 @@ $(function() {
   // 중복 호출 방지를 위한 플래그
   let isInitialized = false;
   
-  logging('[instances.js] 초기화 시작');
+  console.log('[instances.js] 초기화 시작');
   
   // 페이지 로드 시에만 알림 로드 (한 번만)
   window.loadNotifications();
@@ -23,11 +23,11 @@ $(function() {
     return $.get('/api/tasks/config')
       .then(function(config) {
         taskConfig = config;
-        logging('[instances.js] Task 설정 로드 완료:', config);
+        console.log('[instances.js] Task 설정 로드 완료:', config);
         return config;
       })
       .fail(function(xhr) {
-        logging.warn('[instances.js] Task 설정 로드 실패, 기본값 사용:', xhr);
+        console.warn('[instances.js] Task 설정 로드 실패, 기본값 사용:', xhr);
         // 기본값 설정
         taskConfig = {
           timeout: 18000,
@@ -46,11 +46,11 @@ $(function() {
     serverStatusPolling = setInterval(function() {
       // 일괄 작업 중에는 폴링 중지
       if (isBulkOperationInProgress) {
-        logging('[instances.js] 일괄 작업 중 - 상태 폴링 건너뜀');
+        console.log('[instances.js] 일괄 작업 중 - 상태 폴링 건너뜀');
         return;
       }
       
-      logging('[instances.js] 서버 상태 폴링 실행');
+      console.log('[instances.js] 서버 상태 폴링 실행');
       loadActiveServers();
     }, 10000); // 10초마다 상태 업데이트
   }
@@ -64,7 +64,7 @@ $(function() {
   
   // 작업 후 서버 상태 업데이트 함수
   function updateServerStatusAfterAction(serverName, newStatus) {
-    logging(`[instances.js] 서버 상태 업데이트: ${serverName} → ${newStatus}`);
+    console.log(`[instances.js] 서버 상태 업데이트: ${serverName} → ${newStatus}`);
     
     // 해당 서버의 상태 배지 업데이트
     const $serverRow = $(`.server-row[data-server="${serverName}"]`);
@@ -91,7 +91,7 @@ $(function() {
       // 작업 버튼 상태 업데이트
       updateServerActionButtons($serverRow, newStatus);
       
-      logging(`[instances.js] 서버 ${serverName} 상태 업데이트 완료: ${newStatus}`);
+      console.log(`[instances.js] 서버 ${serverName} 상태 업데이트 완료: ${newStatus}`);
     }
   }
   
@@ -171,7 +171,7 @@ $(function() {
   
   // 시스템 알림 함수 (전역 함수 사용)
   function addSystemNotification(type, title, message) {
-    logging(`[알림] ${type}: ${title} - ${message}`);
+    console.log(`[알림] ${type}: ${title} - ${message}`);
     
     // 전역 알림 시스템 사용
     if (typeof window.addSystemNotification === 'function') {
@@ -194,11 +194,11 @@ $(function() {
   
   // 서버 설정 모달 열기
   window.openServerConfig = function(serverName) {
-    logging(`[instances.js] 서버 설정 모달 열기: ${serverName}`);
+    console.log(`[instances.js] 서버 설정 모달 열기: ${serverName}`);
     
     // 방화벽 그룹 목록을 먼저 가져오기
     $.get('/api/firewall/groups', function(fwData) {
-      logging('[instances.js] 방화벽 그룹 API 응답:', fwData);
+      console.log('[instances.js] 방화벽 그룹 API 응답:', fwData);
       const firewallGroups = fwData.groups || [];
       
       // 방화벽 그룹 드롭다운 옵션 생성
@@ -257,12 +257,12 @@ $(function() {
           }
         },
         error: function(xhr) {
-          logging.error('[instances.js] 서버 설정 로드 실패:', xhr);
+          console.error('[instances.js] 서버 설정 로드 실패:', xhr);
           alert('서버 설정을 불러올 수 없습니다.');
         }
       });
     }).fail(function(xhr) {
-      logging.error('[instances.js] 방화벽 그룹 로드 실패:', xhr);
+      console.error('[instances.js] 방화벽 그룹 로드 실패:', xhr);
       // 방화벽 그룹 로드 실패 시에도 서버 설정은 계속 진행
       $('#server-firewall-group').html('<option value="">그룹 없음</option>');
       
@@ -314,7 +314,7 @@ $(function() {
           }
         },
         error: function(xhr) {
-          logging.error('[instances.js] 서버 설정 로드 실패:', xhr);
+          console.error('[instances.js] 서버 설정 로드 실패:', xhr);
           alert('서버 설정을 불러올 수 없습니다.');
         }
       });
@@ -415,7 +415,7 @@ $(function() {
       size_gb: parseInt(size)
     };
     
-    logging(`[instances.js] 새 디스크 추가: ${serverName}`, diskData);
+    console.log(`[instances.js] 새 디스크 추가: ${serverName}`, diskData);
     
     $.ajax({
       url: `/api/server/disk/${serverName}`,
@@ -432,7 +432,7 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 디스크 추가 실패:', xhr);
+        console.error('[instances.js] 디스크 추가 실패:', xhr);
         alert('디스크 추가에 실패했습니다.');
       }
     });
@@ -446,7 +446,7 @@ $(function() {
     
     const serverName = $('#server-name').val();
     
-    logging(`[instances.js] 디스크 삭제: ${serverName} - ${device}`);
+    console.log(`[instances.js] 디스크 삭제: ${serverName} - ${device}`);
     
     $.ajax({
       url: `/api/server/disk/${serverName}/${device}`,
@@ -461,7 +461,7 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 디스크 삭제 실패:', xhr);
+        console.error('[instances.js] 디스크 삭제 실패:', xhr);
         alert('디스크 삭제에 실패했습니다.');
       }
     });
@@ -493,7 +493,7 @@ $(function() {
       tags: $('#server-tags').val()
     };
     
-    logging(`[instances.js] 서버 설정 저장: ${serverName}`, configData);
+    console.log(`[instances.js] 서버 설정 저장: ${serverName}`, configData);
     
     // CPU/메모리 변경 감지
     const needsReboot = (currentCpu !== newCpu) || (currentMemory !== newMemory);
@@ -517,12 +517,12 @@ $(function() {
       data: JSON.stringify(configData),
       success: function(res) {
         if (res.success) {
-          logging('[instances.js] 기본 서버 설정 저장 성공');
+          console.log('[instances.js] 기본 서버 설정 저장 성공');
           
           // 2단계: 방화벽 그룹 처리
           if (isRemovingFirewallGroup) {
             // 방화벽 그룹 제거 (실제로 설정된 경우에만)
-            logging('[instances.js] 방화벽 그룹 제거 시작');
+            console.log('[instances.js] 방화벽 그룹 제거 시작');
             
             $.ajax({
               url: `/api/remove_firewall_group/${serverName}`,
@@ -530,10 +530,10 @@ $(function() {
               contentType: 'application/json',
               success: function(fwRes) {
                 if (fwRes.success) {
-                  logging('[instances.js] 방화벽 그룹 제거 성공');
+                  console.log('[instances.js] 방화벽 그룹 제거 성공');
                   alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 방화벽 그룹이 제거되었습니다.`);
                 } else {
-                  logging.error('[instances.js] 방화벽 그룹 제거 실패:', fwRes.error);
+                  console.error('[instances.js] 방화벽 그룹 제거 실패:', fwRes.error);
                   alert(`서버 설정은 저장되었지만 방화벽 그룹 제거에 실패했습니다: ${fwRes.error}`);
                 }
                 
@@ -542,7 +542,7 @@ $(function() {
                 loadActiveServers();
               },
               error: function(xhr) {
-                logging.error('[instances.js] 방화벽 그룹 제거 실패:', xhr);
+                console.error('[instances.js] 방화벽 그룹 제거 실패:', xhr);
                 let errorMsg = '알 수 없는 오류';
                 if (xhr.responseJSON?.error) {
                   errorMsg = xhr.responseJSON.error;
@@ -556,7 +556,7 @@ $(function() {
             });
           } else if (hasFirewallGroupChange) {
             // 방화벽 그룹 적용
-            logging(`[instances.js] 방화벽 그룹 적용 시작: ${selectedFirewallGroup}`);
+            console.log(`[instances.js] 방화벽 그룹 적용 시작: ${selectedFirewallGroup}`);
             
             $.ajax({
               url: `/api/apply_security_group/${serverName}`,
@@ -567,10 +567,10 @@ $(function() {
               }),
               success: function(fwRes) {
                 if (fwRes.success) {
-                  logging('[instances.js] 방화벽 그룹 적용 성공');
+                  console.log('[instances.js] 방화벽 그룹 적용 성공');
                   alert(`서버 설정이 성공적으로 저장되었습니다.\n\n✅ 방화벽 그룹 '${selectedFirewallGroup}'이 적용되었습니다.`);
                 } else {
-                  logging.error('[instances.js] 방화벽 그룹 적용 실패:', fwRes.error);
+                  console.error('[instances.js] 방화벽 그룹 적용 실패:', fwRes.error);
                   alert(`서버 설정은 저장되었지만 방화벽 그룹 적용에 실패했습니다: ${fwRes.error}`);
                 }
                 
@@ -579,7 +579,7 @@ $(function() {
                 loadActiveServers();
               },
               error: function(xhr) {
-                logging.error('[instances.js] 방화벽 그룹 적용 실패:', xhr);
+                console.error('[instances.js] 방화벽 그룹 적용 실패:', xhr);
                 let errorMsg = '알 수 없는 오류';
                 if (xhr.responseJSON?.error) {
                   errorMsg = xhr.responseJSON.error;
@@ -595,7 +595,7 @@ $(function() {
             // 방화벽 그룹이 선택되지 않은 경우
             if (hasRoleChange) {
               // 역할 변경 시 Ansible API 호출
-              logging(`[instances.js] 역할 변경 감지: ${currentRole} → ${selectedRole}`);
+              console.log(`[instances.js] 역할 변경 감지: ${currentRole} → ${selectedRole}`);
               
               $.ajax({
                 url: `/api/assign_role/${serverName}`,
@@ -606,7 +606,7 @@ $(function() {
                 }),
                 success: function(roleRes) {
                   if (roleRes.success) {
-                    logging('[instances.js] 역할 할당 성공');
+                    console.log('[instances.js] 역할 할당 성공');
                     
                     // 역할 제거인지 확인
                     if (!selectedRole || selectedRole === '') {
@@ -620,7 +620,7 @@ $(function() {
                       window.watchAnsibleRoleNotification(serverName);
                     }
                   } else {
-                    logging.error('[instances.js] 역할 할당 실패:', roleRes.error);
+                    console.error('[instances.js] 역할 할당 실패:', roleRes.error);
                     alert(`서버 설정은 저장되었지만 역할 할당에 실패했습니다: ${roleRes.error}`);
                   }
                   
@@ -629,7 +629,7 @@ $(function() {
                   loadActiveServers();
                 },
                 error: function(xhr) {
-                  logging.error('[instances.js] 역할 할당 실패:', xhr);
+                  console.error('[instances.js] 역할 할당 실패:', xhr);
                   let errorMsg = '알 수 없는 오류';
                   if (xhr.responseJSON?.error) {
                     errorMsg = xhr.responseJSON.error;
@@ -669,7 +669,7 @@ $(function() {
                             }
                           },
                           error: function(xhr) {
-                            logging.error('[instances.js] 재시작 실패:', xhr);
+                            console.error('[instances.js] 재시작 실패:', xhr);
                             alert('서버 재시작에 실패했습니다.');
                           }
                         });
@@ -680,7 +680,7 @@ $(function() {
                     }
                   },
                   error: function(xhr) {
-                    logging.error('[instances.js] 중지 실패:', xhr);
+                    console.error('[instances.js] 중지 실패:', xhr);
                     alert('서버 중지에 실패했습니다.');
                   }
                 });
@@ -697,7 +697,7 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 서버 설정 저장 실패:', xhr);
+        console.error('[instances.js] 서버 설정 저장 실패:', xhr);
         alert('서버 설정 저장에 실패했습니다.');
       }
     });
@@ -705,7 +705,7 @@ $(function() {
   
   // 서버 로그 보기
   window.viewServerLogs = function(serverName) {
-    logging(`[instances.js] 서버 로그 보기: ${serverName}`);
+    console.log(`[instances.js] 서버 로그 보기: ${serverName}`);
     
     // 로그 타입 선택 모달 표시
     $('#log-type-modal .modal-title').text(`로그 보기: ${serverName}`);
@@ -719,7 +719,7 @@ $(function() {
     const logType = $('#log-type-select').val();
     const lines = $('#log-lines').val();
     
-    logging(`[instances.js] 로그 조회: ${serverName}, 타입: ${logType}, 라인: ${lines}`);
+    console.log(`[instances.js] 로그 조회: ${serverName}, 타입: ${logType}, 라인: ${lines}`);
     
     // 로그 조회 API 호출
     $.ajax({
@@ -745,7 +745,7 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 로그 조회 실패:', xhr);
+        console.error('[instances.js] 로그 조회 실패:', xhr);
         alert('로그를 불러올 수 없습니다.');
       }
     });
@@ -753,7 +753,7 @@ $(function() {
   
   // 서버 백업
   window.backupServer = function(serverName) {
-    logging(`[instances.js] 서버 백업: ${serverName}`);
+    console.log(`[instances.js] 서버 백업: ${serverName}`);
     
     // 백업 설정 모달 표시
     $('#backup-modal .modal-title').text(`서버 백업: ${serverName}`);
@@ -800,28 +800,28 @@ $(function() {
   
   // 모든 서버의 백업 상태 확인
   function checkAllBackupStatus() {
-    logging('[instances.js] 모든 서버 백업 상태 확인 시작');
+    console.log('[instances.js] 모든 서버 백업 상태 확인 시작');
     
     $.ajax({
       url: '/api/server/backup/status',
       method: 'GET',
       success: function(res) {
-        logging('[instances.js] 전체 백업 상태 API 응답:', res);
+        console.log('[instances.js] 전체 백업 상태 API 응답:', res);
         
         if (res.success && res.backup_status) {
-          logging('[instances.js] 백업 중인 서버들:', Object.keys(res.backup_status));
+          console.log('[instances.js] 백업 중인 서버들:', Object.keys(res.backup_status));
           
           // 백업 중인 서버들 처리
           for (const [serverName, status] of Object.entries(res.backup_status)) {
-            logging(`[instances.js] 백업 상태 확인: ${serverName} - ${status.status}`);
+            console.log(`[instances.js] 백업 상태 확인: ${serverName} - ${status.status}`);
             
             if (status.status === 'running') {
-              logging(`[instances.js] 진행 중인 백업 발견: ${serverName}`);
+              console.log(`[instances.js] 진행 중인 백업 발견: ${serverName}`);
               
               // 백업 중인 서버 목록에 추가
               if (!window.backingUpServers.includes(serverName)) {
                 window.backingUpServers.push(serverName);
-                logging(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
+                console.log(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
               }
               
               // UI 업데이트
@@ -829,32 +829,32 @@ $(function() {
               
               // 폴링 시작 (이미 시작되지 않은 경우에만)
               if (!backupPollingIntervals[serverName]) {
-                logging(`[instances.js] 백업 폴링 시작: ${serverName}`);
+                console.log(`[instances.js] 백업 폴링 시작: ${serverName}`);
                 startBackupStatusPolling(serverName, status.backup_id);
               } else {
-                logging(`[instances.js] 백업 폴링 이미 실행 중: ${serverName}`);
+                console.log(`[instances.js] 백업 폴링 이미 실행 중: ${serverName}`);
               }
             }
           }
         } else {
-          logging('[instances.js] 백업 중인 서버 없음');
+          console.log('[instances.js] 백업 중인 서버 없음');
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 백업 상태 확인 실패:', xhr);
-        logging.error('[instances.js] 응답 텍스트:', xhr.responseText);
+        console.error('[instances.js] 백업 상태 확인 실패:', xhr);
+        console.error('[instances.js] 응답 텍스트:', xhr.responseText);
       }
     });
   }
   
   // 백업 상태 폴링 시작
   function startBackupStatusPolling(serverName, backupId) {
-    logging(`[instances.js] 백업 상태 폴링 시작: ${serverName} (${backupId})`);
+    console.log(`[instances.js] 백업 상태 폴링 시작: ${serverName} (${backupId})`);
     
     // 백업 중인 서버 목록에 추가
     if (!window.backingUpServers.includes(serverName)) {
       window.backingUpServers.push(serverName);
-      logging(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
+      console.log(`[instances.js] 백업 중인 서버 목록에 추가: ${serverName}`);
     }
     
     // 서버 작업 버튼 비활성화
@@ -862,45 +862,45 @@ $(function() {
     
     // 30초마다 상태 확인
     const pollInterval = setInterval(function() {
-      logging(`[instances.js] 백업 상태 폴링 실행: ${serverName}`);
+      console.log(`[instances.js] 백업 상태 폴링 실행: ${serverName}`);
       
       $.ajax({
         url: `/api/server/backup/status/${serverName}`,
         method: 'GET',
         success: function(res) {
-          logging(`[instances.js] 백업 상태 API 응답: ${serverName}`, res);
+          console.log(`[instances.js] 백업 상태 API 응답: ${serverName}`, res);
           
           if (res.success && res.backup_status) {
             const status = res.backup_status.status;
             const message = res.backup_status.message;
             
-            logging(`[instances.js] 백업 상태: ${serverName} - ${status} - ${message}`);
+            console.log(`[instances.js] 백업 상태: ${serverName} - ${status} - ${message}`);
             
             if (status === 'completed') {
               // 백업 완료
-              logging(`[instances.js] 백업 완료 감지: ${serverName}`);
+              console.log(`[instances.js] 백업 완료 감지: ${serverName}`);
               addSystemNotification('success', '백업 완료', `서버 ${serverName} 백업이 완료되었습니다.`);
               stopBackupStatusPolling(serverName);
               
             } else if (status === 'failed') {
               // 백업 실패
-              logging(`[instances.js] 백업 실패 감지: ${serverName}`);
+              console.log(`[instances.js] 백업 실패 감지: ${serverName}`);
               addSystemNotification('error', '백업 실패', `서버 ${serverName} 백업이 실패했습니다: ${message}`);
               stopBackupStatusPolling(serverName);
             } else if (status === 'running') {
               // 백업 진행 중
-              logging(`[instances.js] 백업 진행 중: ${serverName}`);
+              console.log(`[instances.js] 백업 진행 중: ${serverName}`);
             }
             // 'running' 상태면 계속 폴링
           } else {
             // 백업 상태가 없으면 완료된 것으로 간주
-            logging(`[instances.js] 백업 상태 없음 - 완료된 것으로 간주: ${serverName}`);
+            console.log(`[instances.js] 백업 상태 없음 - 완료된 것으로 간주: ${serverName}`);
             stopBackupStatusPolling(serverName);
           }
         },
         error: function(xhr) {
-          logging.error(`[instances.js] 백업 상태 조회 실패: ${serverName}`, xhr);
-          logging.error(`[instances.js] 응답 텍스트:`, xhr.responseText);
+          console.error(`[instances.js] 백업 상태 조회 실패: ${serverName}`, xhr);
+          console.error(`[instances.js] 응답 텍스트:`, xhr.responseText);
           // 에러 시에도 폴링 중지
           stopBackupStatusPolling(serverName);
         }
@@ -909,12 +909,12 @@ $(function() {
     
     // 폴링 인터벌 저장
     backupPollingIntervals[serverName] = pollInterval;
-    logging(`[instances.js] 백업 폴링 인터벌 저장: ${serverName}`, pollInterval);
+    console.log(`[instances.js] 백업 폴링 인터벌 저장: ${serverName}`, pollInterval);
   }
   
   // 백업 상태 폴링 중지
   function stopBackupStatusPolling(serverName) {
-    logging(`[instances.js] 백업 상태 폴링 중지: ${serverName}`);
+    console.log(`[instances.js] 백업 상태 폴링 중지: ${serverName}`);
     
     // 폴링 인터벌 정리
     if (backupPollingIntervals[serverName]) {
@@ -940,11 +940,11 @@ $(function() {
     const storage = $('#backup-storage').val();
     const mode = $('#backup-mode').val();
     
-    logging(`[instances.js] 백업 생성 시작: ${serverName}`, { description, compress, storage, mode });
+    console.log(`[instances.js] 백업 생성 시작: ${serverName}`, { description, compress, storage, mode });
     
     // 이미 백업 중인지 확인
     if (isServerBackingUp(serverName)) {
-      logging(`[instances.js] 이미 백업 중인 서버: ${serverName}`);
+      console.log(`[instances.js] 이미 백업 중인 서버: ${serverName}`);
       alert(`서버 ${serverName}은(는) 이미 백업 중입니다.`);
       return;
     }
@@ -956,7 +956,7 @@ $(function() {
       mode: mode
     };
     
-    logging(`[instances.js] 백업 API 호출: /api/server/backup/${serverName}`, backupConfig);
+    console.log(`[instances.js] 백업 API 호출: /api/server/backup/${serverName}`, backupConfig);
     
     $.ajax({
       url: `/api/server/backup/${serverName}`,
@@ -964,26 +964,26 @@ $(function() {
       contentType: 'application/json',
       data: JSON.stringify(backupConfig),
       success: function(res) {
-        logging(`[instances.js] 백업 API 응답:`, res);
+        console.log(`[instances.js] 백업 API 응답:`, res);
         
         if (res.success) {
-          logging(`[instances.js] 백업 생성 성공: ${serverName}, backup_id: ${res.backup_id}`);
+          console.log(`[instances.js] 백업 생성 성공: ${serverName}, backup_id: ${res.backup_id}`);
           $('#backup-modal').modal('hide');
           
           // 백업 시작 알림
           addSystemNotification('info', '백업 시작', `서버 ${serverName} 백업이 시작되었습니다.`);
           
           // 백업 상태 폴링 시작
-          logging(`[instances.js] 백업 상태 폴링 시작 호출: ${serverName}, ${res.backup_id}`);
+          console.log(`[instances.js] 백업 상태 폴링 시작 호출: ${serverName}, ${res.backup_id}`);
           startBackupStatusPolling(serverName, res.backup_id);
           
           // 백업 목록 새로고침 (있다면)
           if (typeof loadBackupList === 'function') {
-            logging(`[instances.js] 백업 목록 새로고침 호출`);
+            console.log(`[instances.js] 백업 목록 새로고침 호출`);
             loadBackupList(serverName);
           }
         } else {
-          logging(`[instances.js] 백업 생성 실패:`, res.message || res.error);
+          console.log(`[instances.js] 백업 생성 실패:`, res.message || res.error);
           // 스냅샷 기능이 지원되지 않는 경우 특별 처리
           if (res.message && res.message.includes('스냅샷 기능이 지원되지 않습니다')) {
             alert(`⚠️ 백업 기능 제한\n\n${res.message}\n\n이 VM에서는 스냅샷 기반 백업이 지원되지 않습니다. Proxmox 관리자에게 문의하세요.`);
@@ -993,8 +993,8 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 백업 생성 API 오류:', xhr);
-        logging.error('[instances.js] 응답 텍스트:', xhr.responseText);
+        console.error('[instances.js] 백업 생성 API 오류:', xhr);
+        console.error('[instances.js] 응답 텍스트:', xhr.responseText);
         
         if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.error && 
             xhr.responseJSON.error.includes('이미 백업 중입니다')) {
@@ -1008,7 +1008,7 @@ $(function() {
   
   // 백업 목록 보기
   window.viewServerBackups = function(serverName) {
-    logging(`[instances.js] 백업 목록 보기: ${serverName}`);
+    console.log(`[instances.js] 백업 목록 보기: ${serverName}`);
     
     $.ajax({
       url: `/api/server/backups/${serverName}`,
@@ -1051,7 +1051,7 @@ $(function() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 백업 목록 조회 실패:', xhr);
+        console.error('[instances.js] 백업 목록 조회 실패:', xhr);
         alert('백업 목록을 불러올 수 없습니다.');
       }
     });
@@ -1059,24 +1059,24 @@ $(function() {
   
   // 서버 목록 불러오기 (리스트 뷰 전용)
   window.loadActiveServers = function() {
-    logging('[instances.js] loadActiveServers 호출');
+    console.log('[instances.js] loadActiveServers 호출');
     
     // 중복 호출 방지
     if (window.loadActiveServers.isLoading) {
-      logging('[instances.js] 이미 로딩 중입니다.');
+      console.log('[instances.js] 이미 로딩 중입니다.');
       return;
     }
     window.loadActiveServers.isLoading = true;
     
     // 방화벽 그룹 목록을 먼저 가져오기
     $.get('/api/firewall/groups', function(fwData) {
-      logging('[instances.js] 방화벽 그룹 API 응답:', fwData);
+      console.log('[instances.js] 방화벽 그룹 API 응답:', fwData);
       const firewallGroups = fwData.groups || [];
-      logging('[instances.js] 처리된 방화벽 그룹:', firewallGroups);
+      console.log('[instances.js] 처리된 방화벽 그룹:', firewallGroups);
       
       $.get('/api/all_server_status', function(res) {
-        logging('[instances.js] /all_server_status 응답:', res);
-        logging('[instances.js] 서버 개수:', Object.keys(res.servers || {}).length);
+        console.log('[instances.js] /all_server_status 응답:', res);
+        console.log('[instances.js] 서버 개수:', Object.keys(res.servers || {}).length);
         
         // 서버 개수 업데이트
         const serverCount = Object.keys(res.servers || {}).length;
@@ -1093,29 +1093,29 @@ $(function() {
         }
         
         // 리스트 뷰로 렌더링
-        logging('[instances.js] 리스트 뷰 렌더링');
+        console.log('[instances.js] 리스트 뷰 렌더링');
         $('#servers-grid').hide();
         $('#servers-table-container').show();
         renderTableView(res.servers, firewallGroups);
         
-        logging('[instances.js] 서버 목록 로드 완료');
+        console.log('[instances.js] 서버 목록 로드 완료');
         
         // 백업 중인 서버 상태 확인
         checkAllBackupStatus();
         
         // 인스턴스 페이지에서는 자동 폴링 하지 않음
         // 사용자가 작업을 수행할 때만 상태 업데이트
-        logging('[instances.js] 자동 폴링 비활성화 - 작업 시에만 상태 업데이트');
+        console.log('[instances.js] 자동 폴링 비활성화 - 작업 시에만 상태 업데이트');
         
         // 중복 호출 방지 해제
         window.loadActiveServers.isLoading = false;
       }).fail(function(xhr) {
-        logging.error('[instances.js] /all_server_status 실패:', xhr);
+        console.error('[instances.js] /all_server_status 실패:', xhr);
         showErrorState();
         window.loadActiveServers.isLoading = false;
       });
     }).fail(function(xhr) {
-      logging.error('[instances.js] 방화벽 그룹 목록 조회 실패:', xhr);
+      console.error('[instances.js] 방화벽 그룹 목록 조회 실패:', xhr);
       window.loadActiveServers.isLoading = false;
     });
   };
@@ -1171,7 +1171,7 @@ $(function() {
   function renderTableView(servers, firewallGroups) {
     // 현재 선택된 서버들 저장
     const selectedServers = getSelectedServerNames();
-    logging('[instances.js] 현재 선택된 서버들:', selectedServers);
+    console.log('[instances.js] 현재 선택된 서버들:', selectedServers);
     
     let html = '';
     for (const [name, s] of Object.entries(servers)) {
@@ -1382,7 +1382,7 @@ $(function() {
   
   // 기존 바인딩 제거 후 바인딩
   $('#list-tab').off('shown.bs.tab').on('shown.bs.tab', function() {
-    logging('[instances.js] list-tab shown');
+    console.log('[instances.js] list-tab shown');
     loadActiveServers();
   });
 
@@ -1396,13 +1396,13 @@ $(function() {
     // Task 설정 로드 후 폴링 시작
     loadTaskConfig().then(function(config) {
       const TIMEOUT = config.timeout * 1000; // 서버에서 가져온 타임아웃 (밀리초)
-      logging(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${config.timeout_hours}시간`);
+      console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${config.timeout_hours}시간`);
       
       activeTasks[task_id] = setInterval(function() {
         // 클라이언트 측 타임아웃 체크
         const elapsed = Date.now() - startTime;
         if (elapsed > TIMEOUT) {
-          logging(`⏰ 클라이언트 타임아웃: ${task_id}`);
+          console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
           addSystemNotification('error', type, `${name} ${type} 타임아웃 (${config.timeout_hours}시간 초과)`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
@@ -1410,14 +1410,14 @@ $(function() {
           // 일괄 작업 타임아웃 시에도 플래그 해제
           if (type === 'bulk_server_action') {
             isBulkOperationInProgress = false;
-            logging('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
+            console.log('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
             updateRefreshButtonState();
           }
           return;
         }
         
         $.get('/api/tasks/status', { task_id }, function(res) {
-          logging(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
+          console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
           
           if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
             addSystemNotification('info', type, `${name} ${type} 중...`);
@@ -1456,14 +1456,14 @@ $(function() {
             
             // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
             if (type === 'ansible_role_install') {
-              logging(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
+              console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
               const btn = $(`.server-role-apply[data-server="${name}"]`);
               if (btn.length) {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
               
               // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시
-              logging(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
+              console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
               $.get('/api/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
@@ -1474,7 +1474,7 @@ $(function() {
                     });
                     
                     if (!isDuplicate) {
-                      logging(`✅ 서버 알림 표시: ${latestNotification.title}`);
+                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
                       window.addSystemNotification(
                         latestNotification.severity || 'success',
                         latestNotification.title,
@@ -1482,15 +1482,15 @@ $(function() {
                         latestNotification.details
                       );
                     } else {
-                      logging(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
+                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
                     }
                   } else {
-                    logging(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
+                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
                     addSystemNotification('success', type, `${name} ${type} 완료`);
                   }
                 })
                 .fail(function() {
-                  logging(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
+                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
                   addSystemNotification('success', type, `${name} ${type} 완료`);
                 });
             }
@@ -1498,27 +1498,27 @@ $(function() {
             // 일괄 역할 할당 완료 시 플래그 해제
             if (type === 'assign_roles_bulk') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 역할 할당 완료 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 역할 할당 완료 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
             }
             
             // 일괄 보안그룹 할당 완료 시 플래그 해제
             if (type === 'assign_security_groups_bulk') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 보안그룹 할당 완료 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 보안그룹 할당 완료 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
             }
             
             // 다중 서버 생성 완료 시 폼 복원
             if (type === 'create_servers_bulk') {
-              logging(`🔄 다중 서버 생성 완료, 폼 복원: ${task_id}`);
+              console.log(`🔄 다중 서버 생성 완료, 폼 복원: ${task_id}`);
               restoreServerForm();
             }
             
             // 일괄 작업 완료 시 플래그 해제 및 상태 업데이트
             if (type === 'bulk_server_action') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
               
               // 작업 결과에 따른 상태 업데이트
@@ -1544,7 +1544,7 @@ $(function() {
               }
             } else {
               // 다른 작업들은 기존대로 새로고침
-            logging(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
+            console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
             setTimeout(function() {
               loadActiveServers();
             }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
@@ -1583,14 +1583,14 @@ $(function() {
             
             // 역할 설치 실패 시 버튼 상태 복원 및 서버 알림 가져오기
             if (type === 'ansible_role_install') {
-              logging(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
+              console.log(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
               const btn = $(`.server-role-apply[data-server="${name}"]`);
               if (btn.length) {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
               
               // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시
-              logging(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
+              console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
               $.get('/api/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
@@ -1601,7 +1601,7 @@ $(function() {
                     });
                     
                     if (!isDuplicate) {
-                      logging(`✅ 서버 알림 표시: ${latestNotification.title}`);
+                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
                       window.addSystemNotification(
                         latestNotification.severity || 'error',
                         latestNotification.title,
@@ -1609,15 +1609,15 @@ $(function() {
                         latestNotification.details
                       );
                     } else {
-                      logging(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
+                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
                     }
                   } else {
-                    logging(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
+                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
                     addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
                   }
                 })
                 .fail(function() {
-                  logging(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
+                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
                   addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
                 });
             }
@@ -1625,45 +1625,45 @@ $(function() {
             // 일괄 역할 할당 실패 시에도 플래그 해제
             if (type === 'assign_roles_bulk') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 역할 할당 실패 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 역할 할당 실패 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
             }
             
             // 일괄 보안그룹 할당 실패 시에도 플래그 해제
             if (type === 'assign_security_groups_bulk') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 보안그룹 할당 실패 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 보안그룹 할당 실패 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
             }
             
             // 다중 서버 생성 실패 시 폼 복원
             if (type === 'create_servers_bulk') {
-              logging(`🔄 다중 서버 생성 실패, 폼 복원: ${task_id}`);
+              console.log(`🔄 다중 서버 생성 실패, 폼 복원: ${task_id}`);
               restoreServerForm();
             }
             
             // 일괄 작업 실패 시에도 플래그 해제
             if (type === 'bulk_server_action') {
               isBulkOperationInProgress = false;
-              logging('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
+              console.log('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
             }
             
             // 실패 시에도 목록 새로고침 (DB 정리 확인)
-            logging(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
+            console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
             setTimeout(function() {
               loadActiveServers();
             }, 1000);
           }
         }).fail(function(xhr, status, error) {
-          logging(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
+          console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
           clearInterval(activeTasks[task_id]);
           delete activeTasks[task_id];
           
           // 일괄 작업 AJAX 실패 시에도 플래그 해제
           if (type === 'bulk_server_action') {
             isBulkOperationInProgress = false;
-            logging('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
+            console.log('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
             updateRefreshButtonState();
           }
         });
@@ -1675,7 +1675,7 @@ $(function() {
   $.ajaxSetup({
     statusCode: {
       401: function() {
-        logging('[instances.js] AJAX 401 오류 - 세션 만료');
+        console.log('[instances.js] AJAX 401 오류 - 세션 만료');
         if (window.sessionManager) {
           window.sessionManager.handleSessionExpired();
         } else {
@@ -1776,7 +1776,7 @@ $(function() {
       
       // 요약 섹션 로드
       $.get('/api/instances/multi-server-summary', function(html) {
-        logging('다중서버 요약 템플릿 로드 성공:', html.substring(0, 100) + '...');
+        console.log('다중서버 요약 템플릿 로드 성공:', html.substring(0, 100) + '...');
         $('#multiServerSummarySection').html(html);
         
         // 테이블 내용 동적 생성
@@ -1825,9 +1825,9 @@ $(function() {
         // 페이지를 요약 섹션으로 스크롤
         $('#multiServerSummarySection')[0].scrollIntoView({ behavior: 'smooth' });
       }).fail(function(xhr, status, error) {
-        logging.error('다중서버 요약 템플릿 로드 실패:', error);
-        logging.error('상태:', status);
-        logging.error('응답:', xhr.responseText);
+        console.error('다중서버 요약 템플릿 로드 실패:', error);
+        console.error('상태:', status);
+        console.error('응답:', xhr.responseText);
         alertModal('다중서버 요약 화면을 로드할 수 없습니다: ' + error);
       });
       // 서버 생성 버튼 클릭 시 - 중복 바인딩 방지
@@ -2029,7 +2029,7 @@ function initializeServerForm() {
 
   // 기본 서버 생성 함수 (기존 로직 복원)
   function createBasicServer(name, selectedOS, selectedRole) {
-    logging('[instances.js] createBasicServer 호출', name, selectedOS, selectedRole);
+    console.log('[instances.js] createBasicServer 호출', name, selectedOS, selectedRole);
     const btn = $('#create-server-btn');
     const originalText = btn.html();
     
@@ -2079,10 +2079,10 @@ function initializeServerForm() {
       contentType: 'application/json',
       data: JSON.stringify(data),
       beforeSend: function() {
-        logging('[instances.js] /add_server 요청 전', data);
+        console.log('[instances.js] /add_server 요청 전', data);
       },
       success: function(res) {
-        logging('[instances.js] /add_server 성공', res);
+        console.log('[instances.js] /add_server 성공', res);
         if (res.task_id) {
           pollTaskStatus(res.task_id, '서버 생성', name);
         }
@@ -2093,7 +2093,7 @@ function initializeServerForm() {
         }, 2000);
       },
       error: function(xhr) {
-        logging.error('[instances.js] /add_server 실패', xhr);
+        console.error('[instances.js] /add_server 실패', xhr);
         $('#status-message').html('서버 생성 실패');
         addSystemNotification('error', '서버 생성', '서버 생성 요청 실패: ' + (xhr.responseJSON?.stderr || xhr.responseJSON?.error || xhr.statusText));
         setTimeout(function() {
@@ -2110,7 +2110,7 @@ function initializeServerForm() {
 
   // Security Group 적용
   $(document).off('click', '.server-security-group-apply').on('click', '.server-security-group-apply', function() {
-    logging('[instances.js] .server-security-group-apply 클릭');
+    console.log('[instances.js] .server-security-group-apply 클릭');
     const btn = $(this);
     const tr = btn.closest('tr');
     const server = tr.data('server');
@@ -2131,13 +2131,13 @@ function initializeServerForm() {
       contentType: 'application/json',
       data: JSON.stringify({ security_group: securityGroup }),
       success: function(res) {
-      logging('[instances.js] /api/apply_security_group 성공', res);
+      console.log('[instances.js] /api/apply_security_group 성공', res);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       loadActiveServers();
       addSystemNotification('success', 'Security Group 적용', `${server} 서버에 ${securityGroup} Security Group이 성공적으로 적용되었습니다.`);
       },
       error: function(xhr) {
-      logging.error('[instances.js] /api/apply_security_group 실패', xhr);
+      console.error('[instances.js] /api/apply_security_group 실패', xhr);
       btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>적용</span>');
       
       let errorMsg = '알 수 없는 오류';
@@ -2156,7 +2156,7 @@ function initializeServerForm() {
 
   // 서버 시작
   $(document).off('click', '.start-btn').on('click', '.start-btn', async function() {
-    logging('[instances.js] .start-btn 클릭');
+    console.log('[instances.js] .start-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
@@ -2164,7 +2164,7 @@ function initializeServerForm() {
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
     $.post('/api/servers/' + name + '/start', function(res) {
-      logging('[instances.js] /api/servers/' + name + '/start 성공', res);
+      console.log('[instances.js] /api/servers/' + name + '/start 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -2172,7 +2172,7 @@ function initializeServerForm() {
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
     }).fail(function(xhr){
-      logging.error('[instances.js] /api/servers/' + name + '/start 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/start 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -2188,7 +2188,7 @@ function initializeServerForm() {
 
   // 서버 중지
   $(document).off('click', '.stop-btn').on('click', '.stop-btn', async function() {
-    logging('[instances.js] .stop-btn 클릭');
+    console.log('[instances.js] .stop-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
@@ -2196,7 +2196,7 @@ function initializeServerForm() {
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
     $.post('/api/servers/' + name + '/stop', function(res) {
-      logging('[instances.js] /api/servers/' + name + '/stop 성공', res);
+      console.log('[instances.js] /api/servers/' + name + '/stop 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -2204,7 +2204,7 @@ function initializeServerForm() {
       }, 1000); // 1초 후 상태 업데이트
       addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
     }).fail(function(xhr){
-      logging.error('[instances.js] /api/servers/' + name + '/stop 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/stop 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -2220,7 +2220,7 @@ function initializeServerForm() {
 
   // 서버 리부팅
   $(document).off('click', '.reboot-btn').on('click', '.reboot-btn', async function() {
-    logging('[instances.js] .reboot-btn 클릭');
+    console.log('[instances.js] .reboot-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
@@ -2228,7 +2228,7 @@ function initializeServerForm() {
     if (!ok) return;
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
     $.post('/api/servers/' + name + '/reboot', function(res) {
-      logging('[instances.js] /api/servers/' + name + '/reboot 성공', res);
+      console.log('[instances.js] /api/servers/' + name + '/reboot 성공', res);
       btn.prop('disabled', false).html(originalText);
       // 즉시 상태 업데이트
       setTimeout(function() {
@@ -2236,7 +2236,7 @@ function initializeServerForm() {
       }, 2000); // 2초 후 상태 업데이트 (재부팅은 시간이 더 필요)
       addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
     }).fail(function(xhr){
-      logging.error('[instances.js] /api/servers/' + name + '/reboot 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/reboot 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
@@ -2252,7 +2252,7 @@ function initializeServerForm() {
 
   // 서버 삭제 버튼 안전하게 중복 바인딩 없이 처리
   $(document).off('click', '.delete-btn').on('click', '.delete-btn', async function() {
-    logging('[instances.js] .delete-btn 클릭');
+    console.log('[instances.js] .delete-btn 클릭');
     const name = $(this).closest('tr').data('server');
     const btn = $(this);
     const originalText = btn.html();
@@ -2260,14 +2260,14 @@ function initializeServerForm() {
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>삭제 중...');
     btn.closest('tr').addClass('table-warning');
     $.post('/api/servers/' + name + '/delete', function(res) {
-      logging('[instances.js] /api/servers/' + name + '/delete 성공', res);
+      console.log('[instances.js] /api/servers/' + name + '/delete 성공', res);
       // 삭제 완료 즉시 UI 업데이트
       btn.closest('tr').fadeOut(300, function() {
         $(this).remove();
       });
       addSystemNotification('success', '서버 삭제', `${name} 서버가 삭제되었습니다.`);
     }).fail(function(xhr){
-      logging.error('[instances.js] /api/servers/' + name + '/delete 실패', xhr);
+      console.error('[instances.js] /api/servers/' + name + '/delete 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       btn.closest('tr').removeClass('table-warning');
       
@@ -2307,11 +2307,11 @@ function initializeServerForm() {
 
   // 새로고침 버튼 클릭 시 서버 목록 갱신
   $(document).off('click', '.refresh-btn').on('click', '.refresh-btn', function() {
-    logging('[instances.js] .refresh-btn 클릭');
+    console.log('[instances.js] .refresh-btn 클릭');
     
     // 일괄 작업 중에는 강제 새로고침 허용
     if (isBulkOperationInProgress) {
-      logging('[instances.js] 일괄 작업 중 강제 새로고침 실행');
+      console.log('[instances.js] 일괄 작업 중 강제 새로고침 실행');
       isBulkOperationInProgress = false; // 플래그 해제
       updateRefreshButtonState();
     }
@@ -2322,17 +2322,17 @@ function initializeServerForm() {
   // 뷰 전환 버튼 클릭 이벤트
   $(document).off('click', '.btn-view').on('click', '.btn-view', function() {
     const viewType = $(this).data('view');
-    logging('[instances.js] 뷰 전환 버튼 클릭:', viewType);
+    console.log('[instances.js] 뷰 전환 버튼 클릭:', viewType);
     
     // 활성 버튼 변경
     $('.btn-view').removeClass('active');
     $(this).addClass('active');
     
-    logging('[instances.js] 뷰 컨테이너 전환 시작');
+    console.log('[instances.js] 뷰 컨테이너 전환 시작');
     
     // 뷰 컨테이너 전환
     if (viewType === 'table') {
-      logging('[instances.js] 테이블 뷰로 전환');
+      console.log('[instances.js] 테이블 뷰로 전환');
       $('#servers-grid').hide();
       $('#servers-table-container').show();
       // 테이블 뷰로 다시 렌더링
@@ -2340,7 +2340,7 @@ function initializeServerForm() {
         renderTableView(window.serversData, window.firewallGroups || []);
       }
     } else {
-      logging('[instances.js] 카드 뷰로 전환');
+      console.log('[instances.js] 카드 뷰로 전환');
       $('#servers-table-container').hide();
       $('#servers-grid').show();
       // 카드 뷰로 다시 렌더링
@@ -2349,13 +2349,13 @@ function initializeServerForm() {
       }
     }
     
-    logging('[instances.js] 뷰 전환 완료');
+    console.log('[instances.js] 뷰 전환 완료');
   });
 
   // 서버 검색 기능
   $(document).off('input', '#server-search').on('input', '#server-search', function() {
     const searchTerm = $(this).val().toLowerCase();
-    logging('[instances.js] 서버 검색:', searchTerm);
+    console.log('[instances.js] 서버 검색:', searchTerm);
     
     if (!window.serversData) return;
     
@@ -2451,7 +2451,7 @@ function initializeServerForm() {
         $('#bulk-security-group-select').html(options);
       }
     }).fail(function(xhr) {
-      logging.error('보안그룹 목록 로드 실패:', xhr);
+      console.error('보안그룹 목록 로드 실패:', xhr);
       $('#bulk-security-group-select').html('<option value="">로드 실패</option>');
     });
   }
@@ -2462,7 +2462,7 @@ function initializeServerForm() {
     if (serverNames.length === 0) return;
     
     if (confirm(`선택된 ${serverNames.length}개 서버를 시작하시겠습니까?`)) {
-      logging('[instances.js] 일괄 시작:', serverNames);
+      console.log('[instances.js] 일괄 시작:', serverNames);
       executeBulkAction(serverNames, 'start');
     }
   };
@@ -2472,7 +2472,7 @@ function initializeServerForm() {
     if (serverNames.length === 0) return;
     
     if (confirm(`선택된 ${serverNames.length}개 서버를 중지하시겠습니까?`)) {
-      logging('[instances.js] 일괄 중지:', serverNames);
+      console.log('[instances.js] 일괄 중지:', serverNames);
       executeBulkAction(serverNames, 'stop');
     }
   };
@@ -2482,7 +2482,7 @@ function initializeServerForm() {
     if (serverNames.length === 0) return;
     
     if (confirm(`선택된 ${serverNames.length}개 서버를 재시작하시겠습니까?`)) {
-      logging('[instances.js] 일괄 재시작:', serverNames);
+      console.log('[instances.js] 일괄 재시작:', serverNames);
       executeBulkAction(serverNames, 'reboot');
     }
   };
@@ -2492,18 +2492,18 @@ function initializeServerForm() {
     if (serverNames.length === 0) return;
     
     if (confirm(`선택된 ${serverNames.length}개 서버를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다!`)) {
-      logging('[instances.js] 일괄 삭제:', serverNames);
+      console.log('[instances.js] 일괄 삭제:', serverNames);
       executeBulkAction(serverNames, 'delete');
     }
   };
 
   // 대량 작업 API 호출
   function executeBulkAction(serverNames, action) {
-    logging(`[instances.js] 일괄괄 작업 실행: ${action} - ${serverNames.length}개 서버`);
+    console.log(`[instances.js] 일괄괄 작업 실행: ${action} - ${serverNames.length}개 서버`);
     
     // 일괄 작업 시작 플래그 설정
     isBulkOperationInProgress = true;
-    logging('[instances.js] 일괄 작업 시작 - 자동 새로고침 비활성화');
+    console.log('[instances.js] 일괄 작업 시작 - 자동 새로고침 비활성화');
     
     // 새로고침 버튼 상태 업데이트
     updateRefreshButtonState();
@@ -2541,7 +2541,7 @@ function initializeServerForm() {
       error: function(xhr) {
         const errorMsg = xhr.responseJSON?.error || xhr.statusText || '알 수 없는 오류';
         addSystemNotification('error', '대량 작업', `대량 작업 실패: ${errorMsg}`);
-        logging.error('[instances.js] 대량 작업 실패:', xhr);
+        console.error('[instances.js] 대량 작업 실패:', xhr);
       }
     });
   }
@@ -2568,11 +2568,11 @@ function initializeServerForm() {
       return;
     }
     
-    logging(`[instances.js] 일괄 역할 할당: ${serverNames.length}개 서버 - ${role}`);
+    console.log(`[instances.js] 일괄 역할 할당: ${serverNames.length}개 서버 - ${role}`);
     
     // 일괄 작업 시작 플래그 설정
     isBulkOperationInProgress = true;
-    logging('[instances.js] 일괄 역할 할당 시작 - 자동 새로고침 비활성화');
+    console.log('[instances.js] 일괄 역할 할당 시작 - 자동 새로고침 비활성화');
     
     // 새로고침 버튼 상태 업데이트
     updateRefreshButtonState();
@@ -2594,7 +2594,7 @@ function initializeServerForm() {
         role: role
       }),
       success: function(res) {
-        logging('[instances.js] 일괄 역할 할당 성공:', res);
+        console.log('[instances.js] 일괄 역할 할당 성공:', res);
         
         if (res.task_id) {
           // Task 진행 상황 모니터링
@@ -2638,7 +2638,7 @@ function initializeServerForm() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 일괄 역할 할당 실패:', xhr);
+        console.error('[instances.js] 일괄 역할 할당 실패:', xhr);
         
         // 일괄 작업 플래그 해제
         isBulkOperationInProgress = false;
@@ -2671,11 +2671,11 @@ function initializeServerForm() {
       return;
     }
     
-    logging(`[instances.js] 일괄 보안그룹 할당: ${serverNames.length}개 서버 - ${securityGroup}`);
+    console.log(`[instances.js] 일괄 보안그룹 할당: ${serverNames.length}개 서버 - ${securityGroup}`);
     
     // 일괄 작업 시작 플래그 설정
     isBulkOperationInProgress = true;
-    logging('[instances.js] 일괄 보안그룹 할당 시작 - 자동 새로고침 비활성화');
+    console.log('[instances.js] 일괄 보안그룹 할당 시작 - 자동 새로고침 비활성화');
     
     // 새로고침 버튼 상태 업데이트
     updateRefreshButtonState();
@@ -2696,7 +2696,7 @@ function initializeServerForm() {
         security_group: securityGroup
       }),
       success: function(res) {
-        logging('[instances.js] 일괄 보안그룹 할당 성공:', res);
+        console.log('[instances.js] 일괄 보안그룹 할당 성공:', res);
         
         if (res.task_id) {
           // Task 진행 상황 모니터링
@@ -2708,7 +2708,7 @@ function initializeServerForm() {
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 일괄 보안그룹 할당 실패:', xhr);
+        console.error('[instances.js] 일괄 보안그룹 할당 실패:', xhr);
         
         // 일괄 작업 플래그 해제
         isBulkOperationInProgress = false;
@@ -2866,7 +2866,7 @@ function initializeServerForm() {
       return;
     }
     
-    logging(`[instances.js] 다중 서버 역할 할당 시작: ${selectedServers.join(', ')} → ${selectedRole}`);
+    console.log(`[instances.js] 다중 서버 역할 할당 시작: ${selectedServers.join(', ')} → ${selectedRole}`);
     
     // 일괄 작업 플래그 설정
     isBulkOperationInProgress = true;
@@ -2882,7 +2882,7 @@ function initializeServerForm() {
       }),
       success: function(response) {
         if (response.success) {
-          logging('[instances.js] 다중 서버 역할 할당 성공:', response);
+          console.log('[instances.js] 다중 서버 역할 할당 성공:', response);
           
           // 결과 요약 표시
           const summary = response.summary;
@@ -2903,12 +2903,12 @@ function initializeServerForm() {
           // 서버 목록 새로고침
           loadActiveServers();
         } else {
-          logging.error('[instances.js] 다중 서버 역할 할당 실패:', response.error);
+          console.error('[instances.js] 다중 서버 역할 할당 실패:', response.error);
           alert(`다중 서버 역할 할당 실패: ${response.error}`);
         }
       },
       error: function(xhr) {
-        logging.error('[instances.js] 다중 서버 역할 할당 오류:', xhr);
+        console.error('[instances.js] 다중 서버 역할 할당 오류:', xhr);
         let errorMsg = '알 수 없는 오류';
         if (xhr.responseJSON?.error) {
           errorMsg = xhr.responseJSON.error;
@@ -2949,10 +2949,10 @@ function initializeServerForm() {
 
 // 서버에서 알림 로드하는 함수 (페이지 로드 시에만 사용)
 window.loadNotifications = function() {
-  logging('[instances.js] 알림 로드 시작');
+  console.log('[instances.js] 알림 로드 시작');
   $.get('/api/notifications', { _ts: Date.now() })
     .done(function(response) {
-      logging('[instances.js] 알림 로드 성공:', response);
+      console.log('[instances.js] 알림 로드 성공:', response);
       if (response.notifications && response.notifications.length > 0) {
         // 새로운 알림만 추가 (기존 알림 유지)
         response.notifications.forEach(function(noti) {
@@ -2975,13 +2975,13 @@ window.loadNotifications = function() {
       // 알림이 없어도 기존 알림은 유지 (초기화하지 않음)
     })
     .fail(function(xhr, status, error) {
-      logging.error('[instances.js] 알림 로드 실패:', error);
+      console.error('[instances.js] 알림 로드 실패:', error);
     });
 };
 
 // 새로운 알림 추가 함수 (서버에서 알림 생성 시 호출)
 window.addNewNotification = function(severity, title, message, details, id) {
-  logging('[instances.js] 새 알림 추가:', title);
+  console.log('[instances.js] 새 알림 추가:', title);
   window.addSystemNotification(severity, title, message, details, id);
 };
 
@@ -3013,16 +3013,16 @@ window.startNotificationPolling = function() {
               noti.id
             );
             
-            logging('[instances.js] 새 알림 수신:', noti.title);
+            console.log('[instances.js] 새 알림 수신:', noti.title);
           }
         }
       })
       .fail(function(xhr) {
-        logging.error('[instances.js] 알림 폴링 실패:', xhr);
+        console.error('[instances.js] 알림 폴링 실패:', xhr);
       });
   }, 5000); // 5초마다 폴링
   
-  logging('[instances.js] 알림 폴링 시작 (5초 간격)');
+  console.log('[instances.js] 알림 폴링 시작 (5초 간격)');
 };
 
 // 알림 폴링 중지
@@ -3030,7 +3030,7 @@ window.stopNotificationPolling = function() {
   if (window.notificationPollingInterval) {
     clearInterval(window.notificationPollingInterval);
     window.notificationPollingInterval = null;
-    logging('[instances.js] 알림 폴링 중지');
+    console.log('[instances.js] 알림 폴링 중지');
   }
 };
 (function(){
@@ -3135,7 +3135,7 @@ window.stopNotificationPolling = function() {
   
   // 개별 알림 삭제 함수
   window.deleteNotification = function(timeKey) {
-    logging('[instances.js] 개별 알림 삭제:', timeKey);
+    console.log('[instances.js] 개별 알림 삭제:', timeKey);
     
     // 클라이언트에서 해당 알림 제거
     window.systemNotifications = window.systemNotifications.filter(function(noti) {
@@ -3145,12 +3145,12 @@ window.stopNotificationPolling = function() {
     // 드롭다운 다시 렌더링
     window.addSystemNotification();
     
-    logging('[instances.js] 개별 알림 삭제 완료');
+    console.log('[instances.js] 개별 알림 삭제 완료');
   };
   
   // 로그 모달 표시 함수
   window.showLogModal = function(title, logContent) {
-    logging('[instances.js] 로그 모달 표시:', title);
+    console.log('[instances.js] 로그 모달 표시:', title);
     
     // 기존 모달 제거
     $('#logModal').remove();
@@ -3197,7 +3197,7 @@ window.stopNotificationPolling = function() {
         }
       })
       .fail(function(xhr){
-        logging.error('[instances.js] 알림 상세 조회 실패:', xhr);
+        console.error('[instances.js] 알림 상세 조회 실패:', xhr);
       });
   };
   // Base64로 전달된 로그 모달 표시(안전한 인라인 전달용)
@@ -3212,7 +3212,7 @@ window.stopNotificationPolling = function() {
       }
       window.showLogModal(title, details);
     } catch(e) {
-      logging.error('[instances.js] showLogModalEncoded 오류:', e);
+      console.error('[instances.js] showLogModalEncoded 오류:', e);
     }
   };
   
@@ -3241,7 +3241,7 @@ window.stopNotificationPolling = function() {
       const toastElement = new bootstrap.Toast($('#toastContainer .toast').last()[0]);
       toastElement.show();
     }).catch(function(err) {
-      logging.error('클립보드 복사 실패:', err);
+      console.error('클립보드 복사 실패:', err);
     });
   };
 
@@ -3278,7 +3278,7 @@ window.stopNotificationPolling = function() {
       }
       setTimeout(tick, intervalMs);
     } catch(e) {
-      logging.error('[instances.js] watchAnsibleRoleNotification 오류:', e);
+      console.error('[instances.js] watchAnsibleRoleNotification 오류:', e);
     }
   };
 })();
@@ -3361,7 +3361,7 @@ window.alertModal = function(message) {
 
 // 전역 에러 핸들러 설정
 window.addEventListener('error', function(event) {
-  logging.error('[Error Handler] JavaScript 에러 발생:', event);
+  console.error('[Error Handler] JavaScript 에러 발생:', event);
   
   // 에러 정보 추출
   const errorInfo = {
@@ -3388,19 +3388,19 @@ window.addEventListener('error', function(event) {
   });
   
   // 개발자 도구에도 로그
-  logging.group('🚨 JavaScript 에러 상세 정보');
-  logging.error('메시지:', errorInfo.message);
-  logging.error('파일:', errorInfo.filename);
-  logging.error('라인:', errorInfo.lineno, '컬럼:', errorInfo.colno);
+  console.group('🚨 JavaScript 에러 상세 정보');
+  console.error('메시지:', errorInfo.message);
+  console.error('파일:', errorInfo.filename);
+  console.error('라인:', errorInfo.lineno, '컬럼:', errorInfo.colno);
   if (errorInfo.stack) {
-    logging.error('스택 트레이스:', errorInfo.stack);
+    console.error('스택 트레이스:', errorInfo.stack);
   }
-  logging.groupEnd();
+  console.groupEnd();
 });
 
 // Promise rejection 에러 핸들러
 window.addEventListener('unhandledrejection', function(event) {
-  logging.error('[Error Handler] Promise rejection 발생:', event);
+  console.error('[Error Handler] Promise rejection 발생:', event);
   
   // 에러 정보 추출
   const reason = event.reason;
@@ -3423,14 +3423,14 @@ window.addEventListener('unhandledrejection', function(event) {
   });
   
   // 개발자 도구에도 로그
-  logging.group('🚨 Promise Rejection 상세 정보');
-  logging.error('Reason:', reason);
-  logging.groupEnd();
+  console.group('🚨 Promise Rejection 상세 정보');
+  console.error('Reason:', reason);
+  console.groupEnd();
 });
 
 // AJAX 에러 전역 핸들러 (jQuery)
 $(document).ajaxError(function(event, xhr, settings, thrownError) {
-  logging.error('[Error Handler] AJAX 에러 발생:', {
+  console.error('[Error Handler] AJAX 에러 발생:', {
     url: settings.url,
     method: settings.type,
     status: xhr.status,
@@ -3455,9 +3455,9 @@ $(document).ajaxError(function(event, xhr, settings, thrownError) {
 });
 
 // 콘솔 에러 메시지 캐치 (선택적)
-if (window.console && window.logging.error) {
-  const originalError = window.logging.error;
-  window.logging.error = function(...args) {
+if (window.console && window.console.error) {
+  const originalError = window.console.error;
+  window.console.error = function(...args) {
     // 원본 함수 호출
     originalError.apply(console, args);
     
@@ -3476,11 +3476,11 @@ if (window.console && window.logging.error) {
   };
 }
 
-logging('[instances.js] JavaScript 에러 캐치 시스템 활성화됨');
+console.log('[instances.js] JavaScript 에러 캐치 시스템 활성화됨');
 
 // 테스트용 에러 발생 함수 (개발 환경에서만 사용)
 window.testErrorCapture = function() {
-  logging('[Test] 에러 캐치 시스템 테스트 시작');
+  console.log('[Test] 에러 캐치 시스템 테스트 시작');
   
   // JavaScript 에러 테스트
   setTimeout(() => {
@@ -3502,5 +3502,5 @@ window.testErrorCapture = function() {
     $.get('/nonexistent-endpoint-for-testing');
   }, 3000);
   
-  logging('[Test] 에러 테스트가 1초, 2초, 3초 후에 순차적으로 실행됩니다');
+  console.log('[Test] 에러 테스트가 1초, 2초, 3초 후에 순차적으로 실행됩니다');
 }; 

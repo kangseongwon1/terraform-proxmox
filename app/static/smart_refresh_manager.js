@@ -167,14 +167,14 @@ $(function() {
         
         // 상태 변경 확인
         if (previousState.status !== currentStatus) {
-          logging(`[smart_refresh] 서버 상태 변경 감지: ${serverName} (${previousState.status} → ${currentStatus})`);
+          console.log(`[smart_refresh] 서버 상태 변경 감지: ${serverName} (${previousState.status} → ${currentStatus})`);
           hasChange = true;
           break;
         }
         
         // 역할 변경 확인
         if (previousState.role !== currentRole) {
-          logging(`[smart_refresh] 서버 역할 변경 감지: ${serverName} (${previousState.role} → ${currentRole})`);
+          console.log(`[smart_refresh] 서버 역할 변경 감지: ${serverName} (${previousState.role} → ${currentRole})`);
           hasChange = true;
           break;
         }
@@ -182,13 +182,13 @@ $(function() {
       
       // 변경이 있을 때만 전체 새로고침
       if (hasChange) {
-        logging('[smart_refresh] 변경 감지로 인한 새로고침 실행');
+        console.log('[smart_refresh] 변경 감지로 인한 새로고침 실행');
         window.loadActiveServers();
       } else {
-        logging('[smart_refresh] 변경 없음 - 새로고침 건너뜀');
+        console.log('[smart_refresh] 변경 없음 - 새로고침 건너뜀');
       }
     }).fail(function(xhr) {
-      logging.error('[smart_refresh] 서버 상태 조회 실패:', xhr);
+      console.error('[smart_refresh] 서버 상태 조회 실패:', xhr);
       // 에러 시에는 전체 새로고침
       window.loadActiveServers();
     });
@@ -199,7 +199,7 @@ $(function() {
    */
   function showRefreshStatus(status) {
     // 자동 갱신 창 제거 - 더 이상 UI 표시하지 않음
-    // logging(`[smart_refresh] 갱신 상태: ${status}`);
+    // console.log(`[smart_refresh] 갱신 상태: ${status}`);
   }
 
   /**
