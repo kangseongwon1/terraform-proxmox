@@ -211,7 +211,7 @@ def create_user_form():
     
     return redirect(url_for('admin.users'))
 
-@bp.route('/admin/iam', methods=['GET'])
+@bp.route('/iam/data', methods=['GET'])
 def admin_iam_api():
     """관리자 IAM API"""
     try:

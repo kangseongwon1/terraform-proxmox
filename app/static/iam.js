@@ -550,7 +550,7 @@ $(function() {
     console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
     
     $('#iam-loading').removeClass('d-none');
-    $.get('/admin/iam', function(res) {
+    $.get('/admin/iam/data', function(res) {
       console.log('[iam.js] /admin/iam 응답:', res);
       console.log('[iam.js] 응답에서 users:', res.users);
       console.log('[iam.js] 응답에서 permissions:', res.all_permissions);
