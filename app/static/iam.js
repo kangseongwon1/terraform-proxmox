@@ -328,7 +328,7 @@ $(function() {
     console.log('[iam.js] .iam-save-perm-btn 클릭', $(this).data('username'), selectedPerms);
     const username = $(this).data('username');
     $.ajax({
-      url: `/api/admin/iam/${username}/permissions`,
+      url: `/admin/iam/${username}/permissions`,
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ permissions: selectedPerms }),
@@ -547,7 +547,7 @@ $(function() {
     console.log('[iam.js] 현재 PERMISSIONS:', PERMISSIONS);
     
     $('#iam-loading').removeClass('d-none');
-    $.get('/api/admin/iam', function(res) {
+    $.get('/admin/iam', function(res) {
       console.log('[iam.js] /admin/iam 응답:', res);
       console.log('[iam.js] 응답에서 users:', res.users);
       console.log('[iam.js] 응답에서 permissions:', res.all_permissions);

@@ -211,7 +211,7 @@ def create_user_form():
     
     return redirect(url_for('admin.users'))
 
-@bp.route('/api/admin/iam', methods=['GET'])
+@bp.route('/admin/iam', methods=['GET'])
 def admin_iam_api():
     """관리자 IAM API"""
     try:
@@ -303,7 +303,7 @@ def iam_set_role(username):
         db.session.rollback()
         return jsonify({'error': '역할 설정 중 오류가 발생했습니다.'}), 500 
 
-@bp.route('/api/admin/iam/<username>/permissions', methods=['POST'])
+@bp.route('/admin/iam/<username>/permissions', methods=['POST'])
 def admin_iam_set_permissions(username):
     """사용자 권한 설정"""
     try:
@@ -341,7 +341,7 @@ def admin_iam_set_permissions(username):
         logger.error(f"사용자 권한 설정 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/admin/iam/<username>/role', methods=['POST'])
+@bp.route('/admin/iam/<username>/role', methods=['POST'])
 def admin_iam_set_role(username):
     """사용자 역할 설정"""
     try:

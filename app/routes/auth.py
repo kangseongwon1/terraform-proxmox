@@ -111,27 +111,42 @@ def logout():
 @login_required
 def change_password():
     """비밀번호 변경"""
-    current_password = request.form.get('current_password')
-    new_password = request.form.get('new_password')
-    confirm_password = request.form.get('confirm_password')
-    
-    if not current_password or not new_password or not confirm_password:
-        flash('모든 필드를 입력해주세요.', 'error')
-        return redirect(url_for('main.profile'))
-    
-    if new_password != confirm_password:
-        flash('새 비밀번호가 일치하지 않습니다.', 'error')
-        return redirect(url_for('main.profile'))
-    
-    if not current_user.check_password(current_password):
-        flash('현재 비밀번호가 올바르지 않습니다.', 'error')
-        return redirect(url_for('main.profile'))
-    
-    if len(new_password) < 8:
-        flash('비밀번호는 최소 8자 이상이어야 합니다.', 'error')
-        return redirect(url_for('main.profile'))
-    
     try:
+        # JSON 데이터와 Form 데이터 모두 지원
+        if request.is_json:
+            data = request.get_json()
+            current_password = data.get('current_password')
+            new_password = data.get('new_password')
+            confirm_password = data.get('confirm_password')
+        else:
+            current_password = request.form.get('current_password')
+            new_password = request.form.get('new_password')
+            confirm_password = request.form.get('confirm_password')
+        
+        if not current_password or not new_password or not confirm_password:
+            if request.is_json:
+                return jsonify({'error': '모든 필드를 입력해주세요.'}), 400
+            flash('모든 필드를 입력해주세요.', 'error')
+            return redirect(url_for('main.profile'))
+        
+        if new_password != confirm_password:
+            if request.is_json:
+                return jsonify({'error': '새 비밀번호가 일치하지 않습니다.'}), 400
+            flash('새 비밀번호가 일치하지 않습니다.', 'error')
+            return redirect(url_for('main.profile'))
+        
+        if not current_user.check_password(current_password):
+            if request.is_json:
+                return jsonify({'error': '현재 비밀번호가 올바르지 않습니다.'}), 400
+            flash('현재 비밀번호가 올바르지 않습니다.', 'error')
+            return redirect(url_for('main.profile'))
+        
+        if len(new_password) < 6:  # 프론트엔드와 일치하도록 6자로 변경
+            if request.is_json:
+                return jsonify({'error': '비밀번호는 최소 6자 이상이어야 합니다.'}), 400
+            flash('비밀번호는 최소 6자 이상이어야 합니다.', 'error')
+            return redirect(url_for('main.profile'))
+        
         current_user.set_password(new_password)
         from app import db
         db.session.commit()
@@ -144,12 +159,18 @@ def change_password():
             severity='success'
         )
         
+        if request.is_json:
+            return jsonify({'message': '비밀번호가 성공적으로 변경되었습니다.'})
+        
         flash('비밀번호가 변경되었습니다.', 'success')
+        return redirect(url_for('main.profile'))
+        
     except Exception as e:
         logger.error(f"비밀번호 변경 실패: {e}")
+        if request.is_json:
+            return jsonify({'error': '비밀번호 변경 중 오류가 발생했습니다.'}), 500
         flash('비밀번호 변경 중 오류가 발생했습니다.', 'error')
-    
-    return redirect(url_for('main.profile'))
+        return redirect(url_for('main.profile'))
 
 @bp.route('/clear-login-error', methods=['POST'])
 def clear_login_error():
