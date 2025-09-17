@@ -416,3 +416,63 @@ def remove_firewall_group(server_name):
         logger.error(f"방화벽 그룹 제거 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500 
 
+@bp.route('/api/firewall/assign_bulk', methods=['POST'])
+@login_required
+@permission_required('manage_firewall')
+def assign_security_groups_bulk():
+    """일괄 보안그룹 할당"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON 데이터가 필요합니다'}), 400
+        
+        server_names = data.get('server_names', [])
+        firewall_group = data.get('firewall_group')
+        
+        if not server_names:
+            return jsonify({'error': '서버 목록이 필요합니다'}), 400
+        
+        if not firewall_group:
+            return jsonify({'error': '방화벽 그룹이 필요합니다'}), 400
+        
+        from app.models import Server
+        from app import db
+        
+        success_count = 0
+        failed_servers = []
+        
+        for server_name in server_names:
+            try:
+                server = Server.query.filter_by(name=server_name).first()
+                if not server:
+                    failed_servers.append(f"{server_name}: 서버를 찾을 수 없습니다")
+                    continue
+                
+                # 기존 방화벽 그룹 제거
+                if server.firewall_group:
+                    remove_result = remove_firewall_group(server_name)
+                    if not remove_result.get_json().get('success'):
+                        failed_servers.append(f"{server_name}: 기존 방화벽 그룹 제거 실패")
+                        continue
+                
+                # 새 방화벽 그룹 할당
+                assign_result = assign_firewall_group(server_name)
+                if assign_result.get_json().get('success'):
+                    success_count += 1
+                else:
+                    failed_servers.append(f"{server_name}: 방화벽 그룹 할당 실패")
+                    
+            except Exception as e:
+                failed_servers.append(f"{server_name}: {str(e)}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{success_count}개 서버에 방화벽 그룹이 할당되었습니다',
+            'success_count': success_count,
+            'failed_servers': failed_servers
+        })
+        
+    except Exception as e:
+        logger.error(f"일괄 보안그룹 할당 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+

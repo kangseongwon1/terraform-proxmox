@@ -236,3 +236,57 @@ def check_session():
     except Exception as e:
         logger.error(f"세션 상태 확인 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500 
+
+@bp.route('/api/current-user', methods=['GET'])
+@login_required
+def get_current_user():
+    """현재 사용자 정보 조회"""
+    try:
+        user_data = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'name': current_user.name or '',
+            'email': current_user.email or '',
+            'role': current_user.role,
+            'is_active': current_user.is_active,
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+            'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+            'permissions': [perm.permission for perm in current_user.permissions]
+        }
+        return jsonify(user_data)
+    except Exception as e:
+        logger.error(f"현재 사용자 정보 조회 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/profile', methods=['GET'])
+@login_required
+def get_profile():
+    """프로필 정보 조회"""
+    try:
+        user_data = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'name': current_user.name or '',
+            'email': current_user.email or '',
+            'role': current_user.role,
+            'is_active': current_user.is_active,
+            'created_at': current_user.created_at.isoformat() if current_user.created_at else None,
+            'last_login': current_user.last_login.isoformat() if current_user.last_login else None,
+            'permissions': [perm.permission for perm in current_user.permissions]
+        }
+        return jsonify(user_data)
+    except Exception as e:
+        logger.error(f"프로필 정보 조회 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# 호환성을 위한 세션 엔드포인트들 (기존 URL 경로 지원)
+@bp.route('/session/check', methods=['GET'])
+def check_session_compat():
+    """세션 상태 확인 (호환성)"""
+    return check_session()
+
+@bp.route('/session/refresh', methods=['POST'])
+@login_required
+def refresh_session_compat():
+    """세션 갱신 (호환성)"""
+    return refresh_session()

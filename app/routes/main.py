@@ -267,3 +267,9 @@ def multi_server_summary():
         logger.error(f"멀티 서버 요약 예외 발생: {str(e)}")
         return render_template('partials/multi_server_summary.html')
 
+@bp.route('/favicon.ico')
+def favicon():
+    """파비콘"""
+    from flask import send_from_directory
+    return send_from_directory('static', 'favicon.ico')
+
