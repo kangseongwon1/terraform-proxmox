@@ -241,9 +241,13 @@ def admin_iam_api():
                 'permissions': user_permissions
             })
         
+        # 디버그 정보를 함께 반환하여 환경/DB 경로 불일치 문제를 진단
+        from flask import current_app
         return jsonify({
             'success': True,
             'users': user_data,
+            'users_count': len(user_data),
+            'db_uri': current_app.config.get('SQLALCHEMY_DATABASE_URI'),
             'all_permissions': all_permissions,
             'permissions_with_descriptions': permissions_with_descriptions
         })
