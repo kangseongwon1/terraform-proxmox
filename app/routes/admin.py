@@ -111,13 +111,14 @@ def create_user():
     """사용자 생성"""
     try:
         data = request.get_json()
-        username = data.get('username')
-        email = data.get('email')
+        username = (data.get('username') or '').strip()
+        email = (data.get('email') or '').strip()
         password = data.get('password')
-        role = data.get('role', 'user')
+        role = (data.get('role') or 'developer').strip()
         
-        if not username or not email or not password:
-            return jsonify({'error': '사용자명, 이메일, 비밀번호가 필요합니다.'}), 400
+        # 이메일은 선택값으로 허용. 사용자명/비밀번호만 필수
+        if not username or not password:
+            return jsonify({'error': '사용자명과 비밀번호는 필수입니다.'}), 400
         
         # 사용자명 중복 확인
         existing_user = User.query.filter_by(username=username).first()
@@ -136,10 +137,33 @@ def create_user():
         from app import db
         db.session.add(new_user)
         db.session.commit()
+
+        # 권한 설정: 요청에 permissions가 있으면 검증 후 적용, 없으면 역할 기본 권한 부여
+        permissions = data.get('permissions')
+        try:
+            from app.permissions import validate_permission, get_default_permissions_for_role
+            to_assign = permissions if isinstance(permissions, list) and permissions else get_default_permissions_for_role(role)
+            # 중복 제거 및 유효성 필터링
+            valid_perms = []
+            for p in to_assign:
+                if validate_permission(p) and p not in valid_perms:
+                    valid_perms.append(p)
+            for p in valid_perms:
+                db.session.add(UserPermission(user_id=new_user.id, permission=p))
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"신규 사용자 권한 설정 실패: {e}")
+            db.session.rollback()
         
         return jsonify({
             'success': True,
-            'message': f'사용자 {username}가 생성되었습니다.'
+            'message': f'사용자 {username}가 생성되었습니다.',
+            'user': {
+                'id': new_user.id,
+                'username': new_user.username,
+                'email': new_user.email,
+                'role': new_user.role
+            }
         })
         
     except Exception as e:
