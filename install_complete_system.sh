@@ -1326,6 +1326,11 @@ install_monitoring() {
     
     log_success "Docker 및 Docker Compose 확인 완료"
     
+    # 로그 디렉토리 생성
+    log_info "로그 디렉토리 생성 중..."
+    mkdir -p logs
+    chmod 755 logs
+    
     # 모니터링 디렉토리 생성
     log_info "모니터링 디렉토리 생성 중..."
     mkdir -p monitoring/grafana/provisioning/datasources
@@ -2171,7 +2176,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """개발 환경 설정"""
-    DEBUG = True
+    DEBUG = False
     SESSION_COOKIE_SECURE = False
 
 class ProductionConfig(Config):

@@ -19,16 +19,17 @@ bp = Blueprint('api', __name__, url_prefix='/api')
 # 기존 템플릿에서 호출하는 API 엔드포인트들
 
 # 호환성을 위한 API 엔드포인트들 (실제 로직은 servers.py에서 처리)
-@bp.route('/api/all_server_status', methods=['GET'])
-@login_required
-def get_all_server_status_compat():
-    """모든 서버 상태 조회 (호환성)"""
-    try:
-        from app.routes.servers import get_all_server_status
-        return get_all_server_status()
-    except Exception as e:
-        print(f"💥 /all_server_status 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/all_server_status', methods=['GET'])
+# @login_required
+# def get_all_server_status_compat():
+#     """모든 서버 상태 조회 (호환성)"""
+#     try:
+#         from app.routes.servers import get_all_server_status
+#         return get_all_server_status()
+#     except Exception as e:
+#         print(f"💥 /all_server_status 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users', methods=['GET'])
 @login_required
@@ -159,50 +160,53 @@ def get_firewall_groups_compat():
         print(f"💥 방화벽 그룹 조회 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/create_server', methods=['POST'])
-@login_required
-def create_server_compat():
-    """서버 생성 (호환성)"""
-    try:
-        # servers.py의 create_server 함수를 직접 호출
-        from app.routes.servers import create_server
-        return create_server()
-    except Exception as e:
-        print(f"💥 서버 생성 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/create_server', methods=['POST'])
+# @login_required
+# def create_server_compat():
+#     """서버 생성 (호환성)"""
+#     try:
+#         # servers.py의 create_server 함수를 직접 호출
+#         from app.routes.servers import create_server
+#         return create_server()
+#     except Exception as e:
+#         print(f"💥 서버 생성 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers', methods=['POST'])
-@login_required
-def create_server_servers_compat():
-    """서버 생성 (/api/servers 호환성)"""
-    try:
-        from app.routes.servers import create_server
-        return create_server()
-    except Exception as e:
-        print(f"💥 서버 생성 (/api/servers) 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/servers', methods=['POST'])
+# @login_required
+# def create_server_servers_compat():
+#     """서버 생성 (/api/servers 호환성)"""
+#     try:
+#         from app.routes.servers import create_server
+#         return create_server()
+#     except Exception as e:
+#         print(f"💥 서버 생성 (/api/servers) 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/create_servers_bulk', methods=['POST'])
-@login_required
-def create_servers_bulk_compat():
-    """다중 서버 생성 (호환성)"""
-    try:
-        from app.routes.servers import create_servers_bulk
-        return create_servers_bulk()
-    except Exception as e:
-        print(f"💥 다중 서버 생성 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/create_servers_bulk', methods=['POST'])
+# @login_required
+# def create_servers_bulk_compat():
+#     """다중 서버 생성 (호환성)"""
+#     try:
+#         from app.routes.servers import create_servers_bulk
+#         return create_servers_bulk()
+#     except Exception as e:
+#         print(f"💥 다중 서버 생성 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers/bulk_action', methods=['POST'])
-@login_required
-def bulk_server_action_compat():
-    """일괄 서버 작업 (호환성)"""
-    try:
-        from app.routes.servers import bulk_server_action
-        return bulk_server_action()
-    except Exception as e:
-        print(f"💥 일괄 서버 작업 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/servers/bulk_action', methods=['POST'])
+# @login_required
+# def bulk_server_action_compat():
+#     """일괄 서버 작업 (호환성)"""
+#     try:
+#         from app.routes.servers import bulk_server_action
+#         return bulk_server_action()
+#     except Exception as e:
+#         print(f"💥 일괄 서버 작업 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @bp.route('/admin/iam', methods=['GET'])
 @login_required
@@ -248,132 +252,136 @@ def update_user_permissions_compat(username):
         print(f"💥 사용자 권한 업데이트 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/server_status/<server_name>', methods=['GET'])
-@login_required
-def get_server_status_compat(server_name):
-    """서버 상태 조회 (호환성)"""
-    try:
-        from app.services.proxmox_service import ProxmoxService
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.get_server_status(server_name)
-        
-        if result['success']:
-            return jsonify(result['data'])
-        else:
-            return jsonify({'error': result['message']}), 500
-    except Exception as e:
-        print(f"💥 서버 상태 조회 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/server_status/<server_name>', methods=['GET'])
+# @login_required
+# def get_server_status_compat(server_name):
+#     """서버 상태 조회 (호환성)"""
+#     try:
+#         from app.services.proxmox_service import ProxmoxService
+#         proxmox_service = ProxmoxService()
+#         result = proxmox_service.get_server_status(server_name)
+#         
+#         if result['success']:
+#             return jsonify(result['data'])
+#         else:
+#             return jsonify({'error': result['message']}), 500
+#     except Exception as e:
+#         print(f"💥 서버 상태 조회 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers/<server_name>/start', methods=['POST'])
-@login_required
-def start_server_compat(server_name):
-    """서버 시작 (호환성)"""
-    try:
-        from app.routes.servers import start_server
-        return start_server(server_name)
-    except Exception as e:
-        print(f"💥 서버 시작 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/servers/<server_name>/start', methods=['POST'])
+# @login_required
+# def start_server_compat(server_name):
+#     """서버 시작 (호환성)"""
+#     try:
+#         from app.routes.servers import start_server
+#         return start_server(server_name)
+#     except Exception as e:
+#         print(f"💥 서버 시작 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers/<server_name>/stop', methods=['POST'])
-@login_required
-def stop_server_compat(server_name):
-    """서버 중지 (호환성)"""
-    try:
-        from app.routes.servers import stop_server
-        return stop_server(server_name)
-    except Exception as e:
-        print(f"💥 서버 중지 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/servers/<server_name>/stop', methods=['POST'])
+# @login_required
+# def stop_server_compat(server_name):
+#     """서버 중지 (호환성)"""
+#     try:
+#         from app.routes.servers import stop_server
+#         return stop_server(server_name)
+#     except Exception as e:
+#         print(f"💥 서버 중지 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers/<server_name>/reboot', methods=['POST'])
-@login_required
-def reboot_server_compat(server_name):
-    """서버 재부팅 (호환성)"""
-    try:
-        from app.routes.servers import reboot_server
-        return reboot_server(server_name)
-    except Exception as e:
-        print(f"💥 서버 재부팅 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/servers/<server_name>/reboot', methods=['POST'])
+# @login_required
+# def reboot_server_compat(server_name):
+#     """서버 재부팅 (호환성)"""
+#     try:
+#         from app.routes.servers import reboot_server
+#         return reboot_server(server_name)
+#     except Exception as e:
+#         print(f"💥 서버 재부팅 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/servers/<server_name>/delete', methods=['POST'])
-@login_required
-def delete_server_compat(server_name):
-    """서버 삭제 (호환성)"""
-    try:
-        from app.routes.servers import delete_server
-        return delete_server(server_name)
-    except Exception as e:
-        print(f"💥 서버 삭제 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/servers/<server_name>/delete', methods=['POST'])
+# @login_required
+# def delete_server_compat(server_name):
+#     """서버 삭제 (호환성)"""
+#     try:
+#         from app.routes.servers import delete_server
+#         return delete_server(server_name)
+#     except Exception as e:
+#         print(f"💥 서버 삭제 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/assign_role/<server_name>', methods=['POST'])
-@login_required
-def assign_role_compat(server_name):
-    """역할 할당 (호환성)"""
-    try:
-        from app.routes.servers import assign_role_to_server
-        return assign_role_to_server(server_name)
-    except Exception as e:
-        print(f"💥 역할 할당 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/assign_role/<server_name>', methods=['POST'])
+# @login_required
+# def assign_role_compat(server_name):
+#     """역할 할당 (호환성)"""
+#     try:
+#         from app.routes.servers import assign_role_to_server
+#         return assign_role_to_server(server_name)
+#     except Exception as e:
+#         print(f"💥 역할 할당 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/remove_role/<server_name>', methods=['POST'])
-@login_required
-def remove_role_compat(server_name):
-    """역할 제거 (호환성)"""
-    try:
-        from app.routes.servers import remove_role
-        return remove_role(server_name)
-    except Exception as e:
-        print(f"💥 역할 제거 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/remove_role/<server_name>', methods=['POST'])
+# @login_required
+# def remove_role_compat(server_name):
+#     """역할 제거 (호환성)"""
+#     try:
+#         from app.routes.servers import remove_role
+#         return remove_role(server_name)
+#     except Exception as e:
+#         print(f"💥 역할 제거 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/roles/available', methods=['GET'])
-@login_required
-def get_available_roles_compat():
-    """사용 가능한 역할 목록 조회 (호환성)"""
-    try:
-        from app.routes.servers import get_available_roles
-        return get_available_roles()
-    except Exception as e:
-        print(f"💥 사용 가능한 역할 목록 조회 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/roles/available', methods=['GET'])
+# @login_required
+# def get_available_roles_compat():
+#     """사용 가능한 역할 목록 조회 (호환성)"""
+#     try:
+#         from app.routes.servers import get_available_roles
+#         return get_available_roles()
+#     except Exception as e:
+#         print(f"💥 사용 가능한 역할 목록 조회 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/roles/validate/<role_name>', methods=['GET'])
-@login_required
-def validate_role_compat(role_name):
-    """역할 유효성 검사 (호환성)"""
-    try:
-        from app.routes.servers import validate_role
-        return validate_role(role_name)
-    except Exception as e:
-        print(f"💥 역할 유효성 검사 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/roles/validate/<role_name>', methods=['GET'])
+# @login_required
+# def validate_role_compat(role_name):
+#     """역할 유효성 검사 (호환성)"""
+#     try:
+#         from app.routes.servers import validate_role
+#         return validate_role(role_name)
+#     except Exception as e:
+#         print(f"💥 역할 유효성 검사 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/ansible/status', methods=['GET'])
-@login_required
-def check_ansible_status_compat():
-    """Ansible 설치 상태 확인 (호환성)"""
-    try:
-        from app.routes.servers import check_ansible_status
-        return check_ansible_status()
-    except Exception as e:
-        print(f"💥 Ansible 상태 확인 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/ansible/status', methods=['GET'])
+# @login_required
+# def check_ansible_status_compat():
+#     """Ansible 설치 상태 확인 (호환성)"""
+#     try:
+#         from app.routes.servers import check_ansible_status
+#         return check_ansible_status()
+#     except Exception as e:
+#         print(f"💥 Ansible 상태 확인 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/roles/assign_bulk', methods=['POST'])
-@login_required
-def assign_roles_bulk_compat():
-    """일괄 역할 할당 (호환성)"""
-    try:
-        from app.routes.servers import assign_roles_bulk
-        return assign_roles_bulk()
-    except Exception as e:
-        print(f"💥 일괄 역할 할당 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/roles/assign_bulk', methods=['POST'])
+# @login_required
+# def assign_roles_bulk_compat():
+#     """일괄 역할 할당 (호환성)"""
+#     try:
+#         from app.routes.servers import assign_roles_bulk
+#         return assign_roles_bulk()
+#     except Exception as e:
+#         print(f"💥 일괄 역할 할당 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/firewall/assign_bulk', methods=['POST'])
 @login_required
@@ -424,47 +432,48 @@ def favicon():
     """파비콘"""
     return send_from_directory('static', 'favicon.ico')
 
-@bp.route('/api/proxmox_storage', methods=['GET'])
-@login_required
-def proxmox_storage_compat():
-    """Proxmox 스토리지 정보 (호환성)"""
-    try:
-        from app.routes.servers import proxmox_storage
-        return proxmox_storage()
-    except Exception as e:
-        print(f"💥 Proxmox 스토리지 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/proxmox_storage', methods=['GET'])
+# @login_required
+# def proxmox_storage_compat():
+#     """Proxmox 스토리지 정보 (호환성)"""
+#     try:
+#         from app.routes.servers import proxmox_storage
+#         return proxmox_storage()
+#     except Exception as e:
+#         print(f"💥 Proxmox 스토리지 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/sync_servers', methods=['POST'])
-@login_required
-def sync_servers_compat():
-    """서버 동기화 (호환성)"""
-    try:
-        from app.routes.servers import sync_servers as api_sync_servers
-        return api_sync_servers()
-    except Exception as e:
-        print(f"💥 서버 동기화 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/sync_servers', methods=['POST'])
+# @login_required
+# def sync_servers_compat():
+#     """서버 동기화 (호환성)"""
+#     try:
+#         from app.routes.servers import sync_servers as api_sync_servers
+#         return api_sync_servers()
+#     except Exception as e:
+#         print(f"💥 서버 동기화 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/tasks/status')
-def get_task_status_compat():
-    """Task 상태 조회 (호환성)"""
-    try:
-        from app.routes.servers import get_task_status
-        return get_task_status()
-    except Exception as e:
-        print(f"💥 Task 상태 조회 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/tasks/status')
+# def get_task_status_compat():
+#     """Task 상태 조회 (호환성)"""
+#     try:
+#         from app.routes.servers import get_task_status
+#         return get_task_status()
+#     except Exception as e:
+#         print(f"💥 Task 상태 조회 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/tasks/config')
-def get_task_config_compat():
-    """Task 설정 정보 (호환성)"""
-    try:
-        from app.routes.servers import get_task_config
-        return get_task_config()
-    except Exception as e:
-        print(f"💥 Task 설정 조회 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# @bp.route('/api/tasks/config')
+# def get_task_config_compat():
+#     """Task 설정 정보 (호환성)"""
+#     try:
+#         from app.routes.servers import get_task_config
+#         return get_task_config()
+#     except Exception as e:
+#         print(f"💥 Task 설정 조회 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/debug/user-info', methods=['GET'])
 @login_required
@@ -477,16 +486,17 @@ def debug_user_info_compat():
         print(f"💥 /debug/user-info 호환성 엔드포인트 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/debug/servers', methods=['GET'])
-@login_required
-def debug_servers_compat():
-    """서버 디버그 정보 (호환성)"""
-    try:
-        from app.routes.servers import debug_servers
-        return debug_servers()
-    except Exception as e:
-        print(f"💥 서버 디버그 호환성 엔드포인트 오류: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# 중복 제거: servers.py에 동일한 엔드포인트가 있음
+# @bp.route('/api/debug/servers', methods=['GET'])
+# @login_required
+# def debug_servers_compat():
+#     """서버 디버그 정보 (호환성)"""
+#     try:
+#         from app.routes.servers import debug_servers
+#         return debug_servers()
+#     except Exception as e:
+#         print(f"💥 서버 디버그 호환성 엔드포인트 오류: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 # 세션 관련 호환성 엔드포인트들
 @bp.route('/session/check', methods=['GET'])

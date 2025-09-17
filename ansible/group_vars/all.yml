@@ -9,6 +9,8 @@ locale: "ko_KR.UTF-8"
 firewall_enabled: true
 ssh_port: 22
 ssh_permit_root_login: false
+ssh_password_authentication: true
+selinux_enabled: false
 
 # === 로그 관련 변수 ===
 log_level: "info"

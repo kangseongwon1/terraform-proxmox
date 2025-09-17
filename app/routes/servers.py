@@ -1859,4 +1859,136 @@ def assign_role_bulk():
         print(f"💥 다중 서버 역할 할당 실패: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+# 누락된 API 엔드포인트들 추가
+
+@bp.route('/api/create_server', methods=['POST'])
+@login_required
+def create_server():
+    """서버 생성"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON 데이터가 필요합니다'}), 400
+        
+        # 필수 필드 검증
+        required_fields = ['name', 'role', 'cpu', 'memory', 'disk_size']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'{field} 필드가 필요합니다'}), 400
+        
+        # 서버 생성 작업 시작
+        task_id = create_task('running', 'create_server', f"서버 '{data['name']}' 생성 중...")
+        
+        def create_server_task():
+            try:
+                from app.services.terraform_service import TerraformService
+                from app.services.ansible_service import AnsibleService
+                from app.services.prometheus_service import PrometheusService
+                
+                terraform_service = TerraformService()
+                ansible_service = AnsibleService()
+                prometheus_service = PrometheusService()
+                
+                # Terraform으로 서버 생성
+                result = terraform_service.create_server(data)
+                
+                if result['success']:
+                    update_task(task_id, 'completed', f"서버 '{data['name']}' 생성 완료")
+                    
+                    # Prometheus 설정 업데이트
+                    prometheus_service.update_prometheus_config()
+                    
+                    # 알림 생성
+                    from app.services.notification_service import NotificationService
+                    notification_service = NotificationService()
+                    notification_service.create_notification(
+                        f"서버 '{data['name']}'이 성공적으로 생성되었습니다",
+                        'success'
+                    )
+                else:
+                    update_task(task_id, 'failed', f"서버 생성 실패: {result['message']}")
+                    
+            except Exception as e:
+                update_task(task_id, 'failed', f"서버 생성 중 오류: {str(e)}")
+                print(f"💥 서버 생성 작업 실패: {str(e)}")
+        
+        # 백그라운드에서 서버 생성 작업 실행
+        thread = threading.Thread(target=create_server_task)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': '서버 생성이 시작되었습니다',
+            'task_id': task_id
+        })
+        
+    except Exception as e:
+        print(f"💥 서버 생성 요청 처리 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/server_status/<server_name>', methods=['GET'])
+@login_required
+def get_server_status(server_name):
+    """서버 상태 조회"""
+    try:
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        result = proxmox_service.get_server_status(server_name)
+        
+        if result['success']:
+            return jsonify(result['data'])
+        else:
+            return jsonify({'error': result['message']}), 500
+    except Exception as e:
+        print(f"💥 서버 상태 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/roles/available', methods=['GET'])
+@login_required
+def get_available_roles():
+    """사용 가능한 역할 목록 조회"""
+    try:
+        roles = {
+            'web': {'name': '웹서버', 'description': '웹 서비스 제공'},
+            'was': {'name': 'WAS', 'description': '애플리케이션 서버'},
+            'db': {'name': 'DB', 'description': '데이터베이스 서버'},
+            'java': {'name': 'JAVA', 'description': '자바 서버'},
+            'search': {'name': '검색', 'description': '검색 서버'},
+            'ftp': {'name': 'FTP', 'description': '파일 서버'}
+        }
+        
+        return jsonify({
+            'success': True,
+            'roles': roles
+        })
+        
+    except Exception as e:
+        print(f"💥 역할 목록 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/roles/validate/<role_name>', methods=['GET'])
+@login_required
+def validate_role(role_name):
+    """역할 유효성 검사"""
+    try:
+        valid_roles = ['web', 'was', 'db', 'java', 'search', 'ftp']
+        
+        if role_name in valid_roles:
+            return jsonify({
+                'success': True,
+                'valid': True,
+                'message': f'역할 "{role_name}"은 유효합니다'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'valid': False,
+                'message': f'역할 "{role_name}"은 유효하지 않습니다'
+            })
+            
+    except Exception as e:
+        print(f"💥 역할 유효성 검사 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500 

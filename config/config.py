@@ -93,7 +93,7 @@ class TerraformConfig:
 class Config:
     """기본 설정"""
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-    DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+    DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
     
     # SQLAlchemy 설정
     basedir = os.path.abspath(os.path.dirname(__file__))
@@ -128,7 +128,9 @@ class Config:
     
     # 로깅 설정
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
-    LOG_FILE = os.environ.get('LOG_FILE', 'app.log')
+    LOG_FILE = os.environ.get('LOG_FILE', os.path.join(project_root, 'logs', 'proxmox_manager.log'))
+    LOG_MAX_BYTES = int(os.environ.get('LOG_MAX_BYTES', '10485760'))  # 10MB
+    LOG_BACKUP_COUNT = int(os.environ.get('LOG_BACKUP_COUNT', '5'))
     
     # SSH 설정
     SSH_PRIVATE_KEY_PATH = os.environ.get('SSH_PRIVATE_KEY_PATH', '~/.ssh/id_rsa')
@@ -181,7 +183,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """개발 환경 설정"""
-    DEBUG = True
+    DEBUG = False
     SESSION_COOKIE_SECURE = False
 
 class ProductionConfig(Config):

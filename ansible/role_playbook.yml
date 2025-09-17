@@ -25,10 +25,12 @@
     - name: Gather facts after Python installation
       setup:
 
+
   roles:
     - name: "{{ role }}"
       when: role is defined and role != ""
       
+
   post_tasks:
     - name: 역할 설정 완료 알림
       debug:
@@ -37,3 +39,6 @@
           - 서버: {{ inventory_hostname }}
           - IP: {{ ansible_default_ipv4.address }}
           - 역할: {{ role | default('미지정') }}
+          - 시간대: {{ timezone | default('미설정') }}
+          - SSH 패스워드 인증: {{ "활성화" if ssh_password_authentication else "비활성화" }}
+          - SELinux: {{ "활성화" if selinux_enabled else "비활성화" }}
