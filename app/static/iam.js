@@ -37,9 +37,12 @@ $(function() {
   }
 
   function renderTable() {
+    console.log('[iam.js] renderTable 호출, USERS:', USERS);
+    console.log('[iam.js] USERS 키 개수:', Object.keys(USERS).length);
     const tbody = $('#iam-user-tbody');
     tbody.empty();
     Object.entries(USERS).forEach(([username, user]) => {
+      console.log('[iam.js] 사용자 렌더링:', username, user);
       const isAdmin = user.role === 'admin';
       const isInactive = user.is_active === false;
       let tr = $('<tr>').toggleClass('iam-admin-row', isAdmin).toggleClass('table-secondary', isInactive).addClass('iam-user-row').attr('data-username', username);
@@ -551,6 +554,7 @@ $(function() {
       console.log('[iam.js] /admin/iam 응답:', res);
       console.log('[iam.js] 응답에서 users:', res.users);
       console.log('[iam.js] 응답에서 permissions:', res.all_permissions);
+      console.log('[iam.js] users 배열 길이:', res.users ? res.users.length : 'undefined');
       
       // users 배열을 username을 키로 하는 객체로 변환
       USERS = {};

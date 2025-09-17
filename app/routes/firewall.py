@@ -404,13 +404,13 @@ def remove_firewall_group(server_name):
         else:
             logger.warning(f"Proxmox에서 방화벽 그룹 제거 실패, DB만 업데이트")
             # Proxmox 제거 실패 시에도 DB는 업데이트
-            server.firewall_group = None
-            db.session.commit()
-            
-            return jsonify({
-                'success': True, 
+        server.firewall_group = None
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
                 'message': f'서버 {server_name}에서 방화벽 그룹 \'{old_firewall_group}\'이 제거되었습니다. (DB만 업데이트)'
-            })
+        })
             
     except Exception as e:
         logger.error(f"방화벽 그룹 제거 실패: {str(e)}")
@@ -474,5 +474,5 @@ def assign_security_groups_bulk():
         
     except Exception as e:
         logger.error(f"일괄 보안그룹 할당 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500 
 

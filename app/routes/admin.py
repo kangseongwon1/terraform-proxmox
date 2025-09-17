@@ -146,7 +146,7 @@ def create_user():
         logger.error(f"사용자 생성 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/api/users/<username>/delete', methods=['POST'])
+@bp.route('/api/users/<username>', methods=['DELETE'])
 @permission_required('manage_users')
 def delete_user(username):
     """사용자 삭제"""
@@ -369,8 +369,7 @@ def admin_iam_set_role(username):
         return jsonify({'error': str(e)}), 500        
 
 @bp.route('/api/users/<username>/password', methods=['POST'])
-@login_required
-@admin_required
+@permission_required('manage_users')
 def change_user_password(username):
     """사용자 비밀번호 변경"""
     try:
