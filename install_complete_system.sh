@@ -16,6 +16,13 @@
 
 set -e  # 오류 발생 시 스크립트 중단
 
+# 스크립트 위치 기반으로 작업 디렉토리 설정 (환경 독립적)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# 작업 디렉토리 확인 로그
+echo "🔧 작업 디렉토리 설정: $(pwd)"
+
 # 색상 정의
 RED='\033[0;31m'
 GREEN='\033[0;32m'
