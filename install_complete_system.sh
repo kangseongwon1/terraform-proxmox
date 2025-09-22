@@ -373,7 +373,14 @@ setup_python() {
     
     # Python 패키지 설치
     log_info "Python 패키지 설치 중..."
-    pip install -r "$(dirname "$0")/requirements.txt"
+    
+    # 작업 디렉토리 재확인 및 설정
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cd "$SCRIPT_DIR"
+    log_info "작업 디렉토리 재설정: $(pwd)"
+    log_info "requirements.txt 파일 확인: $(ls -la requirements.txt 2>/dev/null || echo '파일 없음')"
+    
+    pip install -r requirements.txt
     
     if [ $? -eq 0 ]; then
         log_success "Python 패키지 설치 완료"
