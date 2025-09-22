@@ -374,12 +374,10 @@ setup_python() {
     # Python 패키지 설치
     log_info "Python 패키지 설치 중..."
     
-    # 작업 디렉토리 재확인 및 설정
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    # 작업 디렉토리 재확인 및 설정 (전역 SCRIPT_DIR 사용)
     cd "$SCRIPT_DIR"
     log_info "작업 디렉토리 재설정: $(pwd)"
     log_info "requirements.txt 파일 확인: $(ls -la requirements.txt 2>/dev/null || echo '파일 없음')"
-    
     pip install -r requirements.txt
     
     if [ $? -eq 0 ]; then
@@ -450,6 +448,9 @@ install_python312_from_source() {
     cd Python-3.12.7
     
     log_info "컨피규어 실행 중..."
+    # Rocky 9에서 Python 3.12 빌드 시 발생하는 경고 해결
+    export CFLAGS="-Wno-stringop-overflow"
+    export CPPFLAGS="-Wno-stringop-overflow"
     ./configure --enable-optimizations --prefix="$PYTHON_INSTALL_DIR"
     
     if [ $? -eq 0 ]; then
@@ -550,6 +551,9 @@ install_python312_from_source_sudo() {
     cd Python-3.12.7
     
     log_info "컨피규어 실행 중..."
+    # Rocky 9에서 Python 3.12 빌드 시 발생하는 경고 해결
+    export CFLAGS="-Wno-stringop-overflow"
+    export CPPFLAGS="-Wno-stringop-overflow"
     ./configure --enable-optimizations --prefix="$PYTHON_INSTALL_DIR"
     
     if [ $? -eq 0 ]; then
