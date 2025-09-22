@@ -16,6 +16,7 @@ provider "proxmox" {
   username = var.proxmox_username
   password = data.vault_generic_secret.proxmox.data["password"]
   insecure = true
+  skip_tls_verify = true
 
   ssh {
     agent = true

@@ -31,6 +31,11 @@ class TerraformService:
         if cwd is None:
             cwd = self.terraform_dir
         
+        # SSL 검증 비활성화를 위한 환경변수 설정
+        env = os.environ.copy()
+        env['TF_VAR_proxmox_insecure'] = 'true'
+        env['PROXMOX_INSECURE'] = 'true'
+        
         print(f"🔧 Terraform 명령어 실행: {' '.join(command)} (cwd: {cwd})")
         
         try:
