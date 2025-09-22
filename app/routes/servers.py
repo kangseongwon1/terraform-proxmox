@@ -296,6 +296,20 @@ def create_server():
                     current_vm_password = vm_password if vm_password else get_default_password(os_type)
                     
                     # 서버 설정 생성
+                    # 디스크 설정에 datastore 자동 설정
+                    from config.config import Config
+                    datastore_config = Config.get_datastore_config()
+                    
+                    for disk in disks:
+                        if 'disk_type' not in disk:
+                            disk['disk_type'] = 'hdd'
+                        if 'file_format' not in disk:
+                            disk['file_format'] = 'auto'
+                        # datastore_id가 "auto"이거나 없으면 환경에 맞는 datastore 자동 설정
+                        if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
+                            disk['datastore_id'] = datastore_config.get(disk['disk_type'], 'local-lvm')
+                            logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
+                    
                     server_data = {
                         'name': server_name,
                         'cpu': cpu,
@@ -600,12 +614,19 @@ def create_servers_bulk():
                             'vm_password': server_data.get('vm_password', tfvars.get('vm_password', 'rocky123'))
                         }
                         
-                        # 디스크 설정에 기본값 추가
+                        # 디스크 설정에 기본값 추가 및 datastore 자동 설정
+                        from config.config import Config
+                        datastore_config = Config.get_datastore_config()
+                        
                         for disk in server_config['disks']:
                             if 'disk_type' not in disk:
                                 disk['disk_type'] = 'hdd'
                             if 'file_format' not in disk:
                                 disk['file_format'] = 'auto'
+                            # datastore_id가 "auto"이거나 없으면 환경에 맞는 datastore 자동 설정
+                            if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
+                                disk['datastore_id'] = datastore_config.get(disk['disk_type'], 'local-lvm')
+                                logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
                         
                         tfvars['servers'][server_name] = server_config
                         logger.info(f"🔧 서버 설정 추가: {server_name}")

@@ -967,11 +967,18 @@ setup_environment() {
 # Proxmox Manager 환경 변수 설정
 # 이 파일을 편집하여 실제 값으로 변경하세요
 
+# 환경 설정
+ENVIRONMENT=development
+
 # Proxmox 설정
 PROXMOX_ENDPOINT=https://your-proxmox-server:8006
 PROXMOX_USERNAME=your-username
 PROXMOX_PASSWORD=your-password
 PROXMOX_NODE=your-node-name
+
+# 스토리지 설정 (환경별 datastore ID)
+PROXMOX_HDD_DATASTORE=HDD-Storage
+PROXMOX_SSD_DATASTORE=local
 
 # SSH 설정은 Vault에서 관리됩니다
 
@@ -1090,6 +1097,9 @@ EOF
   "proxmox_username": "${PROXMOX_USERNAME:-root@pam}",
   "proxmox_node": "${PROXMOX_NODE:-prox}",
   "vm_username": "${SSH_USER:-rocky}",
+  "environment": "${ENVIRONMENT:-development}",
+  "proxmox_hdd_datastore": "${PROXMOX_HDD_DATASTORE:-local-lvm}",
+  "proxmox_ssd_datastore": "${PROXMOX_SSD_DATASTORE:-local}",
   "servers": {}
 }
 EOF

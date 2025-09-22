@@ -73,3 +73,31 @@ variable "vm_password" {
   description = "VM 기본 비밀번호"
   default = ""
 }
+
+# 환경 설정
+variable "environment" {
+  type = string
+  description = "환경 (development/production)"
+  default = "development"
+}
+
+# 스토리지 설정 (.env에서 가져옴)
+variable "proxmox_hdd_datastore" {
+  type = string
+  description = "HDD datastore ID"
+  default = "local-lvm"
+}
+
+variable "proxmox_ssd_datastore" {
+  type = string
+  description = "SSD datastore ID"
+  default = "local"
+}
+
+# datastore 설정
+locals {
+  datastore_config = {
+    hdd = var.proxmox_hdd_datastore
+    ssd = var.proxmox_ssd_datastore
+  }
+}

@@ -14,6 +14,7 @@ Terraform Proxmox Manager
 빠른 시작
 1) 필수 의존성 설치: Docker, Docker Compose, Python 3.10+, Terraform, Ansible
 2) 프로젝트 클론 후 `.env` 작성(설치 스크립트에서 템플릿 제공)
+   - **중요**: `PROXMOX_HDD_DATASTORE`, `PROXMOX_SSD_DATASTORE` 설정 필수
 3) 가상환경 생성 및 패키지 설치, DB 초기화
 4) 모니터링 스택 실행: `monitoring/start-monitoring.sh` 또는 `docker compose -f monitoring/docker-compose.yml up -d`
 5) Flask 앱 실행: `python run.py`

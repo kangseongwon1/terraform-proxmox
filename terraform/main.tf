@@ -19,7 +19,17 @@ module "server" {
   role           = each.value.role
   cpu            = each.value.cpu
   memory         = each.value.memory
-  disks          = each.value.disks
+  disks          = [
+    for disk in each.value.disks : {
+      interface    = disk.interface
+      size         = disk.size
+      datastore_id = disk.datastore_id == "auto" ? (
+        disk.disk_type == "hdd" ? local.datastore_config.hdd : local.datastore_config.ssd
+      ) : disk.datastore_id
+      disk_type    = disk.disk_type
+      file_format  = disk.file_format
+    }
+  ]
   network_devices = each.value.network_devices
   template_vm_id = each.value.template_vm_id
 

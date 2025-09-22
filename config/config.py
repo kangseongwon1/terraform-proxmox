@@ -38,7 +38,10 @@ class TerraformConfig:
         'PROXMOX_PASSWORD': 'TF_VAR_proxmox_password',
         'PROXMOX_NODE': 'TF_VAR_proxmox_node',
         'SSH_USER': 'TF_VAR_vm_username',
-        'SSH_PUBLIC_KEY_PATH': 'TF_VAR_ssh_keys'
+        'SSH_PUBLIC_KEY_PATH': 'TF_VAR_ssh_keys',
+        'ENVIRONMENT': 'TF_VAR_environment',
+        'PROXMOX_HDD_DATASTORE': 'TF_VAR_proxmox_hdd_datastore',
+        'PROXMOX_SSD_DATASTORE': 'TF_VAR_proxmox_ssd_datastore'
     }
     
     @classmethod
@@ -117,6 +120,18 @@ class Config:
     PROXMOX_PASSWORD = os.environ.get('PROXMOX_PASSWORD', 'password')
     PROXMOX_NODE = os.environ.get('PROXMOX_NODE', 'pve')
     PROXMOX_DATASTORE = os.environ.get('PROXMOX_DATASTORE', 'local-lvm')
+    
+    # 스토리지 설정 (.env에서 설정)
+    PROXMOX_HDD_DATASTORE = os.environ.get('PROXMOX_HDD_DATASTORE', 'local-lvm')
+    PROXMOX_SSD_DATASTORE = os.environ.get('PROXMOX_SSD_DATASTORE', 'local')
+    
+    @classmethod
+    def get_datastore_config(cls):
+        """환경변수에서 datastore 설정 반환"""
+        return {
+            'hdd': cls.PROXMOX_HDD_DATASTORE,
+            'ssd': cls.PROXMOX_SSD_DATASTORE
+        }
     
     # 세션 보안 설정
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
