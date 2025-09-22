@@ -976,10 +976,6 @@ PROXMOX_USERNAME=your-username
 PROXMOX_PASSWORD=your-password
 PROXMOX_NODE=your-node-name
 
-# 스토리지 설정 (환경별 datastore ID)
-PROXMOX_HDD_DATASTORE=HDD-Storage
-PROXMOX_SSD_DATASTORE=local
-
 # SSH 설정은 Vault에서 관리됩니다
 
 # Vault 설정
