@@ -373,7 +373,7 @@ setup_python() {
     
     # Python 패키지 설치
     log_info "Python 패키지 설치 중..."
-    pip install -r requirements.txt
+    pip install -r "$(dirname "$0")/requirements.txt"
     
     if [ $? -eq 0 ]; then
         log_success "Python 패키지 설치 완료"
