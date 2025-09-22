@@ -18,7 +18,13 @@ class TerraformService:
     
     def __init__(self, terraform_dir: str = "terraform"):
         self.terraform_dir = terraform_dir
-        self.tfvars_file = os.path.join(terraform_dir, "terraform.tfvars.json")
+        # 절대 경로로 terraform.tfvars.json 파일 경로 설정
+        if os.path.isabs(terraform_dir):
+            self.tfvars_file = os.path.join(terraform_dir, "terraform.tfvars.json")
+        else:
+            # 상대 경로인 경우 프로젝트 루트 기준으로 절대 경로 생성
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            self.tfvars_file = os.path.join(project_root, terraform_dir, "terraform.tfvars.json")
     
     def _run_terraform_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
         """Terraform 명령어 실행"""
@@ -364,7 +370,7 @@ class TerraformService:
                     # 대안 방법으로 config 로드
                     import importlib.util
                     import os
-                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'config.py')
                     spec = importlib.util.spec_from_file_location("config", config_path)
                     config_module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(config_module)
@@ -383,7 +389,7 @@ class TerraformService:
                     # 대안 방법으로 config 로드
                     import importlib.util
                     import os
-                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'config.py')
                     spec = importlib.util.spec_from_file_location("config", config_path)
                     config_module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(config_module)
@@ -414,7 +420,7 @@ class TerraformService:
                     # 대안 방법으로 config 로드
                     import importlib.util
                     import os
-                    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'config.py')
                     spec = importlib.util.spec_from_file_location("config", config_path)
                     config_module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(config_module)
@@ -432,7 +438,7 @@ class TerraformService:
                 # 대안 방법으로 config 로드
                 import importlib.util
                 import os
-                config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.py')
+                config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'config.py')
                 spec = importlib.util.spec_from_file_location("config", config_path)
                 config_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(config_module)

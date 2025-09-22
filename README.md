@@ -155,6 +155,7 @@ cd terraform-proxmox
 ```
 
 ### 2. 자동 설치 실행
+env_template 에서 변수 설정 -> .env 로 복사
 ```bash
 chmod +x install_complete_system.sh
 sudo ./install_complete_system.sh

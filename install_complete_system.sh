@@ -991,7 +991,7 @@ EOF
         echo ""
         
         # 필수 정보 입력
-        read -p "Proxmox 서버 주소를 입력하세요 (예: https://prox.dmcmedia.co.kr:8006): " PROXMOX_ENDPOINT
+        read -p "Proxmox 서버 주소를 입력하세요 (예: https://example.proxmox.co.kr:8006): " PROXMOX_ENDPOINT
         read -p "Proxmox 사용자명을 입력하세요 (예: root@pam): " PROXMOX_USERNAME
         read -s -p "Proxmox 비밀번호를 입력하세요: " PROXMOX_PASSWORD
         echo
@@ -1080,6 +1080,23 @@ EOF
     
     # .env 파일 로드
     source .env
+    
+    # terraform.tfvars.json 파일 생성 (Git에 없으므로 설치 시 생성)
+    log_info "terraform.tfvars.json 파일 생성 중..."
+    if [ ! -f "terraform/terraform.tfvars.json" ]; then
+        cat > terraform/terraform.tfvars.json << EOF
+{
+  "proxmox_endpoint": "${PROXMOX_ENDPOINT:-https://localhost:8006}",
+  "proxmox_username": "${PROXMOX_USERNAME:-root@pam}",
+  "proxmox_node": "${PROXMOX_NODE:-prox}",
+  "vm_username": "${SSH_USER:-rocky}",
+  "servers": {}
+}
+EOF
+        log_success "terraform.tfvars.json 파일 생성 완료"
+    else
+        log_info "terraform.tfvars.json 파일이 이미 존재합니다"
+    fi
     
     # 필수 환경변수 검증
     log_info "필수 환경변수 검증 중..."
