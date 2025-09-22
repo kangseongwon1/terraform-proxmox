@@ -297,8 +297,12 @@ def create_server():
                     
                     # 서버 설정 생성
                     # 디스크 설정에 datastore 자동 설정
-                    from config.config import Config
-                    datastore_config = Config.get_datastore_config()
+                    import os
+                    # 환경변수에서 직접 datastore 설정 가져오기
+                    datastore_config = {
+                        'hdd': os.environ.get('PROXMOX_HDD_DATASTORE', 'local-lvm'),
+                        'ssd': os.environ.get('PROXMOX_SSD_DATASTORE', 'local')
+                    }
                     
                     for disk in disks:
                         if 'disk_type' not in disk:
@@ -615,8 +619,12 @@ def create_servers_bulk():
                         }
                         
                         # 디스크 설정에 기본값 추가 및 datastore 자동 설정
-                        from config.config import Config
-                        datastore_config = Config.get_datastore_config()
+                        import os
+                        # 환경변수에서 직접 datastore 설정 가져오기
+                        datastore_config = {
+                            'hdd': os.environ.get('PROXMOX_HDD_DATASTORE', 'local-lvm'),
+                            'ssd': os.environ.get('PROXMOX_SSD_DATASTORE', 'local')
+                        }
                         
                         for disk in server_config['disks']:
                             if 'disk_type' not in disk:
