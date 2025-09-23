@@ -351,6 +351,10 @@ def create_server():
                         if 'datastore_id' not in disk:
                             disk['datastore_id'] = 'auto'
                             logger.info(f"🔧 디스크 {i}: datastore_id를 'auto'로 설정 (Terraform에서 환경변수 사용)")
+                        elif disk['datastore_id'] == 'local-lvm':
+                            # local-lvm은 기본값이므로 auto로 변경하여 환경변수 사용
+                            disk['datastore_id'] = 'auto'
+                            logger.info(f"🔧 디스크 {i}: local-lvm을 auto로 변경 (환경변수 사용)")
                         else:
                             logger.info(f"🔧 디스크 {i}: datastore_id가 이미 설정됨: {disk['datastore_id']}")
 
