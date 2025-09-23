@@ -2012,3 +2012,42 @@ def validate_role(role_name):
     except Exception as e:
         logger.error(f"역할 유효성 검사 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500 
+
+@bp.route('/api/datastores', methods=['GET'])
+@login_required
+def get_datastores():
+    """사용 가능한 datastore 목록 조회"""
+    try:
+        # Proxmox에서 datastore 목록 가져오기
+        proxmox_service = ProxmoxService()
+        datastores = proxmox_service.get_datastores()
+        
+        # 환경변수에서 기본 datastore 설정 가져오기
+        env_vars = load_env_file()
+        hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE', 'local-lvm')
+        ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE', 'local')
+        
+        # datastore 목록을 포맷팅
+        formatted_datastores = []
+        for datastore in datastores:
+            formatted_datastores.append({
+                'id': datastore['id'],
+                'name': datastore['id'],  # ID를 이름으로 사용
+                'type': datastore.get('type', 'unknown'),
+                'size': datastore.get('size', 0),
+                'used': datastore.get('used', 0),
+                'available': datastore.get('available', 0),
+                'is_default_hdd': datastore['id'] == hdd_datastore,
+                'is_default_ssd': datastore['id'] == ssd_datastore
+            })
+        
+        return jsonify({
+            'success': True,
+            'datastores': formatted_datastores,
+            'default_hdd': hdd_datastore,
+            'default_ssd': ssd_datastore
+        })
+        
+    except Exception as e:
+        logger.error(f"Datastore 목록 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500        

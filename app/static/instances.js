@@ -11,6 +11,24 @@ $(function() {
   // 실시간 알림 폴링 시작
   window.startNotificationPolling();
   
+  // 페이지 로드 시 datastore 옵션 초기화
+  loadDatastores().then(function(config) {
+    $('.disk-datastore').each(function() {
+      const $select = $(this);
+      $select.empty();
+      
+      config.datastores.forEach(function(datastore) {
+        const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
+        const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                         datastore.type === 'dir' ? 'Directory' : 
+                         datastore.type === 'nfs' ? 'NFS' : 
+                         datastore.type.toUpperCase();
+        
+        $select.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+      });
+    });
+  });
+  
   // 실시간 서버 상태 폴링
   let serverStatusPolling = null;
   let isBulkOperationInProgress = false; // 일괄 작업 진행 상태 플래그
@@ -36,6 +54,54 @@ $(function() {
         };
         return taskConfig;
       });
+  }
+  
+  // Datastore 목록 로드
+  let datastoreConfig = null;
+  function loadDatastores() {
+    if (datastoreConfig) return Promise.resolve(datastoreConfig);
+    
+    return $.get('/api/datastores')
+      .then(function(response) {
+        if (response.success) {
+          datastoreConfig = response;
+          console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
+          return response;
+        } else {
+          throw new Error('Datastore 목록 로드 실패');
+        }
+      })
+      .fail(function(xhr) {
+        console.warn('[instances.js] Datastore 목록 로드 실패, 기본값 사용:', xhr);
+        // 기본값 사용
+        datastoreConfig = {
+          success: true,
+          datastores: [
+            { id: 'local-lvm', name: 'local-lvm', type: 'lvm', is_default_hdd: true },
+            { id: 'local', name: 'local', type: 'dir', is_default_ssd: true }
+          ],
+          default_hdd: 'local-lvm',
+          default_ssd: 'local'
+        };
+        return datastoreConfig;
+      });
+  }
+  
+  // 디스크 추가 시 datastore 옵션 동적 생성
+  function createDiskDatastoreSelect(datastores, defaultHdd) {
+    let options = '';
+    
+    datastores.forEach(function(datastore) {
+      const isSelected = datastore.id === defaultHdd ? 'selected' : '';
+      const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                       datastore.type === 'dir' ? 'Directory' : 
+                       datastore.type === 'nfs' ? 'NFS' : 
+                       datastore.type.toUpperCase();
+      
+      options += `<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`;
+    });
+    
+    return `<select class="form-select disk-datastore">${options}</select>`;
   }
   
   function startServerStatusPolling() {
@@ -157,6 +223,49 @@ $(function() {
   // 숫자를 소수점 2자리까지 포맷팅하는 함수
   function format2f(num) {
     return parseFloat(num).toFixed(2);
+  }
+
+  // Datastore 목록 로드
+  function loadDatastores() {
+    return $.get('/api/datastores')
+      .then(function(response) {
+        if (response.success) {
+          console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
+          return response;
+        } else {
+          throw new Error('Datastore 목록 로드 실패');
+        }
+      })
+      .fail(function(xhr) {
+        console.warn('[instances.js] Datastore 목록 로드 실패, 기본값 사용:', xhr);
+        // 기본값 사용
+        return {
+          success: true,
+          datastores: [
+            { id: 'local-lvm', name: 'local-lvm', type: 'lvm', is_default_hdd: true },
+            { id: 'local', name: 'local', type: 'dir', is_default_ssd: true }
+          ],
+          default_hdd: 'local-lvm',
+          default_ssd: 'local'
+        };
+      });
+  }
+
+  // 디스크 추가 시 datastore 옵션 동적 생성
+  function createDiskDatastoreSelect(datastores, defaultHdd) {
+    let options = '';
+    
+    datastores.forEach(function(datastore) {
+      const isSelected = datastore.id === defaultHdd ? 'selected' : '';
+      const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                      datastore.type === 'dir' ? 'Directory' : 
+                      datastore.type === 'nfs' ? 'NFS' : 
+                      datastore.type.toUpperCase();
+      
+      options += `<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`;
+    });
+    
+    return `<select class="form-select disk-datastore">${options}</select>`;
   }
   
   // 서버 역할 매핑
@@ -2798,6 +2907,23 @@ function initializeServerForm() {
     const $item = $container.find('.disk-item').first().clone();
     $item.find('input, select').val('');
     $item.find('.remove-disk-btn').prop('disabled', false);
+    
+    // datastore 옵션 동적 생성
+    loadDatastores().then(function(config) {
+      const $datastoreSelect = $item.find('.disk-datastore');
+      $datastoreSelect.empty();
+      
+      config.datastores.forEach(function(datastore) {
+        const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
+        const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                         datastore.type === 'dir' ? 'Directory' : 
+                         datastore.type === 'nfs' ? 'NFS' : 
+                         datastore.type.toUpperCase();
+        
+        $datastoreSelect.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+      });
+    });
+    
     $container.append($item);
   });
 

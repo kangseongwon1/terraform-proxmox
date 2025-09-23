@@ -30,6 +30,57 @@ class ProxmoxService:
         self.node = current_app.config['PROXMOX_NODE']
         self.session = requests.Session()
         self.session.verify = False  # SSL 인증서 검증 비활성화 (개발용)
+
+    def get_datastores(self) -> List[Dict[str, Any]]:
+        """사용 가능한 datastore 목록 조회"""
+        try:
+            # Proxmox API로 datastore 목록 가져오기
+            url = f"{self.endpoint}/storage"
+            response = self._make_request('GET', url)
+            
+            if response.status_code == 200:
+                datastores = response.json()['data']
+                
+                # 각 datastore의 상세 정보 가져오기
+                detailed_datastores = []
+                for datastore in datastores:
+                    try:
+                        # datastore 상세 정보 조회
+                        detail_url = f"{self.endpoint}/storage/{datastore['storage']}"
+                        detail_response = self._make_request('GET', detail_url)
+                        
+                        if detail_response.status_code == 200:
+                            detail_data = detail_response.json()['data']
+                            detailed_datastores.append({
+                                'id': datastore['storage'],
+                                'type': detail_data.get('type', 'unknown'),
+                                'size': detail_data.get('size', 0),
+                                'used': detail_data.get('used', 0),
+                                'available': detail_data.get('available', 0),
+                                'content': detail_data.get('content', ''),
+                                'enabled': detail_data.get('enabled', True)
+                            })
+                    except Exception as e:
+                        logger.warning(f"Datastore {datastore['storage']} 상세 정보 조회 실패: {e}")
+                        # 기본 정보만 사용
+                        detailed_datastores.append({
+                            'id': datastore['storage'],
+                            'type': 'unknown',
+                            'size': 0,
+                            'used': 0,
+                            'available': 0,
+                            'content': '',
+                            'enabled': True
+                        })
+                
+                return detailed_datastores
+            else:
+                logger.error(f"Datastore 목록 조회 실패: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Datastore 목록 조회 실패: {str(e)}")
+            return []        
     
     def _get_db_connection(self):
         """데이터베이스 연결"""
