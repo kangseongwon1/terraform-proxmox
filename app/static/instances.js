@@ -11,6 +11,37 @@ $(function() {
   // 실시간 알림 폴링 시작
   window.startNotificationPolling();
   
+  // Datastore 목록 로드
+  let datastoreConfig = null;
+  function loadDatastores() {
+    if (datastoreConfig) return Promise.resolve(datastoreConfig);
+    
+    return $.get('/api/datastores')
+      .then(function(response) {
+        if (response.success) {
+          datastoreConfig = response;
+          console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
+          return response;
+        } else {
+          throw new Error('Datastore 목록 로드 실패');
+        }
+      })
+      .fail(function(xhr) {
+        console.warn('[instances.js] Datastore 목록 로드 실패, 기본값 사용:', xhr);
+        // 기본값 사용
+        datastoreConfig = {
+          success: true,
+          datastores: [
+            { id: 'local-lvm', name: 'local-lvm', type: 'lvm', is_default_hdd: true },
+            { id: 'local', name: 'local', type: 'dir', is_default_ssd: true }
+          ],
+          default_hdd: 'local-lvm',
+          default_ssd: 'local'
+        };
+        return datastoreConfig;
+      });
+  }
+  
   // 페이지 로드 시 datastore 옵션 초기화
   loadDatastores().then(function(config) {
     $('.disk-datastore').each(function() {
@@ -53,37 +84,6 @@ $(function() {
           polling_interval: 5000
         };
         return taskConfig;
-      });
-  }
-  
-  // Datastore 목록 로드
-  let datastoreConfig = null;
-  function loadDatastores() {
-    if (datastoreConfig) return Promise.resolve(datastoreConfig);
-    
-    return $.get('/api/datastores')
-      .then(function(response) {
-        if (response.success) {
-          datastoreConfig = response;
-          console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
-          return response;
-        } else {
-          throw new Error('Datastore 목록 로드 실패');
-        }
-      })
-      .fail(function(xhr) {
-        console.warn('[instances.js] Datastore 목록 로드 실패, 기본값 사용:', xhr);
-        // 기본값 사용
-        datastoreConfig = {
-          success: true,
-          datastores: [
-            { id: 'local-lvm', name: 'local-lvm', type: 'lvm', is_default_hdd: true },
-            { id: 'local', name: 'local', type: 'dir', is_default_ssd: true }
-          ],
-          default_hdd: 'local-lvm',
-          default_ssd: 'local'
-        };
-        return datastoreConfig;
       });
   }
   
