@@ -299,19 +299,27 @@ def create_server():
                     # 디스크 설정에 datastore 자동 설정
                     import os
                     # 환경변수에서 직접 datastore 설정 가져오기
-                    datastore_config = {
-                        'hdd': os.environ.get('PROXMOX_HDD_DATASTORE', 'local-lvm'),
-                        'ssd': os.environ.get('PROXMOX_SSD_DATASTORE', 'local')
-                    }
+                    hdd_datastore = os.environ.get('PROXMOX_HDD_DATASTORE')
+                    ssd_datastore = os.environ.get('PROXMOX_SSD_DATASTORE')
+                    
+                    print(f"🔧 환경변수에서 읽은 datastore 설정:")
+                    print(f"   PROXMOX_HDD_DATASTORE: {hdd_datastore}")
+                    print(f"   PROXMOX_SSD_DATASTORE: {ssd_datastore}")
                     
                     for disk in disks:
                         if 'disk_type' not in disk:
                             disk['disk_type'] = 'hdd'
                         if 'file_format' not in disk:
                             disk['file_format'] = 'auto'
-                        # datastore_id가 "auto"이거나 없으면 환경에 맞는 datastore 자동 설정
+                        # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
                         if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
-                            disk['datastore_id'] = datastore_config.get(disk['disk_type'], 'local-lvm')
+                            if disk['disk_type'] == 'hdd':
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                            elif disk['disk_type'] == 'ssd':
+                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
+                            else:
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                            
                             logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
                     
                     server_data = {
@@ -621,19 +629,23 @@ def create_servers_bulk():
                         # 디스크 설정에 기본값 추가 및 datastore 자동 설정
                         import os
                         # 환경변수에서 직접 datastore 설정 가져오기
-                        datastore_config = {
-                            'hdd': os.environ.get('PROXMOX_HDD_DATASTORE', 'local-lvm'),
-                            'ssd': os.environ.get('PROXMOX_SSD_DATASTORE', 'local')
-                        }
+                        hdd_datastore = os.environ.get('PROXMOX_HDD_DATASTORE')
+                        ssd_datastore = os.environ.get('PROXMOX_SSD_DATASTORE')
                         
                         for disk in server_config['disks']:
                             if 'disk_type' not in disk:
                                 disk['disk_type'] = 'hdd'
                             if 'file_format' not in disk:
                                 disk['file_format'] = 'auto'
-                            # datastore_id가 "auto"이거나 없으면 환경에 맞는 datastore 자동 설정
+                            # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
                             if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
-                                disk['datastore_id'] = datastore_config.get(disk['disk_type'], 'local-lvm')
+                                if disk['disk_type'] == 'hdd':
+                                    disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                                elif disk['disk_type'] == 'ssd':
+                                    disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
+                                else:
+                                    disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                                
                                 logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
                         
                         tfvars['servers'][server_name] = server_config
