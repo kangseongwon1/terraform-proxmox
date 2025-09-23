@@ -21,6 +21,31 @@ $(function() {
         if (response.success) {
           datastoreConfig = response;
           console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
+          
+          // DB에 datastore가 없으면 자동으로 새로고침
+          if (!response.datastores || response.datastores.length === 0) {
+            console.log('[instances.js] DB에 datastore가 없음. 자동으로 새로고침 중...');
+            return $.post('/api/datastores/refresh')
+              .then(function(refreshResponse) {
+                if (refreshResponse.success) {
+                  console.log('[instances.js] Datastore 새로고침 완료:', refreshResponse.count, '개');
+                  // 새로고침 후 다시 조회
+                  return $.get('/api/datastores');
+                } else {
+                  throw new Error('Datastore 새로고침 실패');
+                }
+              })
+              .then(function(newResponse) {
+                if (newResponse.success) {
+                  datastoreConfig = newResponse;
+                  console.log('[instances.js] 새로고침 후 Datastore 목록 로드 완료:', newResponse.datastores);
+                  return newResponse;
+                } else {
+                  throw new Error('새로고침 후 Datastore 목록 로드 실패');
+                }
+              });
+          }
+          
           return response;
         } else {
           throw new Error('Datastore 목록 로드 실패');
@@ -48,15 +73,54 @@ $(function() {
       const $select = $(this);
       $select.empty();
       
-      config.datastores.forEach(function(datastore) {
-        const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
-        const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
-                         datastore.type === 'dir' ? 'Directory' : 
-                         datastore.type === 'nfs' ? 'NFS' : 
-                         datastore.type.toUpperCase();
-        
-        $select.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
-      });
+      // datastore가 없으면 자동으로 새로고침
+      if (!config.datastores || config.datastores.length === 0) {
+        console.log('[instances.js] 페이지 로드 시 datastore가 없음. 자동으로 새로고침 중...');
+        $.post('/api/datastores/refresh')
+          .then(function(refreshResponse) {
+            if (refreshResponse.success) {
+              console.log('[instances.js] 페이지 로드 시 Datastore 새로고침 완료:', refreshResponse.count, '개');
+              // 새로고침 후 다시 조회
+              return $.get('/api/datastores');
+            } else {
+              throw new Error('Datastore 새로고침 실패');
+            }
+          })
+          .then(function(newResponse) {
+            if (newResponse.success) {
+              console.log('[instances.js] 페이지 로드 시 새로고침 후 Datastore 목록 로드 완료:', newResponse.datastores);
+              // 새로고침된 데이터로 옵션 생성
+              newResponse.datastores.forEach(function(datastore) {
+                const isSelected = datastore.id === newResponse.default_hdd ? 'selected' : '';
+                const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                                 datastore.type === 'dir' ? 'Directory' : 
+                                 datastore.type === 'nfs' ? 'NFS' : 
+                                 datastore.type.toUpperCase();
+                
+                $select.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+              });
+            } else {
+              throw new Error('새로고침 후 Datastore 목록 로드 실패');
+            }
+          })
+          .fail(function(error) {
+            console.error('[instances.js] 페이지 로드 시 Datastore 새로고침 실패:', error);
+            // 실패 시 기본값 사용
+            $select.append('<option value="local-lvm" selected>local-lvm (LVM)</option>');
+            $select.append('<option value="local">local (Directory)</option>');
+          });
+      } else {
+        // 기존 로직
+        config.datastores.forEach(function(datastore) {
+          const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
+          const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                           datastore.type === 'dir' ? 'Directory' : 
+                           datastore.type === 'nfs' ? 'NFS' : 
+                           datastore.type.toUpperCase();
+          
+          $select.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+        });
+      }
     });
   });
   
@@ -2871,15 +2935,54 @@ function initializeServerForm() {
       const $datastoreSelect = $item.find('.disk-datastore');
       $datastoreSelect.empty();
       
-      config.datastores.forEach(function(datastore) {
-        const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
-        const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
-                         datastore.type === 'dir' ? 'Directory' : 
-                         datastore.type === 'nfs' ? 'NFS' : 
-                         datastore.type.toUpperCase();
-        
-        $datastoreSelect.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
-      });
+      // datastore가 없으면 자동으로 새로고침
+      if (!config.datastores || config.datastores.length === 0) {
+        console.log('[instances.js] 디스크 추가 시 datastore가 없음. 자동으로 새로고침 중...');
+        $.post('/api/datastores/refresh')
+          .then(function(refreshResponse) {
+            if (refreshResponse.success) {
+              console.log('[instances.js] 디스크 추가 시 Datastore 새로고침 완료:', refreshResponse.count, '개');
+              // 새로고침 후 다시 조회
+              return $.get('/api/datastores');
+            } else {
+              throw new Error('Datastore 새로고침 실패');
+            }
+          })
+          .then(function(newResponse) {
+            if (newResponse.success) {
+              console.log('[instances.js] 디스크 추가 시 새로고침 후 Datastore 목록 로드 완료:', newResponse.datastores);
+              // 새로고침된 데이터로 옵션 생성
+              newResponse.datastores.forEach(function(datastore) {
+                const isSelected = datastore.id === newResponse.default_hdd ? 'selected' : '';
+                const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                                 datastore.type === 'dir' ? 'Directory' : 
+                                 datastore.type === 'nfs' ? 'NFS' : 
+                                 datastore.type.toUpperCase();
+                
+                $datastoreSelect.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+              });
+            } else {
+              throw new Error('새로고침 후 Datastore 목록 로드 실패');
+            }
+          })
+          .fail(function(error) {
+            console.error('[instances.js] 디스크 추가 시 Datastore 새로고침 실패:', error);
+            // 실패 시 기본값 사용
+            $datastoreSelect.append('<option value="local-lvm" selected>local-lvm (LVM)</option>');
+            $datastoreSelect.append('<option value="local">local (Directory)</option>');
+          });
+      } else {
+        // 기존 로직
+        config.datastores.forEach(function(datastore) {
+          const isSelected = datastore.id === config.default_hdd ? 'selected' : '';
+          const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
+                           datastore.type === 'dir' ? 'Directory' : 
+                           datastore.type === 'nfs' ? 'NFS' : 
+                           datastore.type.toUpperCase();
+          
+          $datastoreSelect.append(`<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`);
+        });
+      }
     });
     
     $container.append($item);
