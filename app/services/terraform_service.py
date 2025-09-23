@@ -48,11 +48,26 @@ class TerraformService:
             tf_var_vault_token = os.environ.get('TF_VAR_vault_token')
             tf_var_vault_address = os.environ.get('TF_VAR_vault_address')
             
+            # Terraform 변수 자동 매핑
+            terraform_mappings = {
+                'PROXMOX_HDD_DATASTORE': 'TF_VAR_proxmox_hdd_datastore',
+                'PROXMOX_SSD_DATASTORE': 'TF_VAR_proxmox_ssd_datastore',
+                'ENVIRONMENT': 'TF_VAR_environment'
+            }
+            
+            for source_var, target_var in terraform_mappings.items():
+                value = os.environ.get(source_var)
+                if value and not os.environ.get(target_var):
+                    env[target_var] = value
+                    print(f"🔧 {source_var} → {target_var}: {value}")
+            
             print(f"🔧 Vault 환경변수 확인:")
             print(f"   VAULT_ADDR: {vault_addr}")
             print(f"   VAULT_TOKEN: {'설정됨' if vault_token else '없음'}")
             print(f"   TF_VAR_vault_token: {'설정됨' if tf_var_vault_token else '없음'}")
             print(f"   TF_VAR_vault_address: {tf_var_vault_address}")
+            print(f"   TF_VAR_proxmox_hdd_datastore: {env.get('TF_VAR_proxmox_hdd_datastore', '없음')}")
+            print(f"   TF_VAR_proxmox_ssd_datastore: {env.get('TF_VAR_proxmox_ssd_datastore', '없음')}")
             
             # Windows 환경에서 인코딩 문제 해결을 위해 UTF-8 명시적 지정
             result = subprocess.run(
