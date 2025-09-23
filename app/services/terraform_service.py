@@ -379,6 +379,22 @@ class TerraformService:
                 tfvars['servers'] = {}
             
             server_name = server_data['name']
+            
+            # 서버 데이터 상세 로그
+            print(f"🔧 서버 데이터 상세 정보:")
+            print(f"   서버명: {server_name}")
+            print(f"   전체 데이터: {json.dumps(server_data, indent=2)}")
+            
+            # 디스크 정보 상세 로그
+            if 'disks' in server_data:
+                print(f"🔧 디스크 정보:")
+                for i, disk in enumerate(server_data['disks']):
+                    print(f"   디스크 {i}: {disk}")
+                    if 'datastore_id' in disk:
+                        print(f"     datastore_id: {disk['datastore_id']}")
+                    if 'disk_type' in disk:
+                        print(f"     disk_type: {disk['disk_type']}")
+            
             tfvars['servers'][server_name] = server_data
             print(f"🔧 서버 설정 추가 완료: {server_name}")
             

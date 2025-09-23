@@ -327,26 +327,51 @@ def create_server():
                     hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE')
                     ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE')
 
-                    print(f"🔧 .env에서 읽은 datastore 설정:")
-                    print(f"   PROXMOX_HDD_DATASTORE: {hdd_datastore}")
-                    print(f"   PROXMOX_SSD_DATASTORE: {ssd_datastore}")
+                    logger.info(f"🔧 .env에서 읽은 datastore 설정:")
+                    logger.info(f"   PROXMOX_HDD_DATASTORE: {hdd_datastore}")
+                    logger.info(f"   PROXMOX_SSD_DATASTORE: {ssd_datastore}")
+
+                    # 디스크 설정 전 상태 로그
+                    logger.info(f"🔧 디스크 설정 전 상태:")
+                    for i, disk in enumerate(disks):
+                        logger.info(f"   디스크 {i}: {disk}")
 
                     # 디스크 설정에 datastore 자동 설정
-                    for disk in disks:
+                    for i, disk in enumerate(disks):
+                        logger.info(f"🔧 디스크 {i} 처리 시작: {disk}")
+                        
                         if 'disk_type' not in disk:
                             disk['disk_type'] = 'hdd'
+                            logger.info(f"🔧 디스크 {i}: disk_type을 'hdd'로 설정")
                         if 'file_format' not in disk:
                             disk['file_format'] = 'auto'
+                            logger.info(f"🔧 디스크 {i}: file_format을 'auto'로 설정")
+                        
                         # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
                         if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
-                            if disk['disk_type'] == 'hdd':
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
-                            elif disk['disk_type'] == 'ssd':
-                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
-                            else:
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                            logger.info(f"🔧 디스크 {i}: datastore_id 자동 설정 필요")
+                            logger.info(f"   현재 datastore_id: {disk.get('datastore_id', 'None')}")
+                            logger.info(f"   disk_type: {disk['disk_type']}")
                             
-                            logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
+                            if disk['disk_type'] == 'hdd':
+                                old_value = disk.get('datastore_id', 'None')
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                                logger.info(f"🔧 디스크 {i}: HDD datastore 설정: {old_value} → {disk['datastore_id']}")
+                            elif disk['disk_type'] == 'ssd':
+                                old_value = disk.get('datastore_id', 'None')
+                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
+                                logger.info(f"🔧 디스크 {i}: SSD datastore 설정: {old_value} → {disk['datastore_id']}")
+                            else:
+                                old_value = disk.get('datastore_id', 'None')
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                                logger.info(f"🔧 디스크 {i}: 기본 datastore 설정: {old_value} → {disk['datastore_id']}")
+                        else:
+                            logger.info(f"🔧 디스크 {i}: datastore_id가 이미 설정됨: {disk['datastore_id']}")
+
+                    # 디스크 설정 후 상태 로그
+                    logger.info(f"🔧 디스크 설정 후 상태:")
+                    for i, disk in enumerate(disks):
+                        logger.info(f"   디스크 {i}: {disk}")
                     
                     server_data = {
                         'name': server_name,
