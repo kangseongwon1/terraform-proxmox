@@ -31,22 +31,49 @@ class ProxmoxService:
         self.session = requests.Session()
         self.session.verify = False  # SSL 인증서 검증 비활성화 (개발용)
 
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Proxmox API 요청을 위한 공통 메서드"""
+        try:
+            # 인증 정보 가져오기
+            headers, error = self.get_proxmox_auth()
+            if error:
+                logger.error(f"Proxmox 인증 실패: {error}")
+                raise Exception(f"Proxmox 인증 실패: {error}")
+            
+            # 요청 실행
+            if method.upper() == 'GET':
+                response = self.session.get(url, headers=headers, timeout=10, **kwargs)
+            elif method.upper() == 'POST':
+                response = self.session.post(url, headers=headers, timeout=10, **kwargs)
+            elif method.upper() == 'PUT':
+                response = self.session.put(url, headers=headers, timeout=10, **kwargs)
+            elif method.upper() == 'DELETE':
+                response = self.session.delete(url, headers=headers, timeout=10, **kwargs)
+            else:
+                raise Exception(f"지원하지 않는 HTTP 메서드: {method}")
+            
+            return response
+        except Exception as e:
+            logger.error(f"Proxmox API 요청 실패: {e}")
+            raise e
+
     def get_datastores(self) -> List[Dict[str, Any]]:
         """사용 가능한 datastore 목록 조회"""
         try:
             # Proxmox API로 datastore 목록 가져오기
-            url = f"{self.endpoint}/storage"
+            url = f"{self.endpoint}/api2/json/storage"
             response = self._make_request('GET', url)
             
             if response.status_code == 200:
                 datastores = response.json()['data']
+                logger.info(f"🔧 Proxmox에서 {len(datastores)}개 datastore 발견")
                 
                 # 각 datastore의 상세 정보 가져오기
                 detailed_datastores = []
                 for datastore in datastores:
                     try:
                         # datastore 상세 정보 조회
-                        detail_url = f"{self.endpoint}/storage/{datastore['storage']}"
+                        detail_url = f"{self.endpoint}/api2/json/storage/{datastore['storage']}"
                         detail_response = self._make_request('GET', detail_url)
                         
                         if detail_response.status_code == 200:
@@ -59,6 +86,19 @@ class ProxmoxService:
                                 'available': detail_data.get('available', 0),
                                 'content': detail_data.get('content', ''),
                                 'enabled': detail_data.get('enabled', True)
+                            })
+                            logger.info(f"🔧 Datastore {datastore['storage']} 상세 정보 조회 성공")
+                        else:
+                            logger.warning(f"Datastore {datastore['storage']} 상세 정보 조회 실패: {detail_response.status_code}")
+                            # 기본 정보만 사용
+                            detailed_datastores.append({
+                                'id': datastore['storage'],
+                                'type': 'unknown',
+                                'size': 0,
+                                'used': 0,
+                                'available': 0,
+                                'content': '',
+                                'enabled': True
                             })
                     except Exception as e:
                         logger.warning(f"Datastore {datastore['storage']} 상세 정보 조회 실패: {e}")
@@ -73,6 +113,7 @@ class ProxmoxService:
                             'enabled': True
                         })
                 
+                logger.info(f"🔧 총 {len(detailed_datastores)}개 datastore 정보 수집 완료")
                 return detailed_datastores
             else:
                 logger.error(f"Datastore 목록 조회 실패: {response.status_code}")
