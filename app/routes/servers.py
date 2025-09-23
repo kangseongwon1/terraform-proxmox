@@ -296,31 +296,36 @@ def create_server():
                     current_vm_password = vm_password if vm_password else get_default_password(os_type)
                     
                     # 서버 설정 생성
-                    # 디스크 설정에 datastore 자동 설정
-                    import os
-                    # 환경변수에서 직접 datastore 설정 가져오기
-                    hdd_datastore = os.environ.get('PROXMOX_HDD_DATASTORE')
-                    ssd_datastore = os.environ.get('PROXMOX_SSD_DATASTORE')
-                    
-                    print(f"🔧 환경변수에서 읽은 datastore 설정:")
-                    print(f"   PROXMOX_HDD_DATASTORE: {hdd_datastore}")
-                    print(f"   PROXMOX_SSD_DATASTORE: {ssd_datastore}")
-                    
-                    for disk in disks:
-                        if 'disk_type' not in disk:
-                            disk['disk_type'] = 'hdd'
-                        if 'file_format' not in disk:
-                            disk['file_format'] = 'auto'
-                        # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
-                        if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
-                            if disk['disk_type'] == 'hdd':
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
-                            elif disk['disk_type'] == 'ssd':
-                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
-                            else:
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                    # .env 파일을 직접 읽어오는 함수
+                    def load_env_file():
+                        """프로젝트 루트의 .env 파일을 직접 읽어서 딕셔너리로 반환"""
+                        env_vars = {}
+                        try:
+                            # 프로젝트 루트 경로 찾기 (app/routes/servers.py -> app -> project_root)
+                            current_dir = os.path.dirname(os.path.abspath(__file__))
+                            project_root = os.path.dirname(os.path.dirname(current_dir))
+                            env_file = os.path.join(project_root, '.env')
                             
-                            logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
+                            if os.path.exists(env_file):
+                                with open(env_file, 'r', encoding='utf-8') as f:
+                                    for line in f:
+                                        line = line.strip()
+                                        if line and not line.startswith('#') and '=' in line:
+                                            key, value = line.split('=', 1)
+                                            env_vars[key.strip()] = value.strip()
+                                print(f"🔧 .env 파일 로드 성공: {env_file}")
+                            else:
+                                print(f"⚠️ .env 파일을 찾을 수 없습니다: {env_file}")
+                            
+                            return env_vars
+                        except Exception as e:
+                            print(f"⚠️ .env 파일 읽기 실패: {e}")
+                            return {}
+
+                    # 사용법
+                    env_vars = load_env_file()
+                    hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE')
+                    ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE')
                     
                     server_data = {
                         'name': server_name,
