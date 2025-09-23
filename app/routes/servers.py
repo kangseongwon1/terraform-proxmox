@@ -347,24 +347,10 @@ def create_server():
                             disk['file_format'] = 'auto'
                             logger.info(f"🔧 디스크 {i}: file_format을 'auto'로 설정")
                         
-                        # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
-                        if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
-                            logger.info(f"🔧 디스크 {i}: datastore_id 자동 설정 필요")
-                            logger.info(f"   현재 datastore_id: {disk.get('datastore_id', 'None')}")
-                            logger.info(f"   disk_type: {disk['disk_type']}")
-                            
-                            if disk['disk_type'] == 'hdd':
-                                old_value = disk.get('datastore_id', 'None')
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
-                                logger.info(f"🔧 디스크 {i}: HDD datastore 설정: {old_value} → {disk['datastore_id']}")
-                            elif disk['disk_type'] == 'ssd':
-                                old_value = disk.get('datastore_id', 'None')
-                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
-                                logger.info(f"🔧 디스크 {i}: SSD datastore 설정: {old_value} → {disk['datastore_id']}")
-                            else:
-                                old_value = disk.get('datastore_id', 'None')
-                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
-                                logger.info(f"🔧 디스크 {i}: 기본 datastore 설정: {old_value} → {disk['datastore_id']}")
+                        # datastore_id가 없으면 "auto"로 설정 (Terraform에서 환경변수 사용)
+                        if 'datastore_id' not in disk:
+                            disk['datastore_id'] = 'auto'
+                            logger.info(f"🔧 디스크 {i}: datastore_id를 'auto'로 설정 (Terraform에서 환경변수 사용)")
                         else:
                             logger.info(f"🔧 디스크 {i}: datastore_id가 이미 설정됨: {disk['datastore_id']}")
 

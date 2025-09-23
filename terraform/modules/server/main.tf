@@ -32,7 +32,11 @@ resource "proxmox_virtual_environment_vm" "this" {
         can(regex(".*thin.*", disk.value.datastore_id)) || 
         can(regex(".*lvm.*", disk.value.datastore_id)) ? "raw" : "qcow2"
       ) : disk.value.file_format
-      datastore_id = disk.value.datastore_id
+      datastore_id = disk.value.datastore_id == "auto" ? (
+        disk.value.disk_type == "hdd" ? var.proxmox_hdd_datastore : 
+        disk.value.disk_type == "ssd" ? var.proxmox_ssd_datastore : 
+        var.proxmox_hdd_datastore
+      ) : disk.value.datastore_id
     }
   }
 

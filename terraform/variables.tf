@@ -60,6 +60,16 @@ variable "proxmox_node" {
   description = "Proxmox 노드명"
   default = ""
 }
+variable "proxmox_hdd_datastore" { 
+  type = string
+  description = "HDD 데이터스토어 ID"
+  default = "local-lvm"
+}
+variable "proxmox_ssd_datastore" { 
+  type = string
+  description = "SSD 데이터스토어 ID"
+  default = "local"
+}
 
 # VM 설정 (Vault에서 가져올 예정)
 variable "vm_username" { 
