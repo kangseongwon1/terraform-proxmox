@@ -225,48 +225,6 @@ $(function() {
     return parseFloat(num).toFixed(2);
   }
 
-  // Datastore 목록 로드
-  function loadDatastores() {
-    return $.get('/api/datastores')
-      .then(function(response) {
-        if (response.success) {
-          console.log('[instances.js] Datastore 목록 로드 완료:', response.datastores);
-          return response;
-        } else {
-          throw new Error('Datastore 목록 로드 실패');
-        }
-      })
-      .fail(function(xhr) {
-        console.warn('[instances.js] Datastore 목록 로드 실패, 기본값 사용:', xhr);
-        // 기본값 사용
-        return {
-          success: true,
-          datastores: [
-            { id: 'local-lvm', name: 'local-lvm', type: 'lvm', is_default_hdd: true },
-            { id: 'local', name: 'local', type: 'dir', is_default_ssd: true }
-          ],
-          default_hdd: 'local-lvm',
-          default_ssd: 'local'
-        };
-      });
-  }
-
-  // 디스크 추가 시 datastore 옵션 동적 생성
-  function createDiskDatastoreSelect(datastores, defaultHdd) {
-    let options = '';
-    
-    datastores.forEach(function(datastore) {
-      const isSelected = datastore.id === defaultHdd ? 'selected' : '';
-      const typeLabel = datastore.type === 'lvm' ? 'LVM' : 
-                      datastore.type === 'dir' ? 'Directory' : 
-                      datastore.type === 'nfs' ? 'NFS' : 
-                      datastore.type.toUpperCase();
-      
-      options += `<option value="${datastore.id}" ${isSelected}>${datastore.name} (${typeLabel})</option>`;
-    });
-    
-    return `<select class="form-select disk-datastore">${options}</select>`;
-  }
   
   // 서버 역할 매핑
   window.dashboardRoleMap = {

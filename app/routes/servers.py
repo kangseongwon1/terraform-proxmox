@@ -2023,6 +2023,31 @@ def get_datastores():
         datastores = proxmox_service.get_datastores()
         
         # 환경변수에서 기본 datastore 설정 가져오기
+        def load_env_file():
+            """프로젝트 루트의 .env 파일을 직접 읽어서 딕셔너리로 반환"""
+            env_vars = {}
+            try:
+                # 프로젝트 루트 경로 찾기 (app/routes/servers.py -> app -> project_root)
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(current_dir))
+                env_file = os.path.join(project_root, '.env')
+                
+                if os.path.exists(env_file):
+                    with open(env_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                env_vars[key.strip()] = value.strip()
+                    logger.info(f"🔧 .env 파일 로드 성공: {env_file}")
+                else:
+                    logger.warning(f"⚠️ .env 파일을 찾을 수 없습니다: {env_file}")
+                
+                return env_vars
+            except Exception as e:
+                logger.error(f"⚠️ .env 파일 읽기 실패: {e}")
+                return {}
+        
         env_vars = load_env_file()
         hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE', 'local-lvm')
         ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE', 'local')
