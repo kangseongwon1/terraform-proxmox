@@ -91,19 +91,6 @@ variable "environment" {
   default = "development"
 }
 
-# 스토리지 설정 (.env에서 가져옴)
-variable "proxmox_hdd_datastore" {
-  type = string
-  description = "HDD datastore ID"
-  default = "local-lvm"
-}
-
-variable "proxmox_ssd_datastore" {
-  type = string
-  description = "SSD datastore ID"
-  default = "local"
-}
-
 # datastore 설정
 locals {
   datastore_config = {
