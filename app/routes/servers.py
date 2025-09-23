@@ -326,6 +326,27 @@ def create_server():
                     env_vars = load_env_file()
                     hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE')
                     ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE')
+
+                    print(f"🔧 .env에서 읽은 datastore 설정:")
+                    print(f"   PROXMOX_HDD_DATASTORE: {hdd_datastore}")
+                    print(f"   PROXMOX_SSD_DATASTORE: {ssd_datastore}")
+
+                    # 디스크 설정에 datastore 자동 설정
+                    for disk in disks:
+                        if 'disk_type' not in disk:
+                            disk['disk_type'] = 'hdd'
+                        if 'file_format' not in disk:
+                            disk['file_format'] = 'auto'
+                        # datastore_id가 "auto"이거나 없으면 환경변수에서 가져온 datastore 사용
+                        if 'datastore_id' not in disk or disk['datastore_id'] == 'auto':
+                            if disk['disk_type'] == 'hdd':
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                            elif disk['disk_type'] == 'ssd':
+                                disk['datastore_id'] = ssd_datastore if ssd_datastore else 'local'
+                            else:
+                                disk['datastore_id'] = hdd_datastore if hdd_datastore else 'local-lvm'
+                            
+                            logger.info(f"🔧 {server_name}: {disk['disk_type']} 디스크 datastore 자동 설정: {disk['datastore_id']}")
                     
                     server_data = {
                         'name': server_name,
