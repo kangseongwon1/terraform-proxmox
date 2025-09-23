@@ -267,6 +267,16 @@ def multi_server_summary():
         logger.error(f"멀티 서버 요약 예외 발생: {str(e)}")
         return render_template('partials/multi_server_summary.html')
 
+# 프론트에서 /api 경로로 호출하는 호환용 엔드포인트
+@bp.route('/api/instances/multi-server-summary')
+@login_required
+def api_multi_server_summary():
+    try:
+        return render_template('partials/multi_server_summary.html')
+    except Exception as e:
+        logger.error(f"멀티 서버 요약(API) 예외 발생: {str(e)}")
+        return render_template('partials/multi_server_summary.html')
+
 @bp.route('/favicon.ico')
 def favicon():
     """파비콘"""

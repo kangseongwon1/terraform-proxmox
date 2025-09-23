@@ -94,7 +94,11 @@ def create_app(config_name='development'):
 
 def setup_logging(app):
     """로깅 설정"""
-    # 콘솔 핸들러 설정 (항상 활성화)
+    # 기존에 붙어있는 핸들러가 있으면 중복 추가를 방지하기 위해 정리
+    if app.logger.handlers:
+        app.logger.handlers.clear()
+
+    # 콘솔 핸들러 설정 (항상 활성화, 중복 방지)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s'
@@ -121,6 +125,11 @@ def setup_logging(app):
     
     app.logger.setLevel(logging.INFO)
     app.logger.info('Proxmox Manager startup')
+
+    # 하위 로거(app.*)들이 루트로 전파되어 중복 출력되지 않도록 차단
+    pkg_logger = logging.getLogger('app')
+    pkg_logger.propagate = False
+    pkg_logger.setLevel(logging.INFO)
 
 def register_blueprints(app):
     """블루프린트 등록"""
