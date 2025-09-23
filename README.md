@@ -10,6 +10,7 @@ Terraform Proxmox Manager
 - 모니터링: Prometheus/Grafana(Node Exporter), Docker Compose 구성과 자동 프로비저닝
 - 알림 시스템: 서버/작업/권한 변경 등 실시간 알림(폴링 기반)
 - Vault: 비밀 관리(SSH 키 등) 및 Terraform 연계
+- Datastore 관리: Proxmox 스토리지 자동 감지, DB 캐싱, 기본 설정 관리
 
 빠른 시작
 1) 필수 의존성 설치: Docker, Docker Compose, Python 3.10+, Terraform, Ansible
@@ -28,6 +29,7 @@ Terraform Proxmox Manager
   - 인증/세션: `docs/AUTH_SESSION.md`
   - 서버 관리: `docs/SERVERS.md`
   - 방화벽: `docs/FIREWALL.md`
+  - Datastore 관리: `docs/DATASTORE_MANAGEMENT.md`
   - 알림: `docs/NOTIFICATIONS.md`
   - 모니터링: `docs/MONITORING.md`
   - 구성/환경: `docs/CONFIGURATION.md`

@@ -2536,13 +2536,29 @@ if [ ! -f "instance/proxmox_manager.db" ]; then
 import sys
 sys.path.insert(0, '.')
 from app import create_app, db
+from app.models.datastore import Datastore
 app = create_app()
 with app.app_context():
     db.create_all()
     print('✅ 데이터베이스 초기화 완료')
+    print('✅ Datastore 모델 포함됨')
 " 2>/dev/null || echo "⚠️ 데이터베이스 초기화 실패 (서비스 시작 시 자동 생성됨)"
 else
     echo "✅ 데이터베이스 파일이 이미 존재합니다"
+    echo "🔄 기존 DB에 새로운 테이블 추가 확인 중..."
+    ./venv/bin/python -c "
+import sys
+sys.path.insert(0, '.')
+from app import create_app, db
+from app.models.datastore import Datastore
+app = create_app()
+with app.app_context():
+    try:
+        db.create_all()
+        print('✅ 기존 DB에 새로운 테이블 추가 완료')
+    except Exception as e:
+        print(f'⚠️ DB 업데이트 중 오류: {e}')
+" 2>/dev/null || echo "⚠️ DB 업데이트 실패 (서비스 시작 시 자동 처리됨)"
 fi
 
 # systemd 서비스 재시작 (sudo 없이 - systemd가 자동으로 처리)
