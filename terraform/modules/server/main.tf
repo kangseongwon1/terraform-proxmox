@@ -7,8 +7,6 @@ terraform {
   }
 }
 
-
-
 resource "proxmox_virtual_environment_vm" "this" {
   name  = var.name
   node_name = var.proxmox_node
@@ -28,15 +26,10 @@ resource "proxmox_virtual_environment_vm" "this" {
       size         = disk.value.size
       file_format  = disk.value.file_format == "auto" ? (
         # LVM-Thin 스토리지는 raw만 지원, SSD/NVMe도 raw 사용
-        disk.value.disk_type == "ssd" || disk.value.disk_type == "nvme" || 
         can(regex(".*thin.*", disk.value.datastore_id)) || 
         can(regex(".*lvm.*", disk.value.datastore_id)) ? "raw" : "qcow2"
       ) : disk.value.file_format
-      datastore_id = disk.value.datastore_id == "auto" ? (
-        disk.value.disk_type == "hdd" ? var.proxmox_hdd_datastore : 
-        disk.value.disk_type == "ssd" ? var.proxmox_ssd_datastore : 
-        var.proxmox_hdd_datastore
-      ) : disk.value.datastore_id
+      datastore_id = disk.value.datastore_id == "auto" ? var.proxmox_hdd_datastore : disk.value.datastore_id
     }
   }
 
@@ -96,4 +89,4 @@ output "name" {
 
 output "vmid" {
   value = proxmox_virtual_environment_vm.this.vm_id
-} 
+}
