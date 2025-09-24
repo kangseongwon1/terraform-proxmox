@@ -1560,6 +1560,83 @@ install_monitoring() {
 }
 
 # ========================================
+# 10.5. Redis 설치 (백엔드 큐/캐시용)
+# ========================================
+
+install_redis() {
+    log_step "10.5. Redis (Docker) 설치 중..."
+
+    # Docker 확인
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker가 필요합니다. Docker 설치 단계를 먼저 완료하세요."
+        exit 1
+    fi
+    if ! command -v docker-compose &> /dev/null; then
+        log_error "Docker Compose가 필요합니다. 설치를 먼저 완료하세요."
+        exit 1
+    fi
+
+    # 디렉토리 준비
+    mkdir -p redis
+    chmod 755 redis
+
+    # 파일 존재 확인
+    if [ ! -f "redis/docker-compose.yml" ]; then
+        log_error "redis/docker-compose.yml 파일이 없습니다. 리포지토리를 최신화하세요."
+        exit 1
+    fi
+    if [ -f "redis/start-redis.sh" ]; then
+        chmod +x redis/start-redis.sh
+    fi
+
+    # 방화벽 개방 (선택)
+    if command -v firewall-cmd &> /dev/null; then
+        log_info "방화벽에 Redis 포트(6379/tcp) 개방 중..."
+        sudo firewall-cmd --permanent --add-port=6379/tcp || true
+        sudo firewall-cmd --reload || true
+    fi
+
+    # 환경 변수 기본값 안내 (비밀번호는 .env로 설정)
+    if [ ! -f ".env" ]; then
+        log_warning "⚠️  .env 파일이 없어 REDIS_PASSWORD가 설정되지 않을 수 있습니다. 보안을 위해 설정을 권장합니다."
+    fi
+
+    # Redis 스택 시작
+    log_info "Redis Docker 스택 시작 중..."
+    (cd redis && docker-compose up -d)
+
+    # 헬스체크 대기 및 확인
+    log_info "Redis 헬스체크 대기 중..."
+    sleep 2
+    ATTEMPTS=20
+    for i in $(seq 1 $ATTEMPTS); do
+        if (cd redis && docker-compose ps) | grep -q "proxmox-redis"; then
+            # 비밀번호 설정 여부에 따라 ping 시도
+            if [ -n "${REDIS_PASSWORD}" ]; then
+                if docker exec proxmox-redis redis-cli -a "${REDIS_PASSWORD}" PING 2>/dev/null | grep -q PONG; then
+                    log_success "Redis 컨테이너 정상 동작 확인 (PONG)"
+                    break
+                fi
+            else
+                if docker exec proxmox-redis redis-cli PING 2>/dev/null | grep -q PONG; then
+                    log_success "Redis 컨테이너 정상 동작 확인 (PONG)"
+                    break
+                fi
+            fi
+        fi
+        sleep 2
+    done
+
+    # 최종 확인
+    if ! docker exec proxmox-redis redis-cli ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} PING 2>/dev/null | grep -q PONG; then
+        log_warning "Redis 컨테이너 응답 확인 실패. 로그를 확인하세요."
+        (cd redis && docker-compose logs --no-color | tail -n 100) || true
+    fi
+
+    log_success "Redis (Docker) 설치 및 시작 완료"
+}
+
+# ========================================
 # 11. 데이터베이스 초기화
 # ========================================
 
@@ -2694,6 +2771,7 @@ main() {
     setup_environment
     setup_vault
     install_monitoring
+    install_redis
     setup_database
     setup_security
     start_services
