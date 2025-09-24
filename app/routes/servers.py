@@ -7,6 +7,9 @@ from functools import wraps
 from app.models import Server, User, UserPermission
 from app.services import ProxmoxService, TerraformService, AnsibleService, NotificationService
 from app.utils.os_classifier import classify_os_type, get_default_username, get_default_password
+from app.utils.redis_utils import redis_utils
+from app.celery_app import celery_app
+from app.tasks.server_tasks import create_server_async, bulk_server_action_async
 from app import db
 import json
 import os
@@ -1393,8 +1396,16 @@ def delete_server(server_name):
 @bp.route('/api/all_server_status', methods=['GET'])
 @login_required
 def get_all_server_status():
-    """모든 서버 상태 조회"""
+    """모든 서버 상태 조회 (Redis 캐싱 적용)"""
     try:
+        # Redis 캐시 확인
+        cache_key = "servers:all_status"
+        cached_data = redis_utils.get_cache(cache_key)
+        if cached_data:
+            logger.info("📦 Redis 캐시에서 서버 상태 데이터 로드")
+            return jsonify(cached_data)
+        
+        logger.info("🌐 서버 상태 데이터 조회 (캐시 미스)")
         from app.services.proxmox_service import ProxmoxService
         proxmox_service = ProxmoxService()
         
@@ -1422,11 +1433,17 @@ def get_all_server_status():
                     logger.info(f"🔧 서버 '{server_name}' DB 정보 병합: role={db_server.role}, firewall_group={db_server.firewall_group}")
             
             # 통계 정보를 포함하여 반환
-            return jsonify({
+            response_data = {
                 'success': True,
                 'servers': servers,
                 'stats': stats
-            })
+            }
+            
+            # Redis에 캐시 저장 (2분)
+            redis_utils.set_cache(cache_key, response_data, expire=120)
+            logger.info("💾 서버 상태 데이터를 Redis에 캐시 저장")
+            
+            return jsonify(response_data)
         else:
             # 실패 시 기본 구조로 반환
             return jsonify({
@@ -1449,6 +1466,139 @@ def get_all_server_status():
         
     except Exception as e:
         logger.error(f"서버 상태 조회 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/servers/async', methods=['POST'])
+@permission_required('create_server')
+def create_server_async_endpoint():
+    """비동기 서버 생성"""
+    try:
+        data = request.get_json()
+        server_name = data.get('name')
+        cpu = data.get('cpu', 2)
+        memory = data.get('memory', 4)
+        disk = data.get('disk', 20)
+        os_type = data.get('os_type', 'ubuntu')
+        role = data.get('role', '')
+        firewall_group = data.get('firewall_group', '')
+        
+        if not server_name:
+            return jsonify({'error': '서버 이름이 필요합니다.'}), 400
+        
+        # 서버 이름 중복 확인
+        existing_server = Server.query.filter_by(name=server_name).first()
+        if existing_server:
+            return jsonify({'error': '이미 존재하는 서버 이름입니다.'}), 400
+        
+        # 서버 설정 구성
+        server_config = {
+            'name': server_name,
+            'cpu': cpu,
+            'memory': memory,
+            'disk': disk,
+            'os_type': os_type,
+            'role': role,
+            'firewall_group': firewall_group
+        }
+        
+        # Celery 작업 실행
+        task = create_server_async.delay(server_config)
+        
+        logger.info(f"🚀 비동기 서버 생성 작업 시작: {server_name} (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'서버 {server_name} 생성 작업이 시작되었습니다.',
+            'status': 'queued'
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 서버 생성 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/servers/bulk_action/async', methods=['POST'])
+@permission_required('manage_server')
+def bulk_server_action_async_endpoint():
+    """비동기 대량 서버 작업"""
+    try:
+        data = request.get_json()
+        server_names = data.get('server_names', [])
+        action = data.get('action')
+        
+        if not server_names:
+            return jsonify({'error': '서버 목록이 필요합니다.'}), 400
+            
+        if not action:
+            return jsonify({'error': '작업 유형이 필요합니다.'}), 400
+            
+        if action not in ['start', 'stop', 'reboot', 'delete']:
+            return jsonify({'error': '지원하지 않는 작업입니다.'}), 400
+        
+        # Celery 작업 실행
+        task = bulk_server_action_async.delay(server_names, action)
+        
+        logger.info(f"🚀 비동기 대량 서버 작업 시작: {action} - {len(server_names)}개 서버 (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'task_id': task.id,
+            'message': f'{len(server_names)}개 서버 {action} 작업이 시작되었습니다.',
+            'status': 'queued'
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 대량 서버 작업 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/tasks/<task_id>/status', methods=['GET'])
+@login_required
+def get_task_status_async(task_id):
+    """비동기 작업 상태 조회"""
+    try:
+        # Celery 작업 상태 조회
+        task = celery_app.AsyncResult(task_id)
+        
+        if task.state == 'PENDING':
+            response = {
+                'task_id': task_id,
+                'status': 'pending',
+                'message': '작업 대기 중...',
+                'progress': 0
+            }
+        elif task.state == 'PROGRESS':
+            response = {
+                'task_id': task_id,
+                'status': 'running',
+                'message': task.info.get('status', '작업 진행 중...'),
+                'progress': task.info.get('current', 0),
+                'total': task.info.get('total', 100)
+            }
+        elif task.state == 'SUCCESS':
+            response = {
+                'task_id': task_id,
+                'status': 'completed',
+                'message': task.info.get('message', '작업 완료'),
+                'result': task.result
+            }
+        elif task.state == 'FAILURE':
+            response = {
+                'task_id': task_id,
+                'status': 'failed',
+                'message': str(task.info),
+                'error': str(task.info)
+            }
+        else:
+            response = {
+                'task_id': task_id,
+                'status': task.state.lower(),
+                'message': f'작업 상태: {task.state}'
+            }
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        logger.error(f"작업 상태 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/api/proxmox_storage', methods=['GET'])

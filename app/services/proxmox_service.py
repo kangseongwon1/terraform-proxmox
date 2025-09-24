@@ -13,6 +13,7 @@ from flask import current_app
 from app.models.server import Server
 from app.models.notification import Notification
 from app.utils.os_classifier import classify_os_type
+from app.utils.redis_utils import redis_utils
 from app import db
 
 logger = logging.getLogger(__name__)
@@ -446,8 +447,16 @@ class ProxmoxService:
             }
 
     def get_storage_info(self) -> Dict[str, Any]:
-        """스토리지 정보 조회 (API 호환)"""
+        """스토리지 정보 조회 (API 호환, Redis 캐싱 적용)"""
         try:
+            # Redis 캐시 확인
+            cache_key = "proxmox:storage_info"
+            cached_data = redis_utils.get_cache(cache_key)
+            if cached_data:
+                logger.info("📦 Redis 캐시에서 스토리지 데이터 로드")
+                return cached_data
+            
+            logger.info("🌐 Proxmox API에서 스토리지 데이터 조회")
             print(f"🔍 get_storage_info 시작")
             headers, error = self.get_proxmox_auth()
             if error:
@@ -490,6 +499,11 @@ class ProxmoxService:
                 'success': True,
                 'data': processed_storage
             }
+            
+            # Redis에 캐시 저장 (10분)
+            redis_utils.set_cache(cache_key, result, expire=600)
+            logger.info("💾 스토리지 데이터를 Redis에 캐시 저장")
+            
             print(f"✅ get_storage_info 완료: {result}")
             return result
                 
