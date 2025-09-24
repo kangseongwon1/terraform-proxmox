@@ -1423,30 +1423,8 @@ install_monitoring() {
     
     # 모니터링 시스템 준비 완료 (실제 시작은 아래에서)
     log_success "모니터링 시스템 준비 완료"
-}
 
-
-# ========================================
-# 11. 데이터베이스 초기화
-# ========================================
-
-setup_database() {
-    log_step "11. 데이터베이스 초기화 중..."
-    
-    # instance 디렉토리 생성
-    if [ ! -d "instance" ]; then
-        log_info "instance 디렉토리 생성 중..."
-        mkdir -p instance
-    fi
-    
-    # 기존 데이터베이스 백업 (재설치 지원)
-    if [ -f "instance/proxmox_manager.db" ]; then
-        log_info "기존 데이터베이스 백업 중..."
-        cp instance/proxmox_manager.db instance/proxmox_manager.db.backup.$(date +%Y%m%d_%H%M%S)
-        log_success "데이터베이스 백업 완료"
-    fi
-
-    # Docker 기반 모니터링 시스템 시작
+        # Docker 기반 모니터링 시스템 시작
     log_info "Docker 기반 모니터링 시스템 시작 중..."
     
     # 모니터링 디렉토리로 이동하여 Docker Compose 실행
@@ -1579,6 +1557,30 @@ setup_database() {
     fi
     
     log_success "모니터링 시스템 설치 완료"
+}
+
+
+# ========================================
+# 11. 데이터베이스 초기화
+# ========================================
+
+setup_database() {
+    log_step "11. 데이터베이스 초기화 중..."
+    
+    # instance 디렉토리 생성
+    if [ ! -d "instance" ]; then
+        log_info "instance 디렉토리 생성 중..."
+        mkdir -p instance
+    fi
+    
+    # 기존 데이터베이스 백업 (재설치 지원)
+    if [ -f "instance/proxmox_manager.db" ]; then
+        log_info "기존 데이터베이스 백업 중..."
+        cp instance/proxmox_manager.db instance/proxmox_manager.db.backup.$(date +%Y%m%d_%H%M%S)
+        log_success "데이터베이스 백업 완료"
+    fi
+
+
 }
 
 # ========================================
