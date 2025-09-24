@@ -1011,16 +1011,54 @@ def bulk_server_action():
                         success_msg = f'모든 서버 {action_name} 완료: {", ".join(success_servers)}'
                         update_task(task_id, 'completed', success_msg)
                         logger.info(f"{success_msg}")
+                        
+                        # 대량 작업 완료 시 서버 알림 생성
+                        from app.models.notification import Notification
+                        notification = Notification(
+                            title='대량 작업',
+                            message=success_msg,
+                            severity='success',
+                            details=f'작업 유형: {action_name}\n성공한 서버: {", ".join(success_servers)}'
+                        )
+                        db.session.add(notification)
+                        db.session.commit()
+                        logger.info(f"🔔 대량 작업 완료 알림 생성: {success_msg}")
+                        
                     elif success_servers and failed_servers:
                         partial_msg = f'일부 서버 {action_name} 완료. 성공: {", ".join(success_servers)}, 실패: {len(failed_servers)}개'
                         update_task(task_id, 'completed', partial_msg)
                         logger.warning(f"{partial_msg}")
                         logger.warning(f"실패 상세: {failed_servers}")
+                        
+                        # 부분 성공 시 서버 알림 생성
+                        from app.models.notification import Notification
+                        notification = Notification(
+                            title='대량 작업',
+                            message=partial_msg,
+                            severity='warning',
+                            details=f'작업 유형: {action_name}\n성공한 서버: {", ".join(success_servers)}\n실패한 서버: {len(failed_servers)}개'
+                        )
+                        db.session.add(notification)
+                        db.session.commit()
+                        logger.info(f"🔔 대량 작업 부분 성공 알림 생성: {partial_msg}")
+                        
                     else:
                         error_msg = f'모든 서버 {action_name} 실패: {len(failed_servers)}개'
                         update_task(task_id, 'failed', error_msg)
                         logger.error(f"{error_msg}")
                         logger.error(f"실패 상세: {failed_servers}")
+                        
+                        # 실패 시 서버 알림 생성
+                        from app.models.notification import Notification
+                        notification = Notification(
+                            title='대량 작업',
+                            message=error_msg,
+                            severity='error',
+                            details=f'작업 유형: {action_name}\n실패한 서버: {len(failed_servers)}개'
+                        )
+                        db.session.add(notification)
+                        db.session.commit()
+                        logger.info(f"🔔 대량 작업 실패 알림 생성: {error_msg}")
                         
             except Exception as e:
                 error_msg = f'대량 서버 작업 중 예외 발생: {str(e)}'

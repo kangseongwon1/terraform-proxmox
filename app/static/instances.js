@@ -1543,6 +1543,14 @@ $(function() {
             isBulkOperationInProgress = false;
             console.log('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
             updateRefreshButtonState();
+            
+            // 삭제 작업 타임아웃 시에도 서버 목록 새로고침
+            if (name.includes('삭제')) {
+              console.log('[instances.js] 삭제 작업 타임아웃 - 서버 목록 새로고침');
+              setTimeout(function() {
+                loadActiveServers();
+              }, 1000);
+            }
           }
           return;
         }
@@ -1652,26 +1660,31 @@ $(function() {
               console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
               
-              // 작업 결과에 따른 상태 업데이트
-              if (res.result && res.result.servers) {
-                Object.entries(res.result.servers).forEach(([serverName, result]) => {
-                  if (result.success) {
-                    // 작업 유형에 따른 예상 상태
-                    let expectedStatus = 'running';
-                    if (name.includes('중지')) {
-                      expectedStatus = 'stopped';
-                    } else if (name.includes('재시작')) {
-                      expectedStatus = 'running';
-                    } else if (name.includes('삭제')) {
-                      // 삭제된 서버는 UI에서 제거
-                      $(`.server-row[data-server="${serverName}"]`).remove();
-                      return;
+              // 삭제 작업인 경우 삭제된 서버들을 UI에서 즉시 제거
+              if (name.includes('삭제')) {
+                console.log('[instances.js] 삭제 작업 완료 - 삭제된 서버들을 UI에서 제거');
+                // 서버 목록을 새로고침하여 삭제된 서버들 제거
+                setTimeout(function() {
+                  loadActiveServers();
+                }, 1000); // 1초 후 새로고침
+              } else {
+                // 다른 작업들은 기존대로 상태 업데이트
+                if (res.result && res.result.servers) {
+                  Object.entries(res.result.servers).forEach(([serverName, result]) => {
+                    if (result.success) {
+                      // 작업 유형에 따른 예상 상태
+                      let expectedStatus = 'running';
+                      if (name.includes('중지')) {
+                        expectedStatus = 'stopped';
+                      } else if (name.includes('재시작')) {
+                        expectedStatus = 'running';
+                      }
+                      
+                      // 서버 상태 즉시 업데이트
+                      updateServerStatusAfterAction(serverName, expectedStatus);
                     }
-                    
-                    // 서버 상태 즉시 업데이트
-                    updateServerStatusAfterAction(serverName, expectedStatus);
-                  }
-                });
+                  });
+                }
               }
             } else {
               // 다른 작업들은 기존대로 새로고침
@@ -1778,6 +1791,14 @@ $(function() {
               isBulkOperationInProgress = false;
               console.log('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
               updateRefreshButtonState();
+              
+              // 삭제 작업 실패 시에도 서버 목록 새로고침
+              if (name.includes('삭제')) {
+                console.log('[instances.js] 삭제 작업 실패 - 서버 목록 새로고침');
+                setTimeout(function() {
+                  loadActiveServers();
+                }, 1000);
+              }
             }
             
             // 실패 시에도 목록 새로고침 (DB 정리 확인)
@@ -1796,6 +1817,14 @@ $(function() {
             isBulkOperationInProgress = false;
             console.log('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
             updateRefreshButtonState();
+            
+            // 삭제 작업 AJAX 실패 시에도 서버 목록 새로고침
+            if (name.includes('삭제')) {
+              console.log('[instances.js] 삭제 작업 AJAX 실패 - 서버 목록 새로고침');
+              setTimeout(function() {
+                loadActiveServers();
+              }, 1000);
+            }
           }
         });
       }, config.polling_interval || 5000);
