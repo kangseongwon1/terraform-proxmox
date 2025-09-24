@@ -1015,6 +1015,7 @@ def bulk_server_action():
                         # 대량 작업 완료 시 서버 알림 생성
                         from app.models.notification import Notification
                         notification = Notification(
+                            type='bulk_server_action',
                             title='대량 작업',
                             message=success_msg,
                             severity='success',
@@ -1033,6 +1034,7 @@ def bulk_server_action():
                         # 부분 성공 시 서버 알림 생성
                         from app.models.notification import Notification
                         notification = Notification(
+                            type='bulk_server_action',
                             title='대량 작업',
                             message=partial_msg,
                             severity='warning',
@@ -1051,6 +1053,7 @@ def bulk_server_action():
                         # 실패 시 서버 알림 생성
                         from app.models.notification import Notification
                         notification = Notification(
+                            type='bulk_server_action',
                             title='대량 작업',
                             message=error_msg,
                             severity='error',
@@ -1376,7 +1379,7 @@ def delete_server(server_name):
                 if server_name in failed:
                     failure_reason = failed.split(": ", 1)[1] if ": " in failed else failed
                     break
-            
+                        
             logger.error(f"서버 삭제 실패: {failure_reason}")
             return jsonify({
                 'success': False,
@@ -1917,15 +1920,15 @@ def assign_role_bulk():
                 server.role = None
                 updated_count += 1
             
-            from app import db
-            db.session.commit()
-            
-            return jsonify({
-                'success': True,
-                'message': f'{updated_count}개 서버에서 역할이 해제되었습니다.',
-                'targets': [s.name for s in db_servers],
-                'missing_ip': missing
-            })
+        from app import db
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{updated_count}개 서버에서 역할이 해제되었습니다.',
+            'targets': [s.name for s in db_servers],
+            'missing_ip': missing
+        })
         
         if not target_servers:
             return jsonify({'error': '선택된 서버들에 유효한 IP가 없습니다.'}), 400
@@ -2113,12 +2116,12 @@ def get_datastores():
                     is_default_ssd=datastore['id'] == ssd_datastore
                 )
                 db.session.add(db_datastore)
-            
-            db.session.commit()
-            logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
-            
-            # 저장된 datastore 다시 조회
-            db_datastores = Datastore.query.filter_by(enabled=True).all()
+        
+        db.session.commit()
+        logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
+        
+        # 저장된 datastore 다시 조회
+        db_datastores = Datastore.query.filter_by(enabled=True).all()
         
         # DB에서 기본 datastore 설정 가져오기
         def get_default_datastores():
@@ -2302,7 +2305,7 @@ def set_default_datastores():
         logger.info(f"🔧 기본 datastore 설정 변경: HDD={hdd_datastore_id}, SSD={ssd_datastore_id}")
         
         return jsonify({
-            'success': True,
+            'success': True, 
             'message': '기본 datastore 설정이 변경되었습니다.',
             'hdd_datastore': hdd_datastore_id,
             'ssd_datastore': ssd_datastore_id
@@ -2310,4 +2313,4 @@ def set_default_datastores():
         
     except Exception as e:
         logger.error(f"기본 datastore 설정 변경 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500        
+        return jsonify({'error': str(e)}), 500    
