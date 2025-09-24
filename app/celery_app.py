@@ -7,8 +7,16 @@ import os
 def create_celery_app():
     """Celery 애플리케이션 생성"""
     
-    # Redis 브로커 설정
-    broker_url = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', 6379)}/{os.getenv('REDIS_DB', 0)}"
+    # Redis 브로커 설정 (비밀번호 지원)
+    redis_host = os.getenv('REDIS_HOST', 'localhost')
+    redis_port = os.getenv('REDIS_PORT', 6379)
+    redis_db = os.getenv('REDIS_DB', 0)
+    redis_password = os.getenv('REDIS_PASSWORD')
+
+    if redis_password:
+        broker_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+    else:
+        broker_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
     
     celery = Celery(
         'proxmox_manager',

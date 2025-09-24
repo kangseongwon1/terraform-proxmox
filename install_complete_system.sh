@@ -2681,6 +2681,56 @@ EOF
 }
 
 # ========================================
+# 13.5 Celery Worker 등록/실행
+# ========================================
+setup_celery_worker() {
+    log_step "13.5. Celery Worker 등록/실행 중..."
+
+    APP_DIR=$(pwd)
+    VENV_PYTHON="$APP_DIR/venv/bin/python"
+    VENV_CELERY="$APP_DIR/venv/bin/celery"
+
+    if [ ! -f "$VENV_CELERY" ]; then
+        log_error "Celery 실행 파일을 찾을 수 없습니다: $VENV_CELERY"
+        log_info "pip로 Celery 설치 후 다시 시도하세요 (requirements.txt 포함)."
+        return 1
+    fi
+
+    sudo tee /etc/systemd/system/celery-worker.service > /dev/null << EOF
+[Unit]
+Description=Celery Worker for Proxmox Manager
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=$USER
+Group=$USER
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
+Environment=PATH=$APP_DIR/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=VIRTUAL_ENV=$APP_DIR/venv
+Environment=PYTHONPATH=$APP_DIR
+ExecStart=$VENV_CELERY -A app.celery_app worker --loglevel=info
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable celery-worker
+    if sudo systemctl restart celery-worker; then
+        log_success "Celery Worker 시작 완료"
+    else
+        log_warning "Celery Worker 시작 실패. 로그를 확인하세요: sudo journalctl -u celery-worker -n 50"
+    fi
+}
+
+# ========================================
 # 14. 설치 완료 및 정보 출력
 # ========================================
 
@@ -2775,6 +2825,7 @@ main() {
     setup_database
     setup_security
     start_services
+    setup_celery_worker
     show_completion_info
     
     echo -e "${GREEN}✅ 모든 설치가 완료되었습니다!${NC}"
