@@ -2145,17 +2145,25 @@ function initializeServerForm() {
   $('.mode-card[data-mode="single"]').addClass('active');
   
   // 폼 필드 초기화
-  $('#create-server-form')[0].reset();
+  (function safeResetForm() {
+    const $form = $('#create-server-form');
+    if ($form.length) {
+      const el = $form.get(0);
+      if (el && typeof el.reset === 'function') {
+        el.reset();
+      }
+    }
+  })();
   
   // 디스크/네트워크 기본값 설정
-  $('.disk-size').val('20');
-  $('.disk-interface').val('scsi0');
-  $('.disk-datastore').val('local-lvm');
-  $('.network-subnet').val('24');
+  if ($('.disk-size').length) $('.disk-size').val('20');
+  if ($('.disk-interface').length) $('.disk-interface').val('scsi0');
+  if ($('.disk-datastore').length) $('.disk-datastore').val('local-lvm');
+  if ($('.network-subnet').length) $('.network-subnet').val('24');
   
   // 첫 번째 디스크/네트워크의 삭제 버튼 비활성화
-  $('.remove-disk-btn:first').prop('disabled', true);
-  $('.remove-network-btn:first').prop('disabled', true);
+  if ($('.remove-disk-btn:first').length) $('.remove-disk-btn:first').prop('disabled', true);
+  if ($('.remove-network-btn:first').length) $('.remove-network-btn:first').prop('disabled', true);
 }
 
   // 기본 서버 생성 함수 (기존 로직 복원)
