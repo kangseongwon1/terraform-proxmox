@@ -42,6 +42,33 @@ check_docker() {
         exit 1
     fi
     
+    # Docker 서비스 상태 확인
+    if ! docker info &> /dev/null; then
+        log_error "Docker 서비스가 실행되지 않았습니다."
+        log_info "Docker 서비스를 시작한 후 다시 시도해주세요."
+        exit 1
+    fi
+    
+    # 포트 충돌 확인
+    log_info "포트 충돌 확인 중..."
+    if netstat -tuln 2>/dev/null | grep -q ":9090 "; then
+        log_warning "포트 9090이 이미 사용 중입니다. 기존 Prometheus 컨테이너를 중지합니다."
+        docker stop prometheus 2>/dev/null || true
+        docker rm prometheus 2>/dev/null || true
+    fi
+    
+    if netstat -tuln 2>/dev/null | grep -q ":3000 "; then
+        log_warning "포트 3000이 이미 사용 중입니다. 기존 Grafana 컨테이너를 중지합니다."
+        docker stop grafana 2>/dev/null || true
+        docker rm grafana 2>/dev/null || true
+    fi
+    
+    if netstat -tuln 2>/dev/null | grep -q ":9100 "; then
+        log_warning "포트 9100이 이미 사용 중입니다. 기존 Node Exporter 컨테이너를 중지합니다."
+        docker stop node-exporter 2>/dev/null || true
+        docker rm node-exporter 2>/dev/null || true
+    fi
+    
     log_success "Docker 및 Docker Compose 확인 완료"
 }
 
@@ -61,28 +88,87 @@ create_directories() {
     chmod 755 grafana/provisioning/dashboards
     chmod 755 grafana/dashboards
     
+    # 디렉토리 생성 확인
+    log_info "생성된 디렉토리 확인:"
+    ls -la
+    
     log_success "디렉토리 생성 완료"
 }
 
 # 기존 컨테이너 정리
 cleanup_containers() {
     log_info "기존 모니터링 컨테이너 정리 중..."
+    
+    # 기존 컨테이너 중지 및 제거
     docker-compose down 2>/dev/null || true
+    
+    # 기존 볼륨 정리 (필요한 경우)
+    # docker volume prune -f 2>/dev/null || true
+    
     log_success "기존 컨테이너 정리 완료"
 }
 
 # 모니터링 시스템 시작
 start_monitoring() {
     log_info "모니터링 시스템 시작 중..."
-    docker-compose up -d
     
-    # 컨테이너 상태 확인
-    sleep 5
-    if docker-compose ps | grep -q "Up"; then
-        log_success "모니터링 시스템 시작 완료"
+    # 현재 디렉토리 확인
+    log_info "현재 디렉토리: $(pwd)"
+    log_info "Docker Compose 파일 확인: $(ls -la docker-compose.yml 2>/dev/null || echo 'docker-compose.yml 파일이 없습니다')"
+    
+    # Docker Compose 실행
+    if [ -f "docker-compose.yml" ]; then
+        log_info "Docker Compose 실행 중..."
+        
+        # Docker Compose 실행
+        log_info "Docker Compose 명령어 실행: docker-compose up -d"
+        if docker-compose up -d; then
+            log_info "Docker Compose 실행 완료"
+        else
+            log_error "Docker Compose 실행 실패"
+            log_info "컨테이너 로그 확인 중..."
+            docker-compose logs
+            log_info "Docker Compose 상태 확인:"
+            docker-compose ps
+            exit 1
+        fi
+        
+        # 컨테이너 상태 확인
+        log_info "컨테이너 상태 확인 중..."
+        sleep 10
+        
+        # 각 컨테이너별 상태 확인
+        if docker-compose ps | grep -q "prometheus.*Up"; then
+            log_success "Prometheus 컨테이너 실행 중"
+        else
+            log_warning "Prometheus 컨테이너 실행 실패"
+        fi
+        
+        if docker-compose ps | grep -q "grafana.*Up"; then
+            log_success "Grafana 컨테이너 실행 중"
+        else
+            log_warning "Grafana 컨테이너 실행 실패"
+        fi
+        
+        if docker-compose ps | grep -q "node-exporter.*Up"; then
+            log_success "Node Exporter 컨테이너 실행 중"
+        else
+            log_warning "Node Exporter 컨테이너 실행 실패"
+        fi
+        
+        # 전체 상태 확인
+        if docker-compose ps | grep -q "Up"; then
+            log_success "모니터링 시스템 시작 완료"
+        else
+            log_error "모니터링 시스템 시작 실패"
+            log_info "컨테이너 로그 확인 중..."
+            docker-compose logs
+            exit 1
+        fi
     else
-        log_error "모니터링 시스템 시작 실패"
-        docker-compose logs
+        log_error "docker-compose.yml 파일을 찾을 수 없습니다"
+        log_info "현재 디렉토리 내용:"
+        ls -la
         exit 1
     fi
 }
@@ -92,17 +178,33 @@ check_services() {
     log_info "서비스 상태 확인 중..."
     
     # Prometheus 확인
+    log_info "Prometheus 상태 확인 중..."
     if curl -s http://localhost:9090/-/healthy > /dev/null; then
         log_success "Prometheus: http://localhost:9090"
     else
         log_warning "Prometheus 연결 실패"
+        log_info "Prometheus 컨테이너 로그:"
+        docker logs prometheus 2>/dev/null || true
     fi
     
     # Grafana 확인
+    log_info "Grafana 상태 확인 중..."
     if curl -s http://localhost:3000/api/health > /dev/null; then
         log_success "Grafana: http://localhost:3000 (admin/admin123)"
     else
         log_warning "Grafana 연결 실패"
+        log_info "Grafana 컨테이너 로그:"
+        docker logs grafana 2>/dev/null || true
+    fi
+    
+    # Node Exporter 확인
+    log_info "Node Exporter 상태 확인 중..."
+    if curl -s http://localhost:9100/metrics > /dev/null; then
+        log_success "Node Exporter: http://localhost:9100"
+    else
+        log_warning "Node Exporter 연결 실패"
+        log_info "Node Exporter 컨테이너 로그:"
+        docker logs node-exporter 2>/dev/null || true
     fi
 }
 
@@ -121,12 +223,18 @@ main() {
     echo "📊 모니터링 대시보드:"
     echo "  - Prometheus: http://localhost:9090"
     echo "  - Grafana: http://localhost:3000 (admin/admin123)"
+    echo "  - Node Exporter: http://localhost:9100"
     echo ""
     echo "🔧 관리 명령어:"
     echo "  - 중지: docker-compose down"
     echo "  - 재시작: docker-compose restart"
     echo "  - 로그 확인: docker-compose logs"
     echo "  - 상태 확인: docker-compose ps"
+    echo ""
+    echo "🐛 문제 해결:"
+    echo "  - 컨테이너 로그: docker-compose logs [서비스명]"
+    echo "  - 컨테이너 재시작: docker-compose restart [서비스명]"
+    echo "  - 완전 재시작: docker-compose down && docker-compose up -d"
 }
 
 # 스크립트 실행

@@ -1380,6 +1380,13 @@ install_monitoring() {
     mkdir -p monitoring/prometheus_data
     mkdir -p monitoring/grafana_data
     
+    # 권한 설정
+    chmod 755 monitoring/prometheus_data
+    chmod 755 monitoring/grafana_data
+    chmod 755 monitoring/grafana/provisioning/datasources
+    chmod 755 monitoring/grafana/provisioning/dashboards
+    chmod 755 monitoring/grafana/dashboards
+    
     # Docker 모니터링 시스템은 아래에서 별도로 시작됩니다
     log_info "모니터링 디렉토리 구조 준비 완료"
     
@@ -1449,7 +1456,9 @@ EOF
     # 모니터링 디렉토리로 이동하여 Docker Compose 실행
     if [ -f "monitoring/start-monitoring.sh" ]; then
         chmod +x monitoring/start-monitoring.sh
-        ./monitoring/start-monitoring.sh
+        cd monitoring
+        ./start-monitoring.sh
+        cd ..
         log_success "Docker 기반 모니터링 시스템 시작 완료"
     else
         log_warning "monitoring/start-monitoring.sh 파일을 찾을 수 없습니다"
