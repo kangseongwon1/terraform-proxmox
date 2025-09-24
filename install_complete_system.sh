@@ -1446,10 +1446,6 @@ setup_database() {
         log_success "데이터베이스 백업 완료"
     fi
 
-[Install]
-WantedBy=multi-user.target
-EOF
-    
     # Docker 기반 모니터링 시스템 시작
     log_info "Docker 기반 모니터링 시스템 시작 중..."
     
