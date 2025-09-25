@@ -8,8 +8,6 @@ from app.models import Server, User, UserPermission
 from app.services import ProxmoxService, TerraformService, AnsibleService, NotificationService
 from app.utils.os_classifier import classify_os_type, get_default_username, get_default_password
 from app.utils.redis_utils import redis_utils
-from app.celery_app import celery_app
-from app.tasks.server_tasks import create_server_async, bulk_server_action_async
 from app import db
 import json
 import os
@@ -1473,6 +1471,8 @@ def get_all_server_status():
 def create_server_async_endpoint():
     """비동기 서버 생성"""
     try:
+        # 지연 임포트로 순환 참조 방지
+        from app.tasks.server_tasks import create_server_async
         data = request.get_json()
         server_name = data.get('name')
         cpu = data.get('cpu', 2)
@@ -1522,6 +1522,8 @@ def create_server_async_endpoint():
 def bulk_server_action_async_endpoint():
     """비동기 대량 서버 작업"""
     try:
+        # 지연 임포트로 순환 참조 방지
+        from app.tasks.server_tasks import bulk_server_action_async
         data = request.get_json()
         server_names = data.get('server_names', [])
         action = data.get('action')
@@ -2266,7 +2268,7 @@ def get_datastores():
                     is_default_ssd=datastore['id'] == ssd_datastore
                 )
                 db.session.add(db_datastore)
-            
+        
             db.session.commit()
             logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
         
