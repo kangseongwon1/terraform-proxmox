@@ -1,0 +1,105 @@
+"""
+서버 관련 공통 유틸리티 함수들
+"""
+import logging
+from typing import Dict, Any, List, Optional
+from flask import jsonify, request
+from app.models import Server, Notification
+from app import db
+from app.utils.redis_utils import redis_utils
+
+logger = logging.getLogger(__name__)
+
+
+def create_notification(notification_type: str, title: str, message: str, 
+                       details: str = "", severity: str = "info", user_id: int = None) -> Notification:
+    """알림 생성 헬퍼 함수"""
+    notification = Notification(
+        type=notification_type,
+        title=title,
+        message=message,
+        details=details,
+        severity=severity,
+        user_id=user_id
+    )
+    db.session.add(notification)
+    return notification
+
+
+def get_server_by_name(server_name: str) -> Optional[Server]:
+    """서버 이름으로 서버 조회"""
+    return Server.query.filter_by(name=server_name).first()
+
+
+def validate_server_config(data: Dict[str, Any]) -> tuple[bool, str, Dict[str, Any]]:
+    """서버 설정 검증"""
+    required_fields = ['name', 'cpu', 'memory', 'disk']
+    
+    for field in required_fields:
+        if field not in data:
+            return False, f"필수 필드가 누락되었습니다: {field}", {}
+    
+    # 서버 이름 중복 확인
+    existing_server = get_server_by_name(data['name'])
+    if existing_server:
+        return False, "이미 존재하는 서버 이름입니다.", {}
+    
+    return True, "", data
+
+
+def format_server_response(success: bool, message: str = "", data: Any = None, 
+                         error: str = None) -> Dict[str, Any]:
+    """서버 API 응답 포맷팅"""
+    response = {
+        'success': success,
+        'message': message
+    }
+    
+    if data is not None:
+        response['data'] = data
+    
+    if error:
+        response['error'] = error
+        
+    return response
+
+
+def get_cached_server_status():
+    """Redis 캐시에서 서버 상태 조회"""
+    cache_key = "servers:all_status"
+    cached_data = redis_utils.get_cache(cache_key)
+    if cached_data:
+        logger.info("📦 Redis 캐시에서 서버 상태 데이터 로드")
+        return cached_data
+    return None
+
+
+def set_cached_server_status(data: Dict[str, Any], expire: int = 120):
+    """서버 상태를 Redis에 캐시 저장"""
+    cache_key = "servers:all_status"
+    redis_utils.set_cache(cache_key, data, expire=expire)
+    logger.info("💾 서버 상태 데이터를 Redis에 캐시 저장")
+
+
+def merge_db_server_info(servers: Dict[str, Any]) -> Dict[str, Any]:
+    """Proxmox 서버 데이터에 DB 정보 병합"""
+    db_servers = Server.query.all()
+    db_server_map = {s.name: s for s in db_servers}
+    
+    for vm_key, server_data in servers.items():
+        server_name = server_data.get('name')
+        if server_name and server_name in db_server_map:
+            db_server = db_server_map[server_name]
+            server_data['role'] = db_server.role
+            server_data['firewall_group'] = db_server.firewall_group
+            server_data['os_type'] = db_server.os_type
+            logger.info(f"🔧 서버 '{server_name}' DB 정보 병합: role={db_server.role}, firewall_group={db_server.firewall_group}")
+    
+    return servers
+
+
+def handle_server_error(error: Exception, operation: str = "서버 작업") -> Dict[str, Any]:
+    """서버 에러 처리 공통 함수"""
+    error_msg = str(error)
+    logger.error(f"{operation} 실패: {error_msg}")
+    return format_server_response(False, f"{operation} 중 오류가 발생했습니다.", error=error_msg)

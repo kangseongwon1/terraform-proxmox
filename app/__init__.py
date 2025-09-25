@@ -135,11 +135,15 @@ def register_blueprints(app):
     """블루프린트 등록"""
     from app.routes import main, auth, admin, servers, firewall, notification, backup
     from app.routes.monitoring import bp as monitoring
+    from app.routes.servers_async import async_bp
+    from app.routes.servers_sync import sync_bp
     
     app.register_blueprint(main)
     app.register_blueprint(auth)
     app.register_blueprint(admin)
     app.register_blueprint(servers)
+    app.register_blueprint(sync_bp)  # 동기 작업
+    app.register_blueprint(async_bp)  # 비동기 작업
     app.register_blueprint(firewall)
     app.register_blueprint(notification)
     app.register_blueprint(backup)
