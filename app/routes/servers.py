@@ -3,7 +3,7 @@
 """
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
-from app.decorators import login_required, permission_required
+from app.routes.auth import permission_required
 from app.models import Server, User, UserPermission
 from app.services import ProxmoxService, TerraformService, AnsibleService, NotificationService
 from app.utils.redis_utils import redis_utils

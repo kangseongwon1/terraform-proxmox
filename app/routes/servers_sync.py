@@ -3,7 +3,8 @@
 """
 import logging
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from app.decorators import login_required, permission_required
+from flask_login import login_required
+from app.routes.auth import permission_required
 from app.models import Server, Notification
 from app import db
 from app.routes.server_utils import (

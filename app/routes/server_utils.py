@@ -2,7 +2,7 @@
 서버 관련 공통 유틸리티 함수들
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from flask import jsonify, request
 from app.models import Server, Notification
 from app import db
@@ -31,7 +31,7 @@ def get_server_by_name(server_name: str) -> Optional[Server]:
     return Server.query.filter_by(name=server_name).first()
 
 
-def validate_server_config(data: Dict[str, Any]) -> tuple[bool, str, Dict[str, Any]]:
+def validate_server_config(data: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
     """서버 설정 검증"""
     required_fields = ['name', 'cpu', 'memory', 'disk']
     

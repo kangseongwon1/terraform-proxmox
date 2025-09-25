@@ -3,7 +3,8 @@
 """
 import logging
 from flask import Blueprint, request, jsonify
-from app.decorators import login_required, permission_required
+from flask_login import login_required
+from app.routes.auth import permission_required
 from app.routes.server_utils import validate_server_config, format_server_response, handle_server_error
 
 logger = logging.getLogger(__name__)
