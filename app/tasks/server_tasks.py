@@ -32,9 +32,9 @@ def create_server_async(self, server_config):
             meta={'current': 20, 'total': 100, 'status': 'Terraform 파일 생성 중...'}
         )
         
-        terraform_result = terraform_service.create_server(server_config)
-        if not terraform_result['success']:
-            raise Exception(f"Terraform 파일 생성 실패: {terraform_result['message']}")
+        terraform_result = terraform_service.create_server_config(server_config)
+        if not terraform_result:
+            raise Exception("Terraform 파일 생성 실패")
         
         # 2단계: Terraform 실행
         self.update_state(
