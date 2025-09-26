@@ -23,6 +23,7 @@ def create_celery_app():
         include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
     )
 
+    # 간단하고 안전한 Celery 설정
     celery.conf.update(
         task_serializer='json',
         accept_content=['json'],
@@ -35,25 +36,14 @@ def create_celery_app():
         task_acks_late=True,
         worker_disable_rate_limits=True,
         result_expires=3600,
-        # Redis 백엔드 호환성 설정
-        result_backend_transport_options={
-            'master_name': 'mymaster',
-            'visibility_timeout': 3600,
-        },
-        # 예외 처리 완전 비활성화
-        task_ignore_result=True,  # 결과 저장 비활성화
+        # 결과 저장 비활성화 (호환성 문제 해결)
+        task_ignore_result=True,
         task_store_eager_result=False,
         task_always_eager=False,
         # Redis 연결 설정
         broker_connection_retry_on_startup=True,
         broker_connection_retry=True,
         broker_connection_max_retries=10,
-        # 예외 정보 저장 완전 비활성화
-        task_store_errors_even_if_ignored=False,
-        task_ignore_result_on_task_failure=True,  # 실패 시 결과 무시
-        # 백엔드 안전 모드
-        result_backend_max_retries=3,
-        result_backend_retry_delay=1,
         # 예외 추적 비활성화
         task_track_started=False,
         task_send_sent_event=False,
