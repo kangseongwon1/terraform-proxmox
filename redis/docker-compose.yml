@@ -30,6 +30,8 @@ services:
       - redis
     volumes:
       - ../:/app
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -38,6 +40,7 @@ services:
       - REDIS_ENABLED=true
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - TZ=Asia/Seoul
     working_dir: /app
     command: celery -A app.celery_app worker --loglevel=info --concurrency=2
     networks:

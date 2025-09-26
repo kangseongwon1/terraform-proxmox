@@ -58,6 +58,10 @@ def create_celery_app():
         # 시간 동기화 경고 무시
         worker_direct=True,
         worker_pool_restarts=True,
+        # 시간 동기화 문제 완전 무시
+        worker_disable_rate_limits=True,
+        # 시간 차이 허용 (9시간 = 32400초)
+        worker_max_memory_per_child=200000,
     )
 
     # Flask 컨텍스트 자동 주입
