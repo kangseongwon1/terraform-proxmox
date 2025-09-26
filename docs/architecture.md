@@ -1,364 +1,272 @@
-# 시스템 아키텍처
+# Proxmox Manager 아키텍처 문서
 
 ## 📋 개요
 
-Terraform Proxmox Manager는 마이크로서비스 아키텍처를 기반으로 한 통합 가상화 관리 시스템입니다. 각 구성 요소는 독립적으로 동작하며, REST API를 통해 상호 통신합니다.
+Proxmox Manager는 Flask 기반의 웹 애플리케이션으로, Proxmox 가상화 환경을 관리하는 시스템입니다.
 
 ## 🏗️ 전체 아키텍처
 
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        UI[Web UI<br/>HTML/CSS/JS]
-    end
-    
-    subgraph "Application Layer"
-        API[Flask API<br/>Python 3.8+]
-        AUTH[Authentication<br/>Flask-Login]
-        NOTIF[Notification<br/>System]
-    end
-    
-    subgraph "Data Layer"
-        DB[(SQLite Database<br/>Metadata Storage)]
-        VAULT[HashiCorp Vault<br/>Secrets Management)]
-    end
-    
-    subgraph "Infrastructure Layer"
-        TF[Terraform<br/>Infrastructure as Code]
-        ANS[Ansible<br/>Configuration Management]
-    end
-    
-    subgraph "Monitoring Layer"
-        PROM[Prometheus<br/>Metrics Collection]
-        GRAF[Grafana<br/>Visualization]
-        NODE[Node Exporter<br/>System Metrics]
-    end
-    
-    subgraph "Virtualization Layer"
-        PVE[Proxmox VE<br/>Hypervisor]
-        VM[Virtual Machines<br/>Rocky Linux 8+]
-    end
-    
-    UI --> API
-    API --> AUTH
-    API --> NOTIF
-    API --> DB
-    API --> VAULT
-    API --> TF
-    API --> ANS
-    TF --> PVE
-    ANS --> VM
-    VM --> NODE
-    NODE --> PROM
-    PROM --> GRAF
-    GRAF --> UI
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   웹 브라우저    │    │   Flask 앱      │    │   Celery 워커   │
+│                 │    │   (호스트)      │    │   (Docker)      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │ 1. 서버 생성 요청      │                       │
+         ├──────────────────────►│                       │
+         │                       │ 2. Celery 태스크 큐에  │
+         │                       │    작업 추가           │
+         │                       ├──────────────────────►│
+         │                       │                       │
+         │                       │                       │ 3. Terraform 실행
+         │                       │                       │    (호스트 바이너리)
+         │                       │                       │
+         │                       │ 4. 작업 완료 알림     │
+         │                       │◄──────────────────────┤
+         │ 5. 결과 반환          │                       │
+         │◄─────────────────────┤                       │
 ```
 
-## 🔧 핵심 구성 요소
+## 🔧 핵심 컴포넌트
 
-### 1. 웹 애플리케이션 (Flask)
+### 1. Flask 웹 애플리케이션 (호스트)
+- **위치**: 호스트에서 직접 실행
+- **역할**: 웹 인터페이스 제공, API 엔드포인트 처리
+- **실행**: `python run.py`
 
-**위치**: `app/` 디렉토리
-**역할**: REST API 서버 및 웹 UI 제공
+### 2. Celery 워커 (Docker 컨테이너)
+- **위치**: Docker 컨테이너 내부
+- **역할**: 비동기 작업 처리
+- **실행**: `celery -A app.celery_app worker`
 
-```python
-# 주요 모듈 구조
-app/
-├── __init__.py          # Flask 앱 초기화
-├── routes/              # API 엔드포인트
-│   ├── servers.py       # 서버 관리 API
-│   ├── monitoring.py    # 모니터링 API
-│   ├── backup.py        # 백업 관리 API
-│   └── notification.py  # 알림 API
-├── services/            # 비즈니스 로직
-│   ├── terraform_service.py    # Terraform 연동
-│   ├── ansible_service.py      # Ansible 연동
-│   ├── prometheus_service.py   # Prometheus 연동
-│   └── proxmox_service.py      # Proxmox API 연동
-└── models/              # 데이터 모델
-    └── server.py        # 서버 모델
+### 3. Redis (Docker 컨테이너)
+- **위치**: Docker 컨테이너 내부
+- **역할**: Celery 브로커 및 백엔드, 캐싱
+- **포트**: 6379
+
+### 4. Terraform (호스트)
+- **위치**: 호스트에 설치
+- **역할**: 인프라스트럭처 프로비저닝
+- **실행**: Celery 워커에서 호스트 바이너리 호출
+
+## 🔄 작업 흐름
+
+### 동기 작업 (기존)
+```
+웹 요청 → Flask 앱 → ProxmoxService → Proxmox API
 ```
 
-**주요 기능**:
-- RESTful API 제공
-- 실시간 알림 시스템
-- 사용자 인증 및 권한 관리
-- 비동기 작업 처리
-
-### 2. 데이터베이스 (SQLite)
-
-**위치**: `instance/proxmox_manager.db`
-**역할**: 메타데이터 저장 및 관리
-
-```sql
--- 주요 테이블 구조
-servers (
-    id INTEGER PRIMARY KEY,
-    name VARCHAR(100),
-    ip_address VARCHAR(15),
-    role VARCHAR(50),
-    status VARCHAR(20),
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
-)
-
-notifications (
-    id INTEGER PRIMARY KEY,
-    message TEXT,
-    type VARCHAR(50),
-    created_at TIMESTAMP
-)
-
-backups (
-    id INTEGER PRIMARY KEY,
-    server_id INTEGER,
-    backup_id VARCHAR(100),
-    status VARCHAR(20),
-    created_at TIMESTAMP
-)
+### 비동기 작업 (새로운)
+```
+웹 요청 → Flask 앱 → Celery 태스크 큐 → Celery 워커 → 호스트 Terraform → 결과 반환
 ```
 
-### 3. 비밀 정보 관리 (Vault)
+## 🐳 Docker 구성
 
-**위치**: Docker 컨테이너 (`vault-dev`)
-**역할**: 민감한 정보 암호화 저장
-
+### Celery 워커 컨테이너
 ```yaml
-# 저장되는 정보
-secret/ssh:
-  private_key: "-----BEGIN OPENSSH PRIVATE KEY-----"
-  public_key: "ssh-rsa AAAAB3NzaC1yc2E..."
-
-secret/proxmox:
-  api_token: "proxmox_api_token"
-  api_secret: "proxmox_api_secret"
-
-secret/ansible:
-  mysql_root_password: "root1234"
-  mysql_user_password: "app1234"
+celery-worker:
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile.celery
+  volumes:
+    - ../:/app                    # 애플리케이션 코드
+    - /etc/localtime:/etc/localtime:ro  # 시간 동기화
+    - /etc/timezone:/etc/timezone:ro
+  environment:
+    - REDIS_HOST=redis
+    - REDIS_PORT=6379
+    - REDIS_PASSWORD=${REDIS_PASSWORD}
 ```
 
-### 4. 인프라 관리 (Terraform)
+### Redis 컨테이너
+```yaml
+redis:
+  image: redis:7-alpine
+  ports:
+    - "6379:6379"
+  command: redis-server --requirepass ${REDIS_PASSWORD}
+```
 
-**위치**: `terraform/` 디렉토리
-**역할**: Proxmox VM 생성 및 관리
+## 🔧 Terraform 통합
 
-```hcl
-# 주요 리소스
-resource "proxmox_virtual_environment_vm" "this" {
-  name      = var.name
-  node_name = var.proxmox_node
-  
-  cpu {
-    cores = var.cpu
-  }
-  
-  memory {
-    dedicated = var.memory
-  }
-  
-  disk {
-    interface    = "scsi0"
-    size         = var.disk_size
-    datastore_id = var.datastore_id
-  }
-  
-  network_device {
-    bridge = var.bridge
-  }
-  
-  initialization {
-    user_account {
-      username = var.vm_username
-      password = var.vm_password
-      keys     = var.ssh_keys
-    }
-  }
+### 호스트 Terraform 사용
+- **이유**: Celery 워커가 Docker 컨테이너에서 실행되지만, Terraform은 호스트에서 실행
+- **방법**: Docker 볼륨 마운트를 통해 호스트의 terraform 바이너리 접근
+- **장점**: 기존 설치된 terraform 활용, 호환성 보장
+
+### Terraform 실행 경로
+```python
+# app/tasks/server_tasks.py
+host_terraform_dir = "/app/terraform"  # Docker 마운트된 경로
+terraform_service = TerraformService(host_terraform_dir)
+```
+
+## 📁 디렉토리 구조
+
+```
+terraform-proxmox/
+├── app/                    # Flask 애플리케이션
+│   ├── routes/            # API 엔드포인트
+│   │   ├── servers.py     # 동기 서버 작업
+│   │   ├── servers_async.py  # 비동기 서버 작업
+│   │   └── servers_sync.py   # 동기 서버 작업
+│   ├── tasks/             # Celery 태스크
+│   │   └── server_tasks.py   # 비동기 서버 생성
+│   ├── services/          # 비즈니스 로직
+│   │   ├── proxmox_service.py
+│   │   └── terraform_service.py
+│   └── celery_app.py      # Celery 설정
+├── redis/                 # Redis & Celery Docker 설정
+│   └── docker-compose.yml
+├── docker/               # Docker 파일들
+│   └── Dockerfile.celery
+└── terraform/            # Terraform 설정 파일들
+```
+
+## 🔄 비동기 작업 처리
+
+### 1. 서버 생성
+```python
+# 웹 요청
+POST /api/servers/async
+{
+  "name": "test-server",
+  "cpu": 2,
+  "memory": 4,
+  "disk": 20
 }
+
+# Celery 태스크
+@celery_app.task(bind=True)
+def create_server_async(self, server_config):
+    # 1. Terraform 파일 생성
+    # 2. Terraform 실행 (호스트 바이너리)
+    # 3. 서버 정보 DB 저장
+    # 4. 결과 반환
 ```
 
-### 5. 설정 관리 (Ansible)
-
-**위치**: `ansible/` 디렉토리
-**역할**: VM 생성 후 소프트웨어 설치 및 설정
-
-```yaml
-# 역할별 설정
-roles/
-├── node_exporter/       # 모니터링 에이전트
-├── web/                 # Nginx 웹서버
-├── was/                 # Tomcat 애플리케이션 서버
-└── db/                  # MySQL 데이터베이스
-```
-
-### 6. 모니터링 시스템
-
-**위치**: `monitoring/` 디렉토리 (Docker)
-**역할**: 시스템 메트릭 수집 및 시각화
-
-```yaml
-# Docker Compose 구성
-services:
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_SECURITY_ALLOW_EMBEDDING=true
-```
-
-## 🔄 데이터 플로우
-
-### 1. 서버 생성 프로세스
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant W as Web UI
-    participant A as Flask API
-    participant T as Terraform
-    participant P as Proxmox
-    participant AN as Ansible
-    participant PR as Prometheus
-    
-    U->>W: 서버 생성 요청
-    W->>A: POST /api/servers/create
-    A->>T: terraform apply
-    T->>P: VM 생성 요청
-    P-->>T: VM 생성 완료
-    T-->>A: 생성 결과 반환
-    A->>AN: ansible-playbook 실행
-    AN->>P: Node Exporter 설치
-    A->>PR: Prometheus 설정 업데이트
-    A-->>W: 생성 완료 응답
-    W-->>U: 성공 알림
-```
-
-### 2. 모니터링 데이터 플로우
-
-```mermaid
-sequenceDiagram
-    participant VM as Virtual Machine
-    participant NE as Node Exporter
-    participant PR as Prometheus
-    participant GR as Grafana
-    participant W as Web UI
-    
-    VM->>NE: 시스템 메트릭
-    NE->>PR: HTTP /metrics
-    PR->>PR: 메트릭 저장
-    W->>GR: 대시보드 요청
-    GR->>PR: 쿼리 요청
-    PR-->>GR: 메트릭 데이터
-    GR-->>W: 시각화된 데이터
-```
-
-## 🔐 보안 아키텍처
-
-### 1. 인증 및 권한 관리
-
+### 2. 대량 서버 작업
 ```python
-# Flask-Login 기반 인증
-@login_manager.user_loader
-def load_user(user_id):
-    return User.get(user_id)
+# 웹 요청
+POST /api/servers/bulk_action/async
+{
+  "server_names": ["server1", "server2"],
+  "action": "start"
+}
 
-# API 엔드포인트 보호
-@login_required
-@admin_required
-def create_server():
-    pass
+# Celery 태스크
+@celery_app.task(bind=True)
+def bulk_server_action_async(self, server_names, action):
+    # 1. 각 서버에 대해 작업 실행
+    # 2. 성공/실패 결과 수집
+    # 3. 결과 반환
 ```
 
-### 2. 비밀 정보 보호
+## 🚀 배포 및 실행
 
-- **Vault 암호화**: 모든 민감한 정보는 Vault에 암호화 저장
-- **환경 변수**: 설정 정보는 `.env` 파일로 관리
-- **SSH 키 관리**: Vault를 통한 SSH 키 안전한 저장 및 배포
-
-### 3. 네트워크 보안
-
-- **방화벽 규칙**: 서버별 자동 방화벽 설정
-- **SSH 보안**: 키 기반 인증, 비밀번호 인증 비활성화
-- **API 보안**: JWT 토큰 기반 인증
-
-## 📊 확장성 고려사항
-
-### 1. 수평 확장
-
-- **로드 밸런서**: Nginx를 통한 API 서버 로드 밸런싱
-- **데이터베이스**: PostgreSQL로 마이그레이션 가능
-- **캐싱**: Redis 추가로 성능 향상
-
-### 2. 수직 확장
-
-- **리소스 모니터링**: Prometheus를 통한 리소스 사용량 추적
-- **자동 스케일링**: CPU/메모리 사용량 기반 자동 확장
-- **백업 전략**: 자동화된 백업 및 복구 시스템
-
-## 🔧 개발 환경
-
-### 1. 로컬 개발 설정
-
+### 1. 호스트에서 Flask 앱 실행
 ```bash
-# 가상환경 설정
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 또는
-venv\Scripts\activate     # Windows
-
-# 의존성 설치
-pip install -r requirements.txt
-
-# 개발 서버 실행
 python run.py
 ```
 
-### 2. 테스트 환경
-
+### 2. Docker로 Redis & Celery 실행
 ```bash
-# 통합 테스트 실행
-python tests/integration_test_suite.py
-
-# 기능 테스트 실행
-python tests/functional_test_suite.py
-
-# 전체 테스트 실행
-python tests/run_tests.py
+cd redis
+docker-compose up -d
 ```
 
-## 📈 성능 최적화
+### 3. 서비스 확인
+- **웹 인터페이스**: http://localhost:5000
+- **Celery Flower**: http://localhost:5555
+- **Redis**: localhost:6379
 
-### 1. 데이터베이스 최적화
+## 🔧 환경 변수
 
-- **인덱스**: 자주 조회되는 컬럼에 인덱스 설정
-- **연결 풀링**: SQLAlchemy 연결 풀 설정
-- **쿼리 최적화**: N+1 문제 해결
+### 필수 환경 변수
+```bash
+# Proxmox 연결
+PROXMOX_ENDPOINT=https://proxmox.example.com:8006
+PROXMOX_USERNAME=user@pam
+PROXMOX_PASSWORD=password
+PROXMOX_NODE=proxmox-node
 
-### 2. API 성능
+# Redis & Celery
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+REDIS_ENABLED=true
+```
 
-- **캐싱**: Redis를 통한 응답 캐싱
-- **비동기 처리**: Celery를 통한 백그라운드 작업
-- **압축**: gzip 압축으로 응답 크기 감소
+## 📊 모니터링
 
-### 3. 모니터링 최적화
+### Celery Flower
+- **URL**: http://localhost:5555
+- **기능**: Celery 워커 상태, 태스크 모니터링
 
-- **메트릭 수집**: 효율적인 메트릭 수집 주기 설정
-- **데이터 보존**: Prometheus 데이터 보존 정책 설정
-- **알림 최적화**: 중복 알림 방지 및 알림 그룹핑
+### Redis 모니터링
+```bash
+# Redis CLI 접속
+redis-cli -a your_password
+
+# 키 확인
+KEYS *
+
+# Celery 큐 확인
+LLEN celery
+```
+
+## 🛠️ 문제 해결
+
+### 1. Terraform 명령어를 찾을 수 없는 경우
+```bash
+# 호스트에 terraform 설치 확인
+which terraform
+
+# Docker 컨테이너에서 호스트 terraform 접근 확인
+docker exec proxmox-celery-worker which terraform
+```
+
+### 2. Celery 워커가 작업을 처리하지 않는 경우
+```bash
+# Celery 워커 상태 확인
+docker logs proxmox-celery-worker
+
+# Redis 연결 확인
+docker exec proxmox-redis redis-cli -a your_password PING
+```
+
+### 3. 작업이 PENDING 상태에서 멈춘 경우
+```bash
+# Celery 워커 재시작
+cd redis
+docker-compose restart celery-worker
+```
+
+## 📝 개발 가이드
+
+### 새로운 비동기 작업 추가
+1. `app/tasks/` 디렉토리에 태스크 함수 정의
+2. `app/routes/servers_async.py`에 API 엔드포인트 추가
+3. 프론트엔드에서 비동기 작업 호출
+
+### 동기 작업 유지
+- 기존 `app/routes/servers.py`의 동기 작업들은 그대로 유지
+- 새로운 비동기 작업은 `app/routes/servers_async.py`에 추가
+
+## 🔄 마이그레이션 전략
+
+### 단계적 마이그레이션
+1. **1단계**: 기존 동기 작업 유지
+2. **2단계**: 새로운 비동기 작업 추가
+3. **3단계**: 점진적으로 동기 작업을 비동기로 전환
+
+### 호환성 보장
+- 기존 API 엔드포인트 유지
+- 새로운 비동기 API 추가
+- 프론트엔드에서 점진적 전환
 
 ---
 
-이 아키텍처는 확장 가능하고 유지보수가 용이한 구조로 설계되었으며, 각 구성 요소는 독립적으로 개발, 배포, 확장할 수 있습니다.
+**최종 업데이트**: 2025-09-26
+**버전**: 1.0.0

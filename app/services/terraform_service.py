@@ -81,6 +81,23 @@ class TerraformService:
             else:
                 print("❌ 사용 가능한 terraform 경로를 찾을 수 없습니다.")
         
+        # Docker 컨테이너에서 호스트의 terraform 실행
+        # 호스트의 terraform 바이너리 경로 확인
+        host_terraform_paths = [
+            "/usr/local/bin/terraform",
+            "/usr/bin/terraform",
+            "/app/terraform/terraform",  # Docker 마운트된 경로
+            "terraform"
+        ]
+        
+        for path in host_terraform_paths:
+            if shutil.which(path):
+                print(f"✅ 호스트 terraform 경로 발견: {path}")
+                command[0] = path
+                break
+        else:
+            print("❌ 호스트의 terraform을 찾을 수 없습니다.")
+        
         try:
             # 환경변수 설정 (Vault 토큰 포함)
             env = os.environ.copy()

@@ -23,8 +23,11 @@ def create_server_async(self, server_config):
             meta={'current': 0, 'total': 100, 'status': '서버 생성 준비 중...'}
         )
         
-        # Terraform 서비스 초기화
-        terraform_service = TerraformService()
+        # Terraform 서비스 초기화 (호스트의 terraform 사용)
+        # Docker 컨테이너에서 호스트의 terraform 실행
+        import os
+        host_terraform_dir = "/app/terraform"  # Docker 마운트된 경로
+        terraform_service = TerraformService(host_terraform_dir)
         
         # 1단계: Terraform 파일 생성
         self.update_state(
