@@ -42,9 +42,9 @@ def create_server_async(self, server_config):
             meta={'current': 40, 'total': 100, 'status': 'Terraform 실행 중...'}
         )
         
-        apply_result = terraform_service.apply_server(server_config['name'])
-        if not apply_result['success']:
-            raise Exception(f"Terraform 실행 실패: {apply_result['message']}")
+        apply_result = terraform_service.apply([server_config['name']])
+        if not apply_result[0]:  # apply 메서드는 (success, message) 튜플 반환
+            raise Exception(f"Terraform 실행 실패: {apply_result[1]}")
         
         # 3단계: 서버 정보 DB 저장
         self.update_state(
