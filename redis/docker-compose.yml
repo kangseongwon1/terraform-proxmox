@@ -36,6 +36,8 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - REDIS_DB=0
       - REDIS_ENABLED=true
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     working_dir: /app
     command: celery -A app.celery_app worker --loglevel=info --concurrency=2
     networks:

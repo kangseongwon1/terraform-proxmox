@@ -16,10 +16,13 @@ def create_celery_app():
     else:
         broker_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
+    # 백엔드 URL 설정 (환경 변수 우선)
+    backend_url = os.getenv('CELERY_RESULT_BACKEND', broker_url)
+    
     celery = Celery(
         'proxmox_manager',
         broker=broker_url,
-        backend=broker_url,  # Redis 백엔드 사용
+        backend=backend_url,  # 환경 변수 또는 브로커 URL 사용
         include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
     )
 
