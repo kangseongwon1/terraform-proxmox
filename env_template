@@ -85,3 +85,13 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_PASSWORD=
+
+# Terraform 설정 (선택사항)
+# 기본값: 로컬 실행
+TERRAFORM_REMOTE_ENABLED=false
+# TERRAFORM_REMOTE_HOST=terraform-server.example.com
+# TERRAFORM_REMOTE_PORT=22
+# TERRAFORM_REMOTE_USERNAME=terraform
+# TERRAFORM_REMOTE_PASSWORD=your_password  # 선택사항 (SSH 키 사용 권장)
+# TERRAFORM_REMOTE_KEY_FILE=/path/to/private/key  # 선택사항
+# TERRAFORM_REMOTE_DIR=/opt/terraform

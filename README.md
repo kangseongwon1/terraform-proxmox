@@ -20,6 +20,93 @@ Terraform Proxmox Manager
 4) 모니터링 스택 실행: `monitoring/start-monitoring.sh` 또는 `docker compose -f monitoring/docker-compose.yml up -d`
 5) Flask 앱 실행: `python run.py`
 
+## 🔧 Terraform 원격 서버 설정
+
+### 기본 설정 (로컬 실행)
+```bash
+# .env 파일에 설정하지 않으면 로컬에서 terraform 실행
+# 별도 설정 불필요
+```
+
+### 원격 서버 설정 (선택사항)
+```bash
+# .env 파일에 추가
+TERRAFORM_REMOTE_ENABLED=true
+TERRAFORM_REMOTE_HOST=terraform-server.example.com
+TERRAFORM_REMOTE_PORT=22
+TERRAFORM_REMOTE_USERNAME=terraform
+TERRAFORM_REMOTE_DIR=/opt/terraform
+
+# 인증 방법 선택 (하나만 설정)
+# 방법 1: SSH 키 기반 (권장)
+TERRAFORM_REMOTE_KEY_FILE=/path/to/private/key
+
+# 방법 2: 패스워드 기반
+TERRAFORM_REMOTE_PASSWORD=your_password
+
+# 방법 3: SSH 에이전트 사용 (가장 간단)
+# SSH 키를 에이전트에 추가: ssh-add ~/.ssh/id_rsa
+# 환경 변수에서 패스워드/키 파일 설정하지 않음
+```
+
+### 원격 서버 준비
+```bash
+# 1. 원격 서버에 terraform 설치
+wget https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+unzip terraform_1.5.7_linux_amd64.zip
+sudo mv terraform /usr/local/bin/
+sudo chmod +x /usr/local/bin/terraform
+
+# 2. terraform 디렉토리 생성
+sudo mkdir -p /opt/terraform
+sudo chown terraform:terraform /opt/terraform
+
+# 3. SSH 키 설정 (선택사항)
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/terraform_key
+ssh-copy-id -i ~/.ssh/terraform_key.pub terraform@terraform-server.example.com
+```
+
+### 환경 변수 설명
+| 변수명 | 필수 | 기본값 | 설명 |
+|--------|------|--------|------|
+| `TERRAFORM_REMOTE_ENABLED` | ❌ | `false` | 원격 서버 사용 여부 |
+| `TERRAFORM_REMOTE_HOST` | ✅ | - | 원격 서버 호스트명/IP |
+| `TERRAFORM_REMOTE_PORT` | ❌ | `22` | SSH 포트 |
+| `TERRAFORM_REMOTE_USERNAME` | ✅ | - | SSH 사용자명 |
+| `TERRAFORM_REMOTE_DIR` | ❌ | `/opt/terraform` | 원격 서버의 terraform 디렉토리 |
+| `TERRAFORM_REMOTE_KEY_FILE` | ❌ | - | SSH 개인키 파일 경로 |
+| `TERRAFORM_REMOTE_PASSWORD` | ❌ | - | SSH 패스워드 |
+
+### 인증 방법별 설정 예시
+
+#### SSH 키 기반 (권장)
+```bash
+TERRAFORM_REMOTE_ENABLED=true
+TERRAFORM_REMOTE_HOST=terraform-server.example.com
+TERRAFORM_REMOTE_USERNAME=terraform
+TERRAFORM_REMOTE_KEY_FILE=/path/to/private/key
+```
+
+#### SSH 에이전트 사용 (가장 간단)
+```bash
+# SSH 키를 에이전트에 추가
+ssh-add ~/.ssh/id_rsa
+
+# 환경 변수 설정
+TERRAFORM_REMOTE_ENABLED=true
+TERRAFORM_REMOTE_HOST=terraform-server.example.com
+TERRAFORM_REMOTE_USERNAME=terraform
+# 패스워드나 키 파일 설정하지 않음
+```
+
+#### 패스워드 기반
+```bash
+TERRAFORM_REMOTE_ENABLED=true
+TERRAFORM_REMOTE_HOST=terraform-server.example.com
+TERRAFORM_REMOTE_USERNAME=terraform
+TERRAFORM_REMOTE_PASSWORD=your_password
+```
+
 문서 링크(요약 허브)
 - 설치/운영: `docs/INSTALLATION.md`, `docs/OPERATION_GUIDE.md`, `docs/TROUBLESHOOTING.md`
 - 아키텍처: `docs/ARCHITECTURE.md`

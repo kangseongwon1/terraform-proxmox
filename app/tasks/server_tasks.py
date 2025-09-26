@@ -23,11 +23,25 @@ def create_server_async(self, server_config):
             meta={'current': 0, 'total': 100, 'status': '서버 생성 준비 중...'}
         )
         
-        # Terraform 서비스 초기화 (호스트의 terraform 사용)
-        # Docker 컨테이너에서 호스트의 terraform 실행
+        # Terraform 서비스 초기화 (환경 변수 기반)
         import os
-        host_terraform_dir = "/app/terraform"  # Docker 마운트된 경로
-        terraform_service = TerraformService(host_terraform_dir)
+        
+        # 원격 서버 설정 확인 (단순화)
+        remote_config = None
+        if os.getenv('TERRAFORM_REMOTE_ENABLED', 'false').lower() == 'true':
+            remote_config = {
+                'host': os.getenv('TERRAFORM_REMOTE_HOST'),
+                'port': int(os.getenv('TERRAFORM_REMOTE_PORT', 22)),
+                'username': os.getenv('TERRAFORM_REMOTE_USERNAME'),
+                'password': os.getenv('TERRAFORM_REMOTE_PASSWORD'),  # 선택사항
+                'key_file': os.getenv('TERRAFORM_REMOTE_KEY_FILE'),  # 선택사항
+                'terraform_dir': os.getenv('TERRAFORM_REMOTE_DIR', '/opt/terraform')
+            }
+            terraform_service = TerraformService(remote_server=remote_config)
+        else:
+            # 로컬 실행 (기본값)
+            host_terraform_dir = "/app/terraform"  # Docker 마운트된 경로
+            terraform_service = TerraformService(host_terraform_dir)
         
         # 1단계: Terraform 파일 생성
         self.update_state(

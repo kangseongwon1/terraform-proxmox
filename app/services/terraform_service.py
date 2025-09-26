@@ -16,8 +16,10 @@ logger = logging.getLogger(__name__)
 class TerraformService:
     """Terraform 서비스"""
     
-    def __init__(self, terraform_dir: str = "terraform"):
+    def __init__(self, terraform_dir: str = "terraform", remote_server: dict = None):
         self.terraform_dir = terraform_dir
+        self.remote_server = remote_server
+        self.is_remote = remote_server is not None
         # 절대 경로로 terraform.tfvars.json 파일 경로 설정
         if os.path.isabs(terraform_dir):
             self.tfvars_file = os.path.join(terraform_dir, "terraform.tfvars.json")
@@ -28,6 +30,13 @@ class TerraformService:
     
     def _run_terraform_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
         """Terraform 명령어 실행"""
+        if self.is_remote:
+            return self._run_remote_terraform_command(command, cwd)
+        else:
+            return self._run_local_terraform_command(command, cwd)
+    
+    def _run_local_terraform_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
+        """로컬 Terraform 명령어 실행"""
         if cwd is None:
             # 상대 경로인 경우 프로젝트 루트 기준으로 절대 경로 생성
             if os.path.isabs(self.terraform_dir):
@@ -737,4 +746,63 @@ class TerraformService:
             return {
                 'success': False,
                 'message': error_msg
-            } 
+            }
+    
+    def _run_remote_terraform_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
+        """원격 서버에서 Terraform 명령어 실행"""
+        import paramiko
+        
+        try:
+            # SSH 연결 설정
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # 원격 서버 연결 (SSH 키 우선, 패스워드 대안)
+            if self.remote_server.get('key_file'):
+                # SSH 키 기반 인증 (권장)
+                ssh.connect(
+                    hostname=self.remote_server['host'],
+                    port=self.remote_server.get('port', 22),
+                    username=self.remote_server['username'],
+                    key_filename=self.remote_server.get('key_file')
+                )
+            elif self.remote_server.get('password'):
+                # 패스워드 기반 인증
+                ssh.connect(
+                    hostname=self.remote_server['host'],
+                    port=self.remote_server.get('port', 22),
+                    username=self.remote_server['username'],
+                    password=self.remote_server.get('password')
+                )
+            else:
+                # SSH 에이전트 사용 (가장 간단)
+                ssh.connect(
+                    hostname=self.remote_server['host'],
+                    port=self.remote_server.get('port', 22),
+                    username=self.remote_server['username']
+                )
+            
+            # 원격 디렉토리 설정
+            if cwd is None:
+                remote_cwd = self.remote_server.get('terraform_dir', '/opt/terraform')
+            else:
+                remote_cwd = cwd
+            
+            # 명령어 실행
+            full_command = f"cd {remote_cwd} && {' '.join(command)}"
+            print(f"🔧 원격 Terraform 명령어 실행: {full_command}")
+            
+            stdin, stdout, stderr = ssh.exec_command(full_command)
+            
+            # 결과 수집
+            returncode = stdout.channel.recv_exit_status()
+            stdout_text = stdout.read().decode('utf-8')
+            stderr_text = stderr.read().decode('utf-8')
+            
+            ssh.close()
+            
+            return returncode, stdout_text, stderr_text
+            
+        except Exception as e:
+            logger.error(f"원격 Terraform 실행 실패: {str(e)}")
+            return 1, "", str(e) 
