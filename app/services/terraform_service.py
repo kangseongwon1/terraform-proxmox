@@ -42,6 +42,44 @@ class TerraformService:
         env['PROXMOX_INSECURE'] = 'true'
         
         print(f"🔧 Terraform 명령어 실행: {' '.join(command)} (cwd: {cwd})")
+        print(f"🔍 현재 작업 디렉토리: {os.getcwd()}")
+        print(f"🔍 Terraform 디렉토리 존재 여부: {os.path.exists(cwd)}")
+        print(f"🔍 Terraform 명령어 존재 여부: {os.path.exists(os.path.join(cwd, 'terraform')) if os.path.exists(cwd) else False}")
+        
+        # PATH에서 terraform 명령어 찾기
+        import shutil
+        terraform_path = shutil.which('terraform')
+        print(f"🔍 PATH에서 terraform 찾기: {terraform_path}")
+        
+        # terraform 디렉토리 내용 확인
+        if os.path.exists(cwd):
+            print(f"🔍 Terraform 디렉토리 내용: {os.listdir(cwd)}")
+        else:
+            print(f"❌ Terraform 디렉토리가 존재하지 않음: {cwd}")
+        
+        # terraform 명령어가 PATH에 없을 경우 대안
+        if not terraform_path:
+            print("❌ terraform 명령어를 PATH에서 찾을 수 없습니다.")
+            print("💡 해결 방법:")
+            print("   1. terraform이 설치되어 있는지 확인")
+            print("   2. PATH에 terraform 경로가 추가되어 있는지 확인")
+            print("   3. 또는 terraform 바이너리 경로를 직접 지정")
+            
+            # terraform 바이너리 직접 찾기
+            possible_paths = [
+                "/usr/local/bin/terraform",
+                "/usr/bin/terraform", 
+                "./terraform",
+                "terraform"
+            ]
+            
+            for path in possible_paths:
+                if shutil.which(path):
+                    print(f"✅ 대안 경로 발견: {path}")
+                    command[0] = path
+                    break
+            else:
+                print("❌ 사용 가능한 terraform 경로를 찾을 수 없습니다.")
         
         try:
             # 환경변수 설정 (Vault 토큰 포함)
