@@ -7,8 +7,34 @@ from flask import jsonify, request
 from app.models import Server, Notification
 from app import db
 from app.utils.redis_utils import redis_utils
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# 전역 작업 상태 dict
+tasks = {}
+
+
+def create_task(status: str, task_type: str, message: str) -> str:
+    """작업 생성"""
+    import uuid
+    task_id = str(uuid.uuid4())
+    tasks[task_id] = {
+        'status': status,
+        'type': task_type,
+        'message': message,
+        'created_at': datetime.now()
+    }
+    return task_id
+
+
+def update_task(task_id: str, status: str, message: str = None):
+    """작업 상태 업데이트"""
+    if task_id in tasks:
+        tasks[task_id]['status'] = status
+        if message:
+            tasks[task_id]['message'] = message
+        tasks[task_id]['updated_at'] = datetime.now()
 
 
 def create_notification(notification_type: str, title: str, message: str, 
