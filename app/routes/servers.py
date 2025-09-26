@@ -4,10 +4,10 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.routes.auth import permission_required
-from app.models import Server, User, UserPermission
+from app.models import Server, User, UserPermission, Notification
 from app.services import ProxmoxService, TerraformService, AnsibleService, NotificationService
 from app.utils.redis_utils import redis_utils
-from app.routes.server_utils import get_cached_server_status, set_cached_server_status, merge_db_server_info
+from app.routes.server_utils import get_cached_server_status, set_cached_server_status, merge_db_server_info, create_task, update_task
 from app import db
 import json
 import os
@@ -212,6 +212,9 @@ def index():
 #             return redirect(url_for('servers.create'))
     
 #     return render_template('servers/create.html')
+
+
+# 동기 서버 생성은 제거 - 비동기 방식 사용
 
 
 @bp.route('/<int:server_id>')

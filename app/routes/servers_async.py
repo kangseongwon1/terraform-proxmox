@@ -46,7 +46,13 @@ def create_server_async_endpoint():
             'disk': disk,
             'os_type': os_type,
             'role': role,
-            'firewall_group': firewall_group
+            'firewall_group': firewall_group,
+            # 추가 필드들
+            'disks': data.get('disks', []),
+            'network_devices': data.get('network_devices', []),
+            'template_vm_id': data.get('template_vm_id', 8000),
+            'vm_username': data.get('vm_username', 'rocky'),
+            'vm_password': data.get('vm_password', 'rocky123')
         }
         
         # Celery 작업 실행
