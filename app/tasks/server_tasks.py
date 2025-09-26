@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def create_server_async(self, server_config):
     """비동기 서버 생성 작업"""
     try:
@@ -113,13 +113,24 @@ def create_server_async(self, server_config):
         db.session.add(notification)
         db.session.commit()
         
-        # 작업 실패 상태 업데이트
+        # 작업 실패 상태 업데이트 (예외 정보 포함)
         self.update_state(
             state='FAILURE',
-            meta={'error': str(e)}
+            meta={
+                'error': str(e),
+                'exc_type': type(e).__name__,
+                'exc_message': str(e),
+                'status': '서버 생성 실패'
+            }
         )
         
-        raise
+        # 예외를 다시 발생시키지 않고 결과 반환
+        return {
+            'success': False,
+            'error': str(e),
+            'message': f'서버 {server_config["name"]} 생성 실패',
+            'task_id': self.request.id
+        }
 
 @celery_app.task(bind=True)
 def bulk_server_action_async(self, server_names, action):

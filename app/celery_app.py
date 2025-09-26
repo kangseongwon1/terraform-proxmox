@@ -36,6 +36,18 @@ def create_celery_app():
         task_acks_late=True,
         worker_disable_rate_limits=True,
         result_expires=3600,
+        # Redis 백엔드 호환성 설정
+        result_backend_transport_options={
+            'master_name': 'mymaster',
+            'visibility_timeout': 3600,
+        },
+        # 예외 처리 개선
+        task_ignore_result=False,
+        task_store_eager_result=True,
+        # Redis 연결 설정
+        broker_connection_retry_on_startup=True,
+        broker_connection_retry=True,
+        broker_connection_max_retries=10,
     )
 
     # Flask 컨텍스트 자동 주입

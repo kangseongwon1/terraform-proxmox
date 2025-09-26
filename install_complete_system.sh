@@ -1594,9 +1594,11 @@ install_redis() {
 
     # 방화벽 개방 (선택)
     if command -v firewall-cmd &> /dev/null; then
-        log_info "방화벽에 Redis 포트(6379/tcp) 개방 중..."
-        sudo firewall-cmd --permanent --add-port=6379/tcp || true
+        log_info "방화벽에 Redis + Celery 포트 개방 중..."
+        sudo firewall-cmd --permanent --add-port=6379/tcp || true  # Redis
+        sudo firewall-cmd --permanent --add-port=5555/tcp || true  # Celery Flower
         sudo firewall-cmd --reload || true
+        log_success "방화벽 포트 개방 완료: Redis(6379), Flower(5555)"
     fi
 
     # 환경 변수 기본값 안내 (비밀번호는 .env로 설정)
@@ -2766,6 +2768,8 @@ show_completion_info() {
     echo "  ✅ Prometheus (모니터링)"
     echo "  ✅ Grafana (대시보드)"
     echo "  ✅ Node Exporter"
+    echo "  ✅ Redis (캐시/큐)"
+    echo "  ✅ Celery (비동기 작업)"
     echo "  ✅ 데이터베이스"
     echo "  ✅ 보안 설정"
     
@@ -2774,6 +2778,7 @@ show_completion_info() {
     echo "  📱 웹 관리 콘솔: http://$(hostname -I | awk '{print $1}'):5000"
     echo "  📊 Grafana 대시보드: http://$(hostname -I | awk '{print $1}'):3000"
     echo "  📈 Prometheus: http://$(hostname -I | awk '{print $1}'):9090"
+    echo "  🌸 Celery Flower: http://$(hostname -I | awk '{print $1}'):5555"
     echo "  🔐 Vault: http://$(hostname -I | awk '{print $1}'):8200"
     
     echo ""
@@ -2791,6 +2796,13 @@ show_completion_info() {
     echo "    중지: cd monitoring && docker-compose down"
     echo "    재시작: cd monitoring && docker-compose restart"
     echo "    로그 확인: cd monitoring && docker-compose logs -f"
+    echo ""
+    echo "  Redis + Celery 서비스 (Docker):"
+    echo "    상태 확인: cd redis && docker-compose ps"
+    echo "    시작: cd redis && docker-compose up -d"
+    echo "    중지: cd redis && docker-compose down"
+    echo "    재시작: cd redis && docker-compose restart"
+    echo "    로그 확인: cd redis && docker-compose logs -f"
     echo ""
     echo "  Vault 서비스:"
     echo "    상태 확인: docker exec vault-dev vault status"
