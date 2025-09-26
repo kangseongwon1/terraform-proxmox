@@ -91,12 +91,12 @@ class TerraformService:
                 print("❌ 사용 가능한 terraform 경로를 찾을 수 없습니다.")
         
         # Docker 컨테이너에서 호스트의 terraform 실행
-        # 호스트의 terraform 바이너리 경로 확인
+        # 호스트의 terraform 바이너리 경로 확인 (마운트된 경로 우선)
         host_terraform_paths = [
-            "/usr/local/bin/terraform",
-            "/usr/bin/terraform",
-            "/app/terraform/terraform",  # Docker 마운트된 경로
-            "terraform"
+            "/usr/local/bin/terraform",  # 마운트된 호스트 terraform
+            "/usr/bin/terraform",       # 마운트된 호스트 terraform
+            "/app/terraform/terraform", # Docker 마운트된 경로
+            "terraform"                # PATH에서 찾기
         ]
         
         for path in host_terraform_paths:
@@ -106,6 +106,10 @@ class TerraformService:
                 break
         else:
             print("❌ 호스트의 terraform을 찾을 수 없습니다.")
+            print("💡 해결 방법:")
+            print("   1. 호스트에 terraform 설치 확인")
+            print("   2. Docker 볼륨 마운트 확인")
+            print("   3. terraform 바이너리 경로 확인")
         
         try:
             # 환경변수 설정 (Vault 토큰 포함)
