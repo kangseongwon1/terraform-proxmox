@@ -19,8 +19,8 @@ def create_celery_app():
     celery = Celery(
         'proxmox_manager',
         broker=broker_url,
-        backend=broker_url,
-        include=['app.tasks.server_tasks']
+        backend='cache+memory://',  # Redis 대신 메모리 백엔드 사용
+        include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
     )
 
     celery.conf.update(
@@ -41,13 +41,20 @@ def create_celery_app():
             'master_name': 'mymaster',
             'visibility_timeout': 3600,
         },
-        # 예외 처리 개선
+        # 예외 처리 개선 - 더 안전한 설정
         task_ignore_result=False,
-        task_store_eager_result=True,
+        task_store_eager_result=False,  # False로 변경
+        task_always_eager=False,  # 개발 환경에서만 True
         # Redis 연결 설정
         broker_connection_retry_on_startup=True,
         broker_connection_retry=True,
         broker_connection_max_retries=10,
+        # 예외 정보 저장 비활성화 (호환성 문제 해결)
+        task_store_errors_even_if_ignored=False,
+        task_ignore_result_on_task_failure=False,
+        # Redis 백엔드 안전 모드
+        result_backend_max_retries=3,
+        result_backend_retry_delay=1,
     )
 
     # Flask 컨텍스트 자동 주입
