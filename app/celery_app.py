@@ -19,7 +19,7 @@ def create_celery_app():
     celery = Celery(
         'proxmox_manager',
         broker=broker_url,
-        backend='cache+memory://',  # Redis 대신 메모리 백엔드 사용
+        backend=broker_url,  # Redis 백엔드 사용
         include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
     )
 
@@ -36,17 +36,17 @@ def create_celery_app():
         task_acks_late=True,
         worker_disable_rate_limits=True,
         result_expires=3600,
-        # 결과 저장 비활성화 (호환성 문제 해결)
-        task_ignore_result=True,
+        # 결과 저장 활성화 (Redis 백엔드 사용)
+        task_ignore_result=False,
         task_store_eager_result=False,
         task_always_eager=False,
         # Redis 연결 설정
         broker_connection_retry_on_startup=True,
         broker_connection_retry=True,
         broker_connection_max_retries=10,
-        # 예외 추적 비활성화
-        task_track_started=False,
-        task_send_sent_event=False,
+        # 태스크 추적 활성화
+        task_track_started=True,
+        task_send_sent_event=True,
     )
 
     # Flask 컨텍스트 자동 주입
