@@ -55,7 +55,9 @@ def create_celery_app():
         worker_log_color=False,
         # 시간 차이 허용 범위 증가
         worker_max_tasks_per_child=1000,
-        worker_disable_rate_limits=True,
+        # 시간 동기화 경고 무시
+        worker_direct=True,
+        worker_pool_restarts=True,
     )
 
     # Flask 컨텍스트 자동 주입
