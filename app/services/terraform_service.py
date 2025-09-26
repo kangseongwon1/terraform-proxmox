@@ -29,7 +29,12 @@ class TerraformService:
     def _run_terraform_command(self, command: List[str], cwd: str = None) -> Tuple[int, str, str]:
         """Terraform 명령어 실행"""
         if cwd is None:
-            cwd = self.terraform_dir
+            # 상대 경로인 경우 프로젝트 루트 기준으로 절대 경로 생성
+            if os.path.isabs(self.terraform_dir):
+                cwd = self.terraform_dir
+            else:
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                cwd = os.path.join(project_root, self.terraform_dir)
         
         # SSL 검증 비활성화를 위한 환경변수 설정
         env = os.environ.copy()
