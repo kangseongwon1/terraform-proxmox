@@ -228,7 +228,9 @@ def delete_server(server_name):
         db.session.rollback()
         return jsonify(handle_server_error(e, "서버 삭제")), 500
 
-@bp.route('/api/proxmox_storage', methods=['GET'])
+
+@sync_bp.route('/api/proxmox_storage', methods=['GET'])
+@login_required
 def proxmox_storage():
     """Proxmox 스토리지 정보 조회"""
     try:
@@ -244,3 +246,4 @@ def proxmox_storage():
     except Exception as e:
         logger.error(f"스토리지 정보 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
+

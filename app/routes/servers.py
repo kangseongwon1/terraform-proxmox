@@ -236,54 +236,264 @@ def status():
 @bp.route('/api/datastores', methods=['GET'])
 @login_required
 def get_datastores():
-    """데이터스토어 목록 조회"""
+    """사용 가능한 datastore 목록 조회 (DB 캐싱)"""
     try:
-        from app.services.proxmox_service import ProxmoxService
+        from app.models.datastore import Datastore
         
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.get_storage_info()
+        # DB에서 datastore 목록 조회
+        db_datastores = Datastore.query.filter_by(enabled=True).all()
         
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'datastores': result['data']
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('message', '데이터스토어 조회 실패')
-            }), 500
+        # DB에 datastore가 없으면 Proxmox에서 가져와서 저장
+        if not db_datastores:
+            logger.info("🔧 DB에 datastore 정보가 없음. Proxmox에서 가져와서 저장 중...")
             
+            # Proxmox에서 datastore 목록 가져오기
+            proxmox_service = ProxmoxService()
+            proxmox_datastores = proxmox_service.get_datastores()
+            
+            # 환경변수에서 기본 datastore 설정 가져오기 (초기 설정용)
+            def load_env_file():
+                """프로젝트 루트의 .env 파일을 직접 읽어서 딕셔너리로 반환"""
+                env_vars = {}
+                try:
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(os.path.dirname(current_dir))
+                    env_file = os.path.join(project_root, '.env')
+                    
+                    if os.path.exists(env_file):
+                        with open(env_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line and not line.startswith('#') and '=' in line:
+                                    key, value = line.split('=', 1)
+                                    env_vars[key.strip()] = value.strip()
+                        logger.info(f"🔧 .env 파일 로드 성공: {env_file}")
+                    else:
+                        logger.warning(f"⚠️ .env 파일을 찾을 수 없습니다: {env_file}")
+                    
+                    return env_vars
+                except Exception as e:
+                    logger.error(f"⚠️ .env 파일 읽기 실패: {e}")
+                    return {}
+            
+            env_vars = load_env_file()
+            hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE', 'local-lvm')
+            ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE', 'local')
+            
+            # Proxmox datastore를 DB에 저장
+            for datastore in proxmox_datastores:
+                db_datastore = Datastore(
+                    id=datastore['id'],
+                    name=datastore['id'],
+                    type=datastore.get('type', 'unknown'),
+                    size=datastore.get('size', 0),
+                    used=datastore.get('used', 0),
+                    available=datastore.get('available', 0),
+                    content=datastore.get('content', ''),
+                    enabled=datastore.get('enabled', True),
+                    is_default_hdd=datastore['id'] == hdd_datastore,
+                    is_default_ssd=datastore['id'] == ssd_datastore
+                )
+                db.session.add(db_datastore)
+        
+            db.session.commit()
+            logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
+        
+        # 저장된 datastore 다시 조회
+        db_datastores = Datastore.query.filter_by(enabled=True).all()
+        
+        # DB에서 기본 datastore 설정 가져오기
+        def get_default_datastores():
+            """DB에서 기본 datastore 설정을 가져옴"""
+            try:
+                # DB에서 기본 HDD datastore 조회
+                default_hdd = Datastore.query.filter_by(is_default_hdd=True, enabled=True).first()
+                # DB에서 기본 SSD datastore 조회
+                default_ssd = Datastore.query.filter_by(is_default_ssd=True, enabled=True).first()
+                
+                hdd_datastore = default_hdd.id if default_hdd else 'local-lvm'
+                ssd_datastore = default_ssd.id if default_ssd else 'local'
+                
+                logger.info(f"🔧 DB에서 기본 datastore 설정: HDD={hdd_datastore}, SSD={ssd_datastore}")
+                return hdd_datastore, ssd_datastore
+            except Exception as e:
+                logger.error(f"⚠️ DB에서 기본 datastore 설정 조회 실패: {e}")
+                # .env 파일에서 fallback
+                return get_default_datastores_from_env()
+        
+        def get_default_datastores_from_env():
+            """환경변수에서 기본 datastore 설정을 가져옴 (fallback)"""
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(current_dir))
+                env_file = os.path.join(project_root, '.env')
+                
+                hdd_datastore = 'local-lvm'
+                ssd_datastore = 'local'
+                
+                if os.path.exists(env_file):
+                    with open(env_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                if key.strip() == 'PROXMOX_HDD_DATASTORE':
+                                    hdd_datastore = value.strip()
+                                elif key.strip() == 'PROXMOX_SSD_DATASTORE':
+                                    ssd_datastore = value.strip()
+                
+                logger.info(f"🔧 .env에서 기본 datastore 설정: HDD={hdd_datastore}, SSD={ssd_datastore}")
+                return hdd_datastore, ssd_datastore
+            except Exception as e:
+                logger.error(f"⚠️ .env 파일 읽기 실패: {e}")
+                return 'local-lvm', 'local'
+        
+        hdd_datastore, ssd_datastore = get_default_datastores()
+        
+        # DB datastore를 포맷팅
+        formatted_datastores = []
+        for datastore in db_datastores:
+            formatted_datastores.append({
+                'id': datastore.id,
+                'name': datastore.name,
+                'type': datastore.type,
+                'size': datastore.size,
+                'used': datastore.used,
+                'available': datastore.available,
+                'is_default_hdd': datastore.id == hdd_datastore,
+                'is_default_ssd': datastore.id == ssd_datastore
+            })
+        
+        return jsonify({
+            'success': True,
+            'datastores': formatted_datastores,
+            'default_hdd': hdd_datastore,
+            'default_ssd': ssd_datastore
+        })
+        
     except Exception as e:
-        logger.error(f"데이터스토어 조회 실패: {str(e)}")
+        logger.error(f"Datastore 목록 조회 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @bp.route('/api/datastores/refresh', methods=['POST'])
-@permission_required('manage_server')
+@login_required
 def refresh_datastores():
-    """데이터스토어 목록 새로고침"""
+    """datastore 정보 새로고침 (Proxmox에서 다시 가져와서 DB 업데이트)"""
     try:
-        from app.services.proxmox_service import ProxmoxService
+        from app.models.datastore import Datastore
         
+        # 기존 datastore 정보 삭제
+        Datastore.query.delete()
+        db.session.commit()
+        logger.info("🔧 기존 datastore 정보 삭제 완료")
+        
+        # Proxmox에서 datastore 목록 가져오기
         proxmox_service = ProxmoxService()
-        result = proxmox_service.get_storage_info()
+        proxmox_datastores = proxmox_service.get_datastores()
         
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'message': '데이터스토어 목록이 새로고침되었습니다.',
-                'datastores': result['data']
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('message', '데이터스토어 새로고침 실패')
-            }), 500
-            
+        # 환경변수에서 기본 datastore 설정 가져오기
+        def load_env_file():
+            """프로젝트 루트의 .env 파일을 직접 읽어서 딕셔너리로 반환"""
+            env_vars = {}
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(current_dir))
+                env_file = os.path.join(project_root, '.env')
+                
+                if os.path.exists(env_file):
+                    with open(env_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                key, value = line.split('=', 1)
+                                env_vars[key.strip()] = value.strip()
+                    logger.info(f"🔧 .env 파일 로드 성공: {env_file}")
+                else:
+                    logger.warning(f"⚠️ .env 파일을 찾을 수 없습니다: {env_file}")
+                
+                return env_vars
+            except Exception as e:
+                logger.error(f"⚠️ .env 파일 읽기 실패: {e}")
+                return {}
+        
+        env_vars = load_env_file()
+        hdd_datastore = env_vars.get('PROXMOX_HDD_DATASTORE', 'local-lvm')
+        ssd_datastore = env_vars.get('PROXMOX_SSD_DATASTORE', 'local')
+        
+        # Proxmox datastore를 DB에 저장
+        for datastore in proxmox_datastores:
+            db_datastore = Datastore(
+                id=datastore['id'],
+                name=datastore['id'],
+                type=datastore.get('type', 'unknown'),
+                size=datastore.get('size', 0),
+                used=datastore.get('used', 0),
+                available=datastore.get('available', 0),
+                content=datastore.get('content', ''),
+                enabled=datastore.get('enabled', True),
+                is_default_hdd=datastore['id'] == hdd_datastore,
+                is_default_ssd=datastore['id'] == ssd_datastore
+            )
+            db.session.add(db_datastore)
+        
+        db.session.commit()
+        logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 새로 저장 완료")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(proxmox_datastores)}개 datastore 정보를 새로고침했습니다.',
+            'count': len(proxmox_datastores)
+        })
+        
     except Exception as e:
-        logger.error(f"데이터스토어 새로고침 실패: {str(e)}")
+        logger.error(f"Datastore 새로고침 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@bp.route('/api/datastores/default', methods=['POST'])
+@login_required
+def set_default_datastores():
+    """기본 datastore 설정 변경"""
+    try:
+        from app.models.datastore import Datastore
+        
+        data = request.get_json()
+        hdd_datastore_id = data.get('hdd_datastore_id')
+        ssd_datastore_id = data.get('ssd_datastore_id')
+        
+        if not hdd_datastore_id or not ssd_datastore_id:
+            return jsonify({'error': 'HDD와 SSD datastore ID가 필요합니다.'}), 400
+        
+        # 기존 기본 설정 해제
+        Datastore.query.filter_by(is_default_hdd=True).update({'is_default_hdd': False})
+        Datastore.query.filter_by(is_default_ssd=True).update({'is_default_ssd': False})
+        
+        # 새로운 기본 설정
+        hdd_datastore = Datastore.query.filter_by(id=hdd_datastore_id).first()
+        ssd_datastore = Datastore.query.filter_by(id=ssd_datastore_id).first()
+        
+        if not hdd_datastore:
+            return jsonify({'error': f'HDD datastore를 찾을 수 없습니다: {hdd_datastore_id}'}), 404
+        if not ssd_datastore:
+            return jsonify({'error': f'SSD datastore를 찾을 수 없습니다: {ssd_datastore_id}'}), 404
+        
+        hdd_datastore.is_default_hdd = True
+        ssd_datastore.is_default_ssd = True
+        
+        db.session.commit()
+        
+        logger.info(f"🔧 기본 datastore 설정 변경: HDD={hdd_datastore_id}, SSD={ssd_datastore_id}")
+        
+        return jsonify({
+            'success': True, 
+            'message': '기본 datastore 설정이 변경되었습니다.',
+            'hdd_datastore': hdd_datastore_id,
+            'ssd_datastore': ssd_datastore_id
+        })
+        
+    except Exception as e:
+        logger.error(f"기본 datastore 설정 변경 실패: {str(e)}")
+        return jsonify({'error': str(e)}), 500    
+
 
 @bp.route('/api/proxmox_storage', methods=['GET'])
 def proxmox_storage():
