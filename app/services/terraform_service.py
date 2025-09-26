@@ -91,25 +91,34 @@ class TerraformService:
                 print("❌ 사용 가능한 terraform 경로를 찾을 수 없습니다.")
         
         # Docker 컨테이너에서 호스트의 terraform 실행
-        # 호스트의 terraform 바이너리 경로 확인 (마운트된 경로 우선)
-        host_terraform_paths = [
-            "/usr/local/bin/terraform",  # 마운트된 호스트 terraform
-            "/usr/bin/terraform",       # 마운트된 호스트 terraform
-            "/app/terraform/terraform", # Docker 마운트된 경로
-            "terraform"                # PATH에서 찾기
-        ]
-        
-        for path in host_terraform_paths:
-            if shutil.which(path):
-                print(f"✅ 호스트 terraform 경로 발견: {path}")
-                command[0] = path
-                break
+        # 마운트된 terraform 디렉토리에서 실행
+        if os.path.exists("/app/terraform"):
+            print("✅ 마운트된 terraform 디렉토리 발견: /app/terraform")
+            # terraform 바이너리 경로 확인
+            terraform_binary_paths = [
+                "/app/terraform/terraform",  # 마운트된 terraform 디렉토리
+                "/usr/local/bin/terraform",  # 호스트 terraform
+                "/usr/bin/terraform",       # 호스트 terraform
+                "terraform"                # PATH에서 찾기
+            ]
+            
+            for path in terraform_binary_paths:
+                if shutil.which(path):
+                    print(f"✅ terraform 바이너리 발견: {path}")
+                    command[0] = path
+                    break
+            else:
+                print("❌ terraform 바이너리를 찾을 수 없습니다.")
+                print("💡 해결 방법:")
+                print("   1. 호스트에 terraform 설치 확인")
+                print("   2. Docker 볼륨 마운트 확인")
+                print("   3. terraform 디렉토리 내용 확인")
         else:
-            print("❌ 호스트의 terraform을 찾을 수 없습니다.")
+            print("❌ 마운트된 terraform 디렉토리를 찾을 수 없습니다.")
             print("💡 해결 방법:")
-            print("   1. 호스트에 terraform 설치 확인")
-            print("   2. Docker 볼륨 마운트 확인")
-            print("   3. terraform 바이너리 경로 확인")
+            print("   1. Docker 볼륨 마운트 확인")
+            print("   2. terraform 디렉토리 존재 확인")
+            print("   3. Docker 컨테이너 재시작")
         
         try:
             # 환경변수 설정 (Vault 토큰 포함)

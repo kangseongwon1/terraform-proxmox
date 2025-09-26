@@ -39,7 +39,7 @@ def create_server_async(self, server_config):
             }
             terraform_service = TerraformService(remote_server=remote_config)
         else:
-            # 로컬 실행 (기본값)
+            # 로컬 실행 (기본값) - Docker 마운트된 terraform 디렉토리 사용
             host_terraform_dir = "/app/terraform"  # Docker 마운트된 경로
             terraform_service = TerraformService(host_terraform_dir)
         
