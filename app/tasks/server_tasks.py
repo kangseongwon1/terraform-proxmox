@@ -117,14 +117,7 @@ def create_server_async(self, server_config):
         error_msg = str(e)
         logger.error(f"❌ 서버 생성 실패: {error_msg}")
         
-        # 상태 업데이트 (예외 정보 없이)
-        self.update_state(
-            state='FAILURE',
-            meta={
-                'error': error_msg,
-                'status': '서버 생성 실패'
-            }
-        )
+        # 백엔드가 없으므로 상태 업데이트 생략
         
         # 예외를 발생시키지 않고 결과만 반환
         return {

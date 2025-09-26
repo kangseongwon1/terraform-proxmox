@@ -83,14 +83,7 @@ def error_test_task(self, should_fail=True):
         error_msg = str(e)
         logger.error(f"❌ 오류 테스트 태스크 실패: {error_msg}")
         
-        # 간단한 실패 상태 업데이트
-        self.update_state(
-            state='FAILURE',
-            meta={
-                'error': error_msg,
-                'status': '오류 테스트 실패'
-            }
-        )
+        # 백엔드가 없으므로 상태 업데이트 생략
         
         return {
             'success': False,
