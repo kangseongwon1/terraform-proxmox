@@ -47,3 +47,4 @@ typing-extensions>=4.0.0
 # Redis & Celery
 redis==5.0.1
 celery==5.3.4
+flower==2.0.1

@@ -26,7 +26,9 @@ class RedisConfig:
                 port=cls.REDIS_PORT,
                 db=cls.REDIS_DB,
                 password=cls.REDIS_PASSWORD,
-                decode_responses=True
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5
             )
             # 연결 테스트
             client.ping()

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Proxmox Manager Redis + Celery 시작 스크립트
 set -e
 
 BLUE='\033[0;34m'

@@ -1564,7 +1564,7 @@ install_monitoring() {
 # ========================================
 
 install_redis() {
-    log_step "10.5. Redis (Docker) 설치 중..."
+    log_step "10.5. Redis + Celery (Docker) 설치 중..."
 
     # Docker 확인
     if ! command -v docker &> /dev/null; then
@@ -1588,6 +1588,9 @@ install_redis() {
     if [ -f "redis/start-redis.sh" ]; then
         chmod +x redis/start-redis.sh
     fi
+    if [ -f "redis/start-redis-celery.sh" ]; then
+        chmod +x redis/start-redis-celery.sh
+    fi
 
     # 방화벽 개방 (선택)
     if command -v firewall-cmd &> /dev/null; then
@@ -1601,13 +1604,13 @@ install_redis() {
         log_warning "⚠️  .env 파일이 없어 REDIS_PASSWORD가 설정되지 않을 수 있습니다. 보안을 위해 설정을 권장합니다."
     fi
 
-    # Redis 스택 시작
-    log_info "Redis Docker 스택 시작 중..."
+    # Redis + Celery 스택 시작
+    log_info "Redis + Celery Docker 스택 시작 중..."
     (cd redis && docker-compose up -d)
 
     # 헬스체크 대기 및 확인
-    log_info "Redis 헬스체크 대기 중..."
-    sleep 2
+    log_info "Redis + Celery 헬스체크 대기 중..."
+    sleep 5
     ATTEMPTS=20
     for i in $(seq 1 $ATTEMPTS); do
         if (cd redis && docker-compose ps) | grep -q "proxmox-redis"; then
@@ -1627,13 +1630,29 @@ install_redis() {
         sleep 2
     done
 
+    # Celery 워커 확인
+    log_info "Celery 워커 상태 확인 중..."
+    if (cd redis && docker-compose ps) | grep -q "proxmox-celery-worker"; then
+        log_success "Celery 워커 컨테이너 실행 중"
+    else
+        log_warning "Celery 워커 컨테이너 실행 실패"
+    fi
+
+    # Flower 확인
+    log_info "Celery Flower 상태 확인 중..."
+    if (cd redis && docker-compose ps) | grep -q "proxmox-celery-flower"; then
+        log_success "Celery Flower 컨테이너 실행 중 (http://localhost:5555)"
+    else
+        log_warning "Celery Flower 컨테이너 실행 실패"
+    fi
+
     # 최종 확인
     if ! docker exec proxmox-redis redis-cli ${REDIS_PASSWORD:+-a "$REDIS_PASSWORD"} PING 2>/dev/null | grep -q PONG; then
         log_warning "Redis 컨테이너 응답 확인 실패. 로그를 확인하세요."
         (cd redis && docker-compose logs --no-color | tail -n 100) || true
     fi
 
-    log_success "Redis (Docker) 설치 및 시작 완료"
+    log_success "Redis + Celery (Docker) 설치 및 시작 완료"
 }
 
 # ========================================

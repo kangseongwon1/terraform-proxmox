@@ -17,6 +17,56 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
+    networks:
+      - proxmox_network
+
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.celery
+    container_name: proxmox-celery-worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+    volumes:
+      - ../:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=0
+      - REDIS_ENABLED=true
+    working_dir: /app
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    networks:
+      - proxmox_network
+
+  celery-flower:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.celery
+    container_name: proxmox-celery-flower
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "5555:5555"
+    volumes:
+      - ../:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=0
+      - REDIS_ENABLED=true
+    working_dir: /app
+    command: celery -A app.celery_app flower --port=5555
+    networks:
+      - proxmox_network
+
+networks:
+  proxmox_network:
+    driver: bridge
 
 volumes:
   redis-data:
