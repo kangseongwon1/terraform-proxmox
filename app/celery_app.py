@@ -50,6 +50,12 @@ def create_celery_app():
         # 태스크 추적 활성화
         task_track_started=True,
         task_send_sent_event=True,
+        # 시간 동기화 문제 해결
+        worker_hijack_root_logger=False,
+        worker_log_color=False,
+        # 시간 차이 허용 범위 증가
+        worker_max_tasks_per_child=1000,
+        worker_disable_rate_limits=True,
     )
 
     # Flask 컨텍스트 자동 주입
