@@ -2210,13 +2210,14 @@ function initializeServerForm() {
       role: selectedRole,
       cpu: cpu,
       memory: memory,
+      disk: disks[0]?.size || 20,  // disk 필드 추가
       disks: disks,
       network_devices: networks,
       template_vm_id: template_vm_id
     };
     $('#status-message').html('서버 생성 진행 중입니다. 잠시만 기다려주세요...');
     $.ajax({
-      url: '/api/servers',
+      url: '/api/servers/async',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify(data),
