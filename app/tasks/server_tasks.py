@@ -100,7 +100,8 @@ def create_server_async(self, server_config):
             raise Exception("서버 시작 실패")
             
     except Exception as e:
-        logger.error(f"❌ 비동기 서버 생성 실패: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ 비동기 서버 생성 실패: {error_msg}")
         
         # 실패 알림 생성
         notification = Notification(
@@ -108,16 +109,10 @@ def create_server_async(self, server_config):
             title='서버 생성 실패',
             message=f'서버 {server_config["name"]} 생성에 실패했습니다.',
             severity='error',
-            details=f'오류: {str(e)}'
+            details=f'오류: {error_msg}'
         )
         db.session.add(notification)
         db.session.commit()
-        
-        # 작업 실패 상태 업데이트 (간단한 형태로)
-        error_msg = str(e)
-        logger.error(f"❌ 서버 생성 실패: {error_msg}")
-        
-        # 백엔드가 없으므로 상태 업데이트 생략
         
         # 예외를 발생시키지 않고 결과만 반환
         return {

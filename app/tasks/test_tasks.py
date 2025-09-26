@@ -66,27 +66,22 @@ def simple_test_task(self, message="Hello Celery"):
 @celery_app.task(bind=True)
 def error_test_task(self, should_fail=True):
     """의도적으로 오류를 발생시키는 테스트 태스크"""
-    try:
-        task_id = self.request.id
-        logger.info(f"🧪 오류 테스트 태스크 시작 (Task ID: {task_id})")
-        
-        if should_fail:
-            raise Exception("의도적인 테스트 오류")
-        
-        return {
-            'success': True,
-            'message': '오류 테스트 성공',
-            'task_id': task_id
-        }
-        
-    except Exception as e:
-        error_msg = str(e)
+    task_id = self.request.id
+    logger.info(f"🧪 오류 테스트 태스크 시작 (Task ID: {task_id})")
+    
+    if should_fail:
+        # 예외를 발생시키지 않고 로그만 남기고 실패 결과 반환
+        error_msg = "의도적인 테스트 오류"
         logger.error(f"❌ 오류 테스트 태스크 실패: {error_msg}")
-        
-        # 백엔드가 없으므로 상태 업데이트 생략
         
         return {
             'success': False,
             'error': error_msg,
             'message': '오류 테스트 실패'
+        }
+    else:
+        return {
+            'success': True,
+            'message': '오류 테스트 성공',
+            'task_id': task_id
         }

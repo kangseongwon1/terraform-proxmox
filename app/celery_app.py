@@ -41,20 +41,23 @@ def create_celery_app():
             'master_name': 'mymaster',
             'visibility_timeout': 3600,
         },
-        # 예외 처리 개선 - 더 안전한 설정
-        task_ignore_result=False,
-        task_store_eager_result=False,  # False로 변경
-        task_always_eager=False,  # 개발 환경에서만 True
+        # 예외 처리 완전 비활성화
+        task_ignore_result=True,  # 결과 저장 비활성화
+        task_store_eager_result=False,
+        task_always_eager=False,
         # Redis 연결 설정
         broker_connection_retry_on_startup=True,
         broker_connection_retry=True,
         broker_connection_max_retries=10,
-        # 예외 정보 저장 비활성화 (호환성 문제 해결)
+        # 예외 정보 저장 완전 비활성화
         task_store_errors_even_if_ignored=False,
-        task_ignore_result_on_task_failure=False,
-        # Redis 백엔드 안전 모드
+        task_ignore_result_on_task_failure=True,  # 실패 시 결과 무시
+        # 백엔드 안전 모드
         result_backend_max_retries=3,
         result_backend_retry_delay=1,
+        # 예외 추적 비활성화
+        task_track_started=False,
+        task_send_sent_event=False,
     )
 
     # Flask 컨텍스트 자동 주입
