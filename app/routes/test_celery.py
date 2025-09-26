@@ -3,7 +3,6 @@ Celery 테스트 API 엔드포인트
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required
-from app.tasks.test_tasks import simple_test_task, error_test_task
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,6 +13,9 @@ test_bp = Blueprint('test_celery', __name__)
 def test_simple_task():
     """간단한 Celery 테스트"""
     try:
+        # 지연 import로 순환 import 방지
+        from app.tasks.test_tasks import simple_test_task
+        
         data = request.get_json() or {}
         message = data.get('message', 'Hello Celery')
         
@@ -40,6 +42,9 @@ def test_simple_task():
 def test_error_task():
     """오류 테스트 Celery 태스크"""
     try:
+        # 지연 import로 순환 import 방지
+        from app.tasks.test_tasks import error_test_task
+        
         data = request.get_json() or {}
         should_fail = data.get('should_fail', True)
         
