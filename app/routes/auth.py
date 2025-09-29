@@ -42,10 +42,19 @@ def permission_required(permission):
 def login():
     """로그인"""
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        # JSON 요청 처리 (API 로그인)
+        if request.is_json:
+            data = request.get_json()
+            username = data.get('username')
+            password = data.get('password')
+        else:
+            # 폼 요청 처리 (웹 로그인)
+            username = request.form.get('username')
+            password = request.form.get('password')
         
         if not username or not password:
+            if request.is_json:
+                return jsonify({'error': '사용자명과 비밀번호를 입력해주세요.'}), 400
             flash('사용자명과 비밀번호를 입력해주세요.', 'error')
             return render_template('auth/login.html')
         
@@ -70,6 +79,18 @@ def login():
                 severity='info'
             )
             
+            if request.is_json:
+                return jsonify({
+                    'success': True,
+                    'message': '로그인 성공',
+                    'user': {
+                        'id': user.id,
+                        'username': user.username,
+                        'role': user.role,
+                        'permissions': permissions
+                    }
+                })
+            
             return redirect(url_for('main.index'))
         else:
             # 로그인 실패 시 세션 정리
@@ -87,6 +108,9 @@ def login():
                 error_msg = '비활성화된 계정입니다.'
             else:
                 error_msg = '잘못된 사용자명 또는 비밀번호입니다.'
+            
+            if request.is_json:
+                return jsonify({'error': error_msg}), 401
             
             # JavaScript alert를 위한 세션에 오류 메시지 저장
             session['login_error'] = error_msg

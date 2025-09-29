@@ -46,7 +46,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - TZ=Asia/Seoul
     working_dir: /app
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2 --autoreload
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
     networks:
       - proxmox_network
 
