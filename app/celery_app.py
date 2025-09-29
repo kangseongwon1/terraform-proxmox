@@ -26,7 +26,7 @@ def create_celery_app():
         include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
     )
 
-    # 간단하고 안전한 Celery 설정
+    # 간단하고 안전한 Celery 설정 (예외 직렬화 문제 방지)
     celery.conf.update(
         task_serializer='json',
         accept_content=['json'],
@@ -39,7 +39,7 @@ def create_celery_app():
         task_acks_late=True,
         worker_disable_rate_limits=True,
         result_expires=3600,
-        # 결과 저장 활성화 (Redis 백엔드 사용)
+        # 결과 저장 단순화 (예외 직렬화 문제 방지)
         task_ignore_result=False,
         task_store_eager_result=False,
         task_always_eager=False,
@@ -50,6 +50,13 @@ def create_celery_app():
         # 태스크 추적 활성화
         task_track_started=True,
         task_send_sent_event=True,
+        # 예외 직렬화 문제 방지를 위한 설정
+        task_store_errors_even_if_ignored=False,
+        task_ignore_result_on_task_failure=False,
+        result_backend_transport_options={
+            'master_name': 'mymaster',
+            'visibility_timeout': 3600,
+        }
     )
 
     # Flask 컨텍스트 자동 주입
