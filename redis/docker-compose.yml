@@ -29,7 +29,6 @@ services:
     depends_on:
       - redis
     volumes:
-      - ../:/app
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       # 호스트의 terraform 바이너리 마운트
