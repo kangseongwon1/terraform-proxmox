@@ -89,38 +89,69 @@ def create_server_async(self, server_config):
         db.session.add(server)
         db.session.commit()
         
-        # 4단계: 서버 시작 대기
+        # 4단계: 서버 상태 확인 (Proxmox 타임아웃 무시)
         self.update_state(
             state='PROGRESS',
-            meta={'current': 80, 'total': 100, 'status': '서버 시작 대기 중...'}
+            meta={'current': 80, 'total': 100, 'status': '서버 상태 확인 중...'}
         )
         
-        proxmox_service = ProxmoxService()
-        if proxmox_service.start_server(server_config['name']):
-            server.status = 'running'
+        # Proxmox에서 서버 상태 확인 (타임아웃 오류 무시)
+        try:
+            proxmox_service = ProxmoxService()
+            # 서버가 존재하고 실행 중인지 확인
+            server_info = proxmox_service.get_server_info(server_config['name'])
+            if server_info and server_info.get('status') == 'running':
+                server.status = 'running'
+                db.session.commit()
+                
+                # 성공 알림 생성
+                notification = Notification(
+                    type='server_creation',
+                    title='서버 생성 완료',
+                    message=f'서버 {server_config["name"]}이 성공적으로 생성되었습니다.',
+                    severity='success',
+                    details=f'서버명: {server_config["name"]}\nCPU: {server_config["cpu"]}코어\n메모리: {server_config["memory"]}GB'
+                )
+                db.session.add(notification)
+                db.session.commit()
+                
+                logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']}")
+                
+                return {
+                    'success': True,
+                    'message': f'서버 {server_config["name"]} 생성 완료',
+                    'server_name': server_config['name'],
+                    'task_id': task_id
+                }
+            else:
+                # 서버가 존재하지만 실행되지 않은 경우 시작 시도
+                if proxmox_service.start_server(server_config['name']):
+                    server.status = 'running'
+                    db.session.commit()
+                    logger.info(f"✅ 서버 시작 성공: {server_config['name']}")
+                else:
+                    server.status = 'stopped'
+                    db.session.commit()
+                    logger.warning(f"⚠️ 서버 시작 실패, 정지 상태로 설정: {server_config['name']}")
+                
+                return {
+                    'success': True,
+                    'message': f'서버 {server_config["name"]} 생성 완료 (상태: {server.status})',
+                    'server_name': server_config['name'],
+                    'task_id': task_id
+                }
+        except Exception as e:
+            # Proxmox 연결 오류 시에도 서버 생성은 성공으로 처리
+            logger.warning(f"⚠️ Proxmox 상태 확인 실패, 서버 생성은 성공으로 처리: {e}")
+            server.status = 'unknown'
             db.session.commit()
-            
-            # 성공 알림 생성
-            notification = Notification(
-                type='server_creation',
-                title='서버 생성 완료',
-                message=f'서버 {server_config["name"]}이 성공적으로 생성되었습니다.',
-                severity='success',
-                details=f'서버명: {server_config["name"]}\nCPU: {server_config["cpu"]}코어\n메모리: {server_config["memory"]}GB'
-            )
-            db.session.add(notification)
-            db.session.commit()
-            
-            logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']}")
             
             return {
                 'success': True,
-                'message': f'서버 {server_config["name"]} 생성 완료',
+                'message': f'서버 {server_config["name"]} 생성 완료 (상태 확인 불가)',
                 'server_name': server_config['name'],
                 'task_id': task_id
             }
-        else:
-            raise Exception("서버 시작 실패")
             
     except Exception as e:
         error_msg = str(e)

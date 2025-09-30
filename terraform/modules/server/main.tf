@@ -10,6 +10,13 @@ terraform {
 resource "proxmox_virtual_environment_vm" "this" {
   name  = var.name
   node_name = var.proxmox_node
+  
+  # 타임아웃 설정 (raw 포맷 디스크 생성 시간 고려)
+  timeouts {
+    create = "30m"  # 30분
+    update = "30m"  # 30분
+    delete = "10m"  # 10분
+  }
 
   cpu {
     cores = var.cpu

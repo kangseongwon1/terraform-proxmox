@@ -467,10 +467,13 @@ class TerraformService:
             print(f"   서버명: {server_name}")
             print(f"   전체 데이터: {json.dumps(server_data, indent=2)}")
             
-            # 디스크 정보 상세 로그
+            # 디스크 정보 상세 로그 및 기본값 보정
             if 'disks' in server_data:
                 print(f"🔧 디스크 정보:")
                 for i, disk in enumerate(server_data['disks']):
+                    # file_format 기본값 보정: raw 강제 (요구사항)
+                    if not disk.get('file_format') or str(disk.get('file_format')).lower() in ('auto', 'qcow2', 'none', 'null'):
+                        disk['file_format'] = 'raw'
                     print(f"   디스크 {i}: {disk}")
                     if 'datastore_id' in disk:
                         print(f"     datastore_id: {disk['datastore_id']}")
