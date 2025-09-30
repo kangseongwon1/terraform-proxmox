@@ -74,7 +74,7 @@ def create_server_async(self, server_config):
             name=server_config['name'],
             cpu=server_config['cpu'],
             memory=server_config['memory'],
-            disk=server_config['disk'],
+            disk=(server_config.get('disk') if 'disk' in server_config else (server_config.get('disks', [{}])[0].get('size'))),
             os_type=server_config.get('os_type', 'ubuntu'),
             role=server_config.get('role', ''),
             firewall_group=server_config.get('firewall_group', ''),
