@@ -59,11 +59,16 @@ def get_server_by_name(server_name: str) -> Optional[Server]:
 
 def validate_server_config(data: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
     """서버 설정 검증"""
-    required_fields = ['name', 'cpu', 'memory', 'disk']
+    required_fields = ['name', 'cpu', 'memory', 'disks']
     
     for field in required_fields:
         if field not in data:
             return False, f"필수 필드가 누락되었습니다: {field}", {}
+    
+    # disks 배열 검증
+    disks = data.get('disks', [])
+    if not disks or not isinstance(disks, list) or len(disks) == 0:
+        return False, "disks 배열이 필요합니다.", {}
     
     # 서버 이름 중복 확인
     existing_server = get_server_by_name(data['name'])
