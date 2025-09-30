@@ -145,7 +145,13 @@ class AsyncServerTest:
             "name": server_name,
             "cpu": cpu,
             "memory": memory,
-            "disk": disk,
+            "disks": [
+                {
+                    "size": disk,
+                    "interface": "scsi0",
+                    "datastore_id": "HDD-Storage"
+                }
+            ],
             "os_type": "ubuntu",
             "role": "test",
             "firewall_group": "default"
