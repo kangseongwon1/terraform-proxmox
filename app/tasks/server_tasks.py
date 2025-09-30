@@ -59,7 +59,9 @@ def create_server_async(self, server_config):
             meta={'current': 40, 'total': 100, 'status': 'Terraform 실행 중...'}
         )
         
-        apply_result = terraform_service.apply([server_config['name']])
+        # Terraform 타겟 형식으로 변환 (module.server["서버명"])
+        target = f'module.server["{server_config["name"]}"]'
+        apply_result = terraform_service.apply([target])
         if not apply_result[0]:  # apply 메서드는 (success, message) 튜플 반환
             raise Exception(f"Terraform 실행 실패: {apply_result[1]}")
         
