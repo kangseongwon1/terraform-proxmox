@@ -25,13 +25,17 @@ def create_server_async_endpoint():
         server_name = data.get('name')
         cpu = data.get('cpu', 2)
         memory = data.get('memory', 4)
-        disk = data.get('disk', 20)
         os_type = data.get('os_type', 'ubuntu')
         role = data.get('role', '')
         firewall_group = data.get('firewall_group', '')
+        disks = data.get('disks', [])
         
         if not server_name:
             return jsonify({'error': '서버 이름이 필요합니다.'}), 400
+        
+        # disks 필드 검증
+        if not disks or not isinstance(disks, list) or len(disks) == 0:
+            return jsonify({'error': 'disks 배열이 필요합니다.'}), 400
         
         # 서버 설정 검증
         is_valid, error_msg, config = validate_server_config(data)
@@ -43,12 +47,11 @@ def create_server_async_endpoint():
             'name': server_name,
             'cpu': cpu,
             'memory': memory,
-            'disk': disk,
             'os_type': os_type,
             'role': role,
             'firewall_group': firewall_group,
-            # 추가 필드들
-            'disks': data.get('disks', []),
+            # disks 배열만 사용 (disk 필드 제거)
+            'disks': disks,
             'network_devices': data.get('network_devices', []),
             'template_vm_id': data.get('template_vm_id', 8000),
             'vm_username': data.get('vm_username', 'rocky'),
