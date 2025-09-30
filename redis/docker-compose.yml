@@ -35,7 +35,9 @@ services:
       - /usr/local/bin/terraform:/usr/local/bin/terraform:ro
       - /usr/bin/terraform:/usr/bin/terraform:ro
       # 호스트의 terraform 디렉토리 전체 마운트 (쓰기 가능)
-      - ../terraform:/app/terraform      
+      - ../terraform:/app/terraform
+      # 환경 변수 파일 마운트
+      - ../.env:/app/.env:ro      
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379

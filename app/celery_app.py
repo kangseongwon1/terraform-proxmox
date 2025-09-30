@@ -2,6 +2,16 @@ from celery import Celery
 import os
 from app import create_app  # 앱 팩토리 불러오기
 
+# .env 파일 로드
+try:
+    from dotenv import load_dotenv
+    load_dotenv('/app/.env')
+    print("✅ .env 파일 로드 완료")
+except ImportError:
+    print("⚠️ python-dotenv가 설치되지 않았습니다. 환경 변수를 수동으로 설정하세요.")
+except Exception as e:
+    print(f"⚠️ .env 파일 로드 실패: {e}")
+
 def create_celery_app():
     flask_app = create_app()  # Flask 앱 생성
 
@@ -23,7 +33,7 @@ def create_celery_app():
         'proxmox_manager',
         broker=broker_url,
         backend=backend_url,  # 환경 변수 또는 브로커 URL 사용
-        include=['app.tasks.server_tasks', 'app.tasks.test_tasks']
+        include=['app.tasks.server_tasks']
     )
 
     # 간단하고 안전한 Celery 설정 (예외 직렬화 문제 방지)
