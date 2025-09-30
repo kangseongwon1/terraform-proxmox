@@ -20,37 +20,6 @@ services:
     networks:
       - proxmox_network
 
-  celery-worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.celery
-    container_name: proxmox-celery-worker
-    restart: unless-stopped
-    depends_on:
-      - redis
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      # 호스트의 terraform 바이너리 마운트
-      - /usr/local/bin/terraform:/usr/local/bin/terraform:ro
-      - /usr/bin/terraform:/usr/bin/terraform:ro
-      # 호스트의 terraform 디렉토리 전체 마운트 (쓰기 가능)
-      - ../terraform:/app/terraform
-      # 환경 변수 파일 마운트
-      - ../.env:/app/.env:ro      
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=0
-      - REDIS_ENABLED=true
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - TZ=Asia/Seoul
-    working_dir: /app
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
-    networks:
-      - proxmox_network
 
   celery-flower:
     build:

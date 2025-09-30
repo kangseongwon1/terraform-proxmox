@@ -20,7 +20,8 @@ class TerraformService:
         self.terraform_dir = terraform_dir
         self.remote_server = remote_server
         self.is_remote = remote_server is not None
-        # 절대 경로로 terraform.tfvars.json 파일 경로 설정
+        
+        # 로컬 환경: 상대 경로 사용
         if os.path.isabs(terraform_dir):
             self.tfvars_file = os.path.join(terraform_dir, "terraform.tfvars.json")
         else:
