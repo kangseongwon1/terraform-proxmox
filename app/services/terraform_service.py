@@ -92,12 +92,11 @@ class TerraformService:
                 print("❌ 사용 가능한 terraform 경로를 찾을 수 없습니다.")
         
         # Docker 컨테이너에서 호스트의 terraform 실행
-        # 마운트된 terraform 디렉토리에서 실행
-        if os.path.exists("/app/terraform"):
-            print("✅ 마운트된 terraform 디렉토리 발견: /app/terraform")
+        # 로컬 terraform 디렉토리에서 실행
+        if os.path.exists("terraform"):
+            print("✅ 로컬 terraform 디렉토리 발견: terraform")
             # terraform 바이너리 경로 확인
             terraform_binary_paths = [
-                "/app/terraform/terraform",  # 마운트된 terraform 디렉토리
                 "/usr/local/bin/terraform",  # 호스트 terraform
                 "/usr/bin/terraform",       # 호스트 terraform
                 "terraform"                # PATH에서 찾기

@@ -5,7 +5,7 @@ from app import create_app  # 앱 팩토리 불러오기
 # .env 파일 로드
 try:
     from dotenv import load_dotenv
-    load_dotenv('/app/.env')
+    load_dotenv('.env')
     print("✅ .env 파일 로드 완료")
 except ImportError:
     print("⚠️ python-dotenv가 설치되지 않았습니다. 환경 변수를 수동으로 설정하세요.")
