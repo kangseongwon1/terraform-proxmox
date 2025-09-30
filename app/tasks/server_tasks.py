@@ -70,11 +70,16 @@ def create_server_async(self, server_config):
             meta={'current': 60, 'total': 100, 'status': '서버 정보 저장 중...'}
         )
         
+        # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
+        disk_size = server_config.get('disk')
+        if disk_size is None and 'disks' in server_config and len(server_config['disks']) > 0:
+            disk_size = server_config['disks'][0].get('size', 20)  # 기본값 20GB
+        
         server = Server(
             name=server_config['name'],
             cpu=server_config['cpu'],
             memory=server_config['memory'],
-            disk=(server_config.get('disk') if 'disk' in server_config else (server_config.get('disks', [{}])[0].get('size'))),
+            disk=disk_size or 20,  # 기본값 20GB
             os_type=server_config.get('os_type', 'ubuntu'),
             role=server_config.get('role', ''),
             firewall_group=server_config.get('firewall_group', ''),
