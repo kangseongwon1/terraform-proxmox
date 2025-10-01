@@ -124,7 +124,7 @@ def create_server_async(self, server_config):
                 name=server_config['name'],
                 cpu=server_config['cpu'],
                 memory=server_config['memory'],
-                disk=disk_size,  # 이미 안전하게 처리됨
+                disk_size=disk_size,  # 필드명 변경: disk → disk_size
                 os_type=server_config.get('os_type', 'ubuntu'),
                 role=server_config.get('role', ''),
                 firewall_group=server_config.get('firewall_group', ''),

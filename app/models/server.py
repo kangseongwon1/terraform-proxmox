@@ -18,6 +18,7 @@ class Server(db.Model):
     os_type = db.Column(db.String(50))
     cpu = db.Column(db.Integer)
     memory = db.Column(db.Integer)  # MB 단위
+    disk_size = db.Column(db.Integer)  # GB 단위
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
