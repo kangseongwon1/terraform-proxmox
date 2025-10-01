@@ -74,17 +74,39 @@ def create_server_async(self, server_config):
         # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
         disk_size = 20  # 기본값 20GB
         
+        logger.info(f"🔍 disk_size 추출 시작:")
+        logger.info(f"  server_config keys: {list(server_config.keys())}")
+        logger.info(f"  'disks' in server_config: {'disks' in server_config}")
+        
         try:
-            if 'disks' in server_config and len(server_config['disks']) > 0:
-                disk_size = server_config['disks'][0].get('size', 20)
-                logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
+            if 'disks' in server_config:
+                logger.info(f"  disks 배열 존재: {server_config['disks']}")
+                logger.info(f"  disks 배열 길이: {len(server_config['disks'])}")
+                
+                if len(server_config['disks']) > 0:
+                    first_disk = server_config['disks'][0]
+                    logger.info(f"  첫 번째 디스크: {first_disk}")
+                    disk_size = first_disk.get('size', 20)
+                    logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
+                else:
+                    logger.warning(f"⚠️ disks 배열이 비어있으므로 기본값 20GB 사용")
             else:
-                logger.warning(f"⚠️ disks 배열이 없으므로 기본값 20GB 사용")
+                logger.warning(f"⚠️ disks 키가 없으므로 기본값 20GB 사용")
         except Exception as e:
-            logger.warning(f"⚠️ disk_size 추출 실패, 기본값 사용: {e}")
+            logger.error(f"❌ disk_size 추출 실패: {e}")
+            logger.error(f"  server_config: {server_config}")
             disk_size = 20
         
         # Server 객체 생성 (안전성 강화)
+        logger.info(f"🔍 Server 객체 생성 시작:")
+        logger.info(f"  name: {server_config['name']}")
+        logger.info(f"  cpu: {server_config['cpu']}")
+        logger.info(f"  memory: {server_config['memory']}")
+        logger.info(f"  disk_size: {disk_size}")
+        logger.info(f"  os_type: {server_config.get('os_type', 'ubuntu')}")
+        logger.info(f"  role: {server_config.get('role', '')}")
+        logger.info(f"  firewall_group: {server_config.get('firewall_group', '')}")
+        
         try:
             server = Server(
                 name=server_config['name'],
@@ -99,6 +121,8 @@ def create_server_async(self, server_config):
             logger.info(f"✅ Server 객체 생성 성공: {server_config['name']}")
         except Exception as e:
             logger.error(f"❌ Server 객체 생성 실패: {e}")
+            logger.error(f"  disk_size 타입: {type(disk_size)}")
+            logger.error(f"  disk_size 값: {disk_size}")
             raise Exception(f'Server 객체 생성 실패: {e}')
         
         db.session.add(server)
@@ -206,8 +230,23 @@ def create_server_async(self, server_config):
             raise Exception(f'서버 {server_config["name"]} 생성 실패 (최대 재시도 횟수 초과)')
             
     except Exception as e:
+        import traceback
         error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        
         logger.error(f"❌ 비동기 서버 생성 실패: {error_msg}")
+        logger.error(f"📋 전체 오류 스택 트레이스:")
+        logger.error(f"{error_traceback}")
+        
+        # server_config 내용도 로깅
+        logger.error(f"📋 server_config 내용:")
+        logger.error(f"  name: {server_config.get('name', 'N/A')}")
+        logger.error(f"  cpu: {server_config.get('cpu', 'N/A')}")
+        logger.error(f"  memory: {server_config.get('memory', 'N/A')}")
+        logger.error(f"  disks: {server_config.get('disks', 'N/A')}")
+        logger.error(f"  os_type: {server_config.get('os_type', 'N/A')}")
+        logger.error(f"  role: {server_config.get('role', 'N/A')}")
+        logger.error(f"  firewall_group: {server_config.get('firewall_group', 'N/A')}")
         
         # 실패 알림 생성
         notification = Notification(
