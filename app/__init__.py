@@ -4,6 +4,7 @@ Proxmox Manager Flask Application Factory
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from flask_migrate import Migrate
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -11,6 +12,7 @@ from logging.handlers import RotatingFileHandler
 # 전역 객체들
 db = SQLAlchemy()
 login_manager = LoginManager()
+migrate = Migrate()
 
 def load_vault_environment():
     """Vault 환경변수를 .bashrc에서 로드"""
@@ -69,6 +71,9 @@ def create_app(config_name='development'):
     
     # 데이터베이스 초기화
     db.init_app(app)
+    
+    # 마이그레이션 초기화
+    migrate.init_app(app, db)
     
     # 로그인 매니저 초기화
     login_manager.init_app(app)
