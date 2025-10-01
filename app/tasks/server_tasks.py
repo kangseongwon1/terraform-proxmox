@@ -7,6 +7,7 @@ from app.services import ProxmoxService, TerraformService, AnsibleService
 from app.models import Server, Notification
 from app import db
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -95,63 +96,98 @@ def create_server_async(self, server_config):
             meta={'current': 80, 'total': 100, 'status': '서버 상태 확인 중...'}
         )
         
-        # Proxmox에서 서버 상태 확인 (타임아웃 오류 무시)
-        try:
-            proxmox_service = ProxmoxService()
-            # 서버가 존재하고 실행 중인지 확인
-            server_info = proxmox_service.get_server_info(server_config['name'])
-            if server_info and server_info.get('status') == 'running':
-                server.status = 'running'
-                db.session.commit()
+        # Proxmox에서 서버 상태 확인 (재시도 로직 포함)
+        max_retries = 3
+        retry_count = 0
+        success = False
+        
+        while retry_count < max_retries and not success:
+            try:
+                proxmox_service = ProxmoxService()
+                # 서버가 존재하고 실행 중인지 확인
+                server_info = proxmox_service.get_server_info(server_config['name'])
                 
-                # 성공 알림 생성
-                notification = Notification(
-                    type='server_creation',
-                    title='서버 생성 완료',
-                    message=f'서버 {server_config["name"]}이 성공적으로 생성되었습니다.',
-                    severity='success',
-                    details=f'서버명: {server_config["name"]}\nCPU: {server_config["cpu"]}코어\n메모리: {server_config["memory"]}GB'
-                )
-                db.session.add(notification)
-                db.session.commit()
-                
-                logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']}")
-                
-                return {
-                    'success': True,
-                    'message': f'서버 {server_config["name"]} 생성 완료',
-                    'server_name': server_config['name'],
-                    'task_id': task_id
-                }
-            else:
-                # 서버가 존재하지만 실행되지 않은 경우 시작 시도
-                if proxmox_service.start_server(server_config['name']):
+                if server_info and server_info.get('status') == 'running':
                     server.status = 'running'
                     db.session.commit()
-                    logger.info(f"✅ 서버 시작 성공: {server_config['name']}")
-                else:
-                    server.status = 'stopped'
+                    success = True
+                    
+                    # 성공 알림 생성
+                    notification = Notification(
+                        type='server_creation',
+                        title='서버 생성 완료',
+                        message=f'서버 {server_config["name"]}이 성공적으로 생성되었습니다.',
+                        severity='success',
+                        details=f'서버명: {server_config["name"]}\nCPU: {server_config["cpu"]}코어\n메모리: {server_config["memory"]}GB'
+                    )
+                    db.session.add(notification)
                     db.session.commit()
-                    logger.warning(f"⚠️ 서버 시작 실패, 정지 상태로 설정: {server_config['name']}")
-                
-                return {
-                    'success': True,
-                    'message': f'서버 {server_config["name"]} 생성 완료 (상태: {server.status})',
-                    'server_name': server_config['name'],
-                    'task_id': task_id
-                }
-        except Exception as e:
-            # Proxmox 연결 오류 시에도 서버 생성은 성공으로 처리
-            logger.warning(f"⚠️ Proxmox 상태 확인 실패, 서버 생성은 성공으로 처리: {e}")
-            server.status = 'unknown'
-            db.session.commit()
-            
+                    
+                    logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']}")
+                    break
+                else:
+                    # 서버가 존재하지만 실행되지 않은 경우 시작 시도
+                    if proxmox_service.start_server(server_config['name']):
+                        server.status = 'running'
+                        db.session.commit()
+                        success = True
+                        logger.info(f"✅ 서버 시작 성공: {server_config['name']}")
+                        break
+                    else:
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            logger.warning(f"⚠️ 서버 시작 실패, 재시도 {retry_count}/{max_retries}")
+                            time.sleep(5)  # 5초 대기 후 재시도
+                        else:
+                            server.status = 'stopped'
+                            db.session.commit()
+                            logger.error(f"❌ 서버 시작 실패 (최대 재시도 횟수 초과): {server_config['name']}")
+                            
+            except Exception as e:
+                retry_count += 1
+                if retry_count < max_retries:
+                    logger.warning(f"⚠️ Proxmox 상태 확인 실패, 재시도 {retry_count}/{max_retries}: {e}")
+                    time.sleep(5)  # 5초 대기 후 재시도
+                else:
+                    logger.error(f"❌ Proxmox 상태 확인 실패 (최대 재시도 횟수 초과): {e}")
+                    server.status = 'unknown'
+                    db.session.commit()
+                    break
+        
+        # 최종 결과 처리
+        if success:
             return {
                 'success': True,
-                'message': f'서버 {server_config["name"]} 생성 완료 (상태 확인 불가)',
+                'message': f'서버 {server_config["name"]} 생성 완료',
                 'server_name': server_config['name'],
                 'task_id': task_id
             }
+        else:
+            # 실패 처리: 서버 삭제 및 알림 생성
+            try:
+                proxmox_service = ProxmoxService()
+                if proxmox_service.delete_server(server_config['name']):
+                    logger.info(f"🗑️ 실패한 서버 삭제 완료: {server_config['name']}")
+            except Exception as e:
+                logger.warning(f"⚠️ 실패한 서버 삭제 실패: {e}")
+            
+            # 실패 알림 생성
+            notification = Notification(
+                type='server_creation',
+                title='서버 생성 실패',
+                message=f'서버 {server_config["name"]} 생성에 실패했습니다.',
+                severity='error',
+                details=f'서버명: {server_config["name"]}\n상태: {server.status}\n재시도 횟수: {max_retries}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            # 실패한 작업 정리
+            server.status = 'failed'
+            db.session.commit()
+            
+            # Celery 작업 실패 처리
+            raise Exception(f'서버 {server_config["name"]} 생성 실패 (최대 재시도 횟수 초과)')
             
     except Exception as e:
         error_msg = str(e)
