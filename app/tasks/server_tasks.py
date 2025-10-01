@@ -72,9 +72,13 @@ def create_server_async(self, server_config):
         )
         
         # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
-        disk_size = server_config.get('disk')
-        if disk_size is None and 'disks' in server_config and len(server_config['disks']) > 0:
+        disk_size = None
+        if 'disks' in server_config and len(server_config['disks']) > 0:
             disk_size = server_config['disks'][0].get('size', 20)  # 기본값 20GB
+            logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
+        else:
+            disk_size = 20  # 기본값 20GB
+            logger.warning(f"⚠️ disks 배열이 없으므로 기본값 20GB 사용")
         
         server = Server(
             name=server_config['name'],
@@ -107,6 +111,7 @@ def create_server_async(self, server_config):
                 # 서버가 존재하고 실행 중인지 확인
                 server_info = proxmox_service.get_server_info(server_config['name'])
                 
+                # Proxmox resize 오류 무시: 서버가 존재하고 실행 중이면 성공으로 처리
                 if server_info and server_info.get('status') == 'running':
                     server.status = 'running'
                     db.session.commit()
@@ -123,7 +128,7 @@ def create_server_async(self, server_config):
                     db.session.add(notification)
                     db.session.commit()
                     
-                    logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']}")
+                    logger.info(f"✅ 비동기 서버 생성 완료: {server_config['name']} (Proxmox resize 오류 무시)")
                     break
                 else:
                     # 서버가 존재하지만 실행되지 않은 경우 시작 시도
