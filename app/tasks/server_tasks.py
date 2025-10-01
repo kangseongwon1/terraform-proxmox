@@ -10,6 +10,7 @@ import logging
 import time
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # 디버깅을 위해 DEBUG 레벨로 설정
 
 @celery_app.task(bind=True)
 def create_server_async(self, server_config):
@@ -74,6 +75,9 @@ def create_server_async(self, server_config):
         # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
         disk_size = 20  # 기본값 20GB
         
+        print(f"🔍 disk_size 추출 시작:")  # print로 강제 출력
+        print(f"  server_config keys: {list(server_config.keys())}")
+        print(f"  'disks' in server_config: {'disks' in server_config}")
         logger.info(f"🔍 disk_size 추출 시작:")
         logger.info(f"  server_config keys: {list(server_config.keys())}")
         logger.info(f"  'disks' in server_config: {'disks' in server_config}")
@@ -98,6 +102,14 @@ def create_server_async(self, server_config):
             disk_size = 20
         
         # Server 객체 생성 (안전성 강화)
+        print(f"🔍 Server 객체 생성 시작:")  # print로 강제 출력
+        print(f"  name: {server_config['name']}")
+        print(f"  cpu: {server_config['cpu']}")
+        print(f"  memory: {server_config['memory']}")
+        print(f"  disk_size: {disk_size}")
+        print(f"  os_type: {server_config.get('os_type', 'ubuntu')}")
+        print(f"  role: {server_config.get('role', '')}")
+        print(f"  firewall_group: {server_config.get('firewall_group', '')}")
         logger.info(f"🔍 Server 객체 생성 시작:")
         logger.info(f"  name: {server_config['name']}")
         logger.info(f"  cpu: {server_config['cpu']}")
@@ -120,6 +132,9 @@ def create_server_async(self, server_config):
             )
             logger.info(f"✅ Server 객체 생성 성공: {server_config['name']}")
         except Exception as e:
+            print(f"❌ Server 객체 생성 실패: {e}")  # print로 강제 출력
+            print(f"  disk_size 타입: {type(disk_size)}")
+            print(f"  disk_size 값: {disk_size}")
             logger.error(f"❌ Server 객체 생성 실패: {e}")
             logger.error(f"  disk_size 타입: {type(disk_size)}")
             logger.error(f"  disk_size 값: {disk_size}")
