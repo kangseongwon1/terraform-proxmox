@@ -24,7 +24,11 @@ resource "proxmox_virtual_environment_vm" "this" {
     content {
       interface    = disk.value.interface
       size         = disk.value.size
-      file_format  = "raw"
+      file_format  = disk.value.file_format == "auto" ? (
+        # LVM-Thin 스토리지는 raw만 지원, SSD/NVMe도 raw 사용
+        can(regex(".*thin.*", disk.value.datastore_id)) || 
+        can(regex(".*lvm.*", disk.value.datastore_id)) ? "raw" : "qcow2"
+      ) : disk.value.file_format
       datastore_id = disk.value.datastore_id == "auto" ? var.proxmox_hdd_datastore : disk.value.datastore_id
     }
   }
