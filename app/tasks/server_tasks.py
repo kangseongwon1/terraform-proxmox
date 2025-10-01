@@ -72,24 +72,34 @@ def create_server_async(self, server_config):
         )
         
         # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
-        disk_size = None
-        if 'disks' in server_config and len(server_config['disks']) > 0:
-            disk_size = server_config['disks'][0].get('size', 20)  # 기본값 20GB
-            logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
-        else:
-            disk_size = 20  # 기본값 20GB
-            logger.warning(f"⚠️ disks 배열이 없으므로 기본값 20GB 사용")
+        disk_size = 20  # 기본값 20GB
         
-        server = Server(
-            name=server_config['name'],
-            cpu=server_config['cpu'],
-            memory=server_config['memory'],
-            disk=disk_size or 20,  # 기본값 20GB
-            os_type=server_config.get('os_type', 'ubuntu'),
-            role=server_config.get('role', ''),
-            firewall_group=server_config.get('firewall_group', ''),
-            status='creating'
-        )
+        try:
+            if 'disks' in server_config and len(server_config['disks']) > 0:
+                disk_size = server_config['disks'][0].get('size', 20)
+                logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
+            else:
+                logger.warning(f"⚠️ disks 배열이 없으므로 기본값 20GB 사용")
+        except Exception as e:
+            logger.warning(f"⚠️ disk_size 추출 실패, 기본값 사용: {e}")
+            disk_size = 20
+        
+        # Server 객체 생성 (안전성 강화)
+        try:
+            server = Server(
+                name=server_config['name'],
+                cpu=server_config['cpu'],
+                memory=server_config['memory'],
+                disk=disk_size,  # 이미 안전하게 처리됨
+                os_type=server_config.get('os_type', 'ubuntu'),
+                role=server_config.get('role', ''),
+                firewall_group=server_config.get('firewall_group', ''),
+                status='creating'
+            )
+            logger.info(f"✅ Server 객체 생성 성공: {server_config['name']}")
+        except Exception as e:
+            logger.error(f"❌ Server 객체 생성 실패: {e}")
+            raise Exception(f'Server 객체 생성 실패: {e}')
         
         db.session.add(server)
         db.session.commit()
@@ -112,6 +122,7 @@ def create_server_async(self, server_config):
                 server_info = proxmox_service.get_server_info(server_config['name'])
                 
                 # Proxmox resize 오류 무시: 서버가 존재하고 실행 중이면 성공으로 처리
+                # resize 오류가 발생해도 VM이 실행 중이면 성공으로 간주
                 if server_info and server_info.get('status') == 'running':
                     server.status = 'running'
                     db.session.commit()
