@@ -390,3 +390,75 @@ def bulk_server_action_async(self, server_names, action):
         )
         
         raise
+
+
+@celery_app.task(bind=True)
+def delete_server_async(self, server_name: str):
+    """비동기 서버 삭제 작업"""
+    try:
+        logger.info(f"🗑️ 비동기 서버 삭제 시작: {server_name}")
+        
+        # 작업 상태 업데이트
+        self.update_state(
+            state='PROGRESS',
+            meta={'progress': 10, 'message': f'서버 {server_name} 삭제 중...'}
+        )
+        
+        # TerraformService를 사용하여 서버 삭제
+        from app.services.terraform_service import TerraformService
+        terraform_service = TerraformService()
+        
+        # terraform.tfvars.json에서 해당 서버 제거
+        self.update_state(
+            state='PROGRESS',
+            meta={'progress': 30, 'message': f'서버 {server_name} 설정 삭제 중...'}
+        )
+        
+        success = terraform_service.delete_server_config(server_name)
+        
+        if not success:
+            raise Exception(f'서버 {server_name} 설정 삭제 실패')
+        
+        # Terraform apply로 실제 삭제 실행
+        self.update_state(
+            state='PROGRESS',
+            meta={'progress': 60, 'message': f'서버 {server_name} Terraform 적용 중...'}
+        )
+        
+        target = f'module.server["{server_name}"]'
+        apply_result = terraform_service.apply([target])
+        
+        if not apply_result:
+            raise Exception(f'서버 {server_name} Terraform 적용 실패')
+        
+        # 작업 완료
+        self.update_state(
+            state='PROGRESS',
+            meta={'progress': 100, 'message': f'서버 {server_name} 삭제 완료'}
+        )
+        
+        logger.info(f"✅ 서버 삭제 성공: {server_name}")
+        
+        return {
+            'success': True,
+            'message': f'서버 {server_name} 삭제 완료',
+            'server_name': server_name
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 비동기 서버 삭제 실패: {server_name} - {str(e)}")
+        
+        # 실패 알림 생성
+        try:
+            from app.models.notification import Notification
+            notification = Notification(
+                title=f"서버 삭제 실패: {server_name}",
+                message=f"서버 {server_name} 삭제 중 오류가 발생했습니다: {str(e)}",
+                type="error"
+            )
+            db.session.add(notification)
+            db.session.commit()
+        except Exception as notify_error:
+            logger.error(f"알림 생성 실패: {notify_error}")
+        
+        raise Exception(f'서버 {server_name} 삭제 실패: {str(e)}')

@@ -28,10 +28,31 @@ class ProxmoxService:
         self.endpoint = current_app.config['PROXMOX_ENDPOINT']
         self.username = current_app.config['PROXMOX_USERNAME']
         self.password = current_app.config['PROXMOX_PASSWORD']
-        self.node = current_app.config['PROXMOX_NODE']
-        self.session = requests.Session()
-        self.session.verify = False  # SSL 인증서 검증 비활성화 (개발용)
-
+    
+    def get_server_info(self, server_name: str) -> Optional[Dict[str, Any]]:
+        """서버 정보 조회"""
+        try:
+            # VM ID로 서버 찾기
+            server = Server.query.filter_by(name=server_name).first()
+            if not server or not server.vmid:
+                return None
+            
+            # Proxmox API로 VM 상태 조회
+            url = f"{self.endpoint}/api2/json/nodes/{current_app.config['PROXMOX_NODE']}/qemu/{server.vmid}/status/current"
+            response = requests.get(url, auth=(self.username, self.password), verify=False)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'status': data.get('data', {}).get('status', 'unknown'),
+                    'vmid': server.vmid,
+                    'name': server_name
+                }
+            return None
+        except Exception as e:
+            logger.error(f"서버 정보 조회 실패: {e}")
+            return None
+    
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """Proxmox API 요청을 위한 공통 메서드"""
         try:

@@ -448,6 +448,36 @@ class TerraformService:
             logger.error(f"terraform.tfvars.json 파일 저장 실패: {e}")
             return False
     
+    def delete_server_config(self, server_name: str) -> bool:
+        """terraform.tfvars.json에서 서버 설정 삭제"""
+        try:
+            # 기존 tfvars 로드
+            tfvars = self.load_tfvars()
+            servers = tfvars.get('servers', {})
+            
+            # 해당 서버가 존재하는지 확인
+            if server_name not in servers:
+                logger.warning(f"서버 {server_name}가 tfvars에 존재하지 않습니다.")
+                return False
+            
+            # 서버 설정 삭제
+            del servers[server_name]
+            tfvars['servers'] = servers
+            
+            # 수정된 tfvars 저장
+            success = self.save_tfvars(tfvars)
+            
+            if success:
+                logger.info(f"✅ 서버 설정 삭제 성공: {server_name}")
+            else:
+                logger.error(f"❌ 서버 설정 삭제 실패: {server_name}")
+                
+            return success
+            
+        except Exception as e:
+            logger.error(f"서버 설정 삭제 중 오류: {e}")
+            return False
+    
     def create_server_config(self, server_data: Dict[str, Any]) -> bool:
         """서버 설정 생성"""
         try:

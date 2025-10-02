@@ -151,3 +151,36 @@ def get_task_status(task_id):
             'message': '작업 상태 조회 실패',
             'error': str(e)
         }), 500
+
+
+@bp.route('/api/servers/<server_name>/delete/async', methods=['POST'])
+@permission_required('delete_server')
+def delete_server_async_endpoint(server_name):
+    """비동기 서버 삭제"""
+    try:
+        # 서버 존재 확인
+        server = Server.query.filter_by(name=server_name).first()
+        if not server:
+            return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
+        
+        logger.info(f"🚀 비동기 서버 삭제 시작: {server_name}")
+        
+        # Celery 작업 시작
+        from app.tasks.server_tasks import delete_server_async
+        task = delete_server_async.delay(server_name)
+        
+        logger.info(f"✅ 서버 삭제 작업 시작: {server_name} (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'서버 {server_name} 삭제 작업이 시작되었습니다.',
+            'status': 'queued',
+            'task_id': task.id
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 서버 삭제 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'서버 삭제 실패: {str(e)}'
+        }), 500
