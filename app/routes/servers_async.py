@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from app.routes.auth import permission_required
 from app.routes.server_utils import validate_server_config, format_server_response, handle_server_error
+from app.models.server import Server
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def get_task_status(task_id):
         }), 500
 
 
-@bp.route('/api/servers/<server_name>/delete/async', methods=['POST'])
+@async_bp.route('/api/servers/<server_name>/delete/async', methods=['POST'])
 @permission_required('delete_server')
 def delete_server_async_endpoint(server_name):
     """비동기 서버 삭제"""

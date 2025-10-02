@@ -218,13 +218,34 @@ def create_server_async(self, server_config):
                 'task_id': task_id
             }
         else:
-            # 실패 처리: 서버 삭제 및 알림 생성
+            # 실패 처리: 서버 정리 및 알림 생성
             try:
-                proxmox_service = ProxmoxService()
-                if proxmox_service.delete_server(server_config['name']):
-                    logger.info(f"🗑️ 실패한 서버 삭제 완료: {server_config['name']}")
-            except Exception as e:
-                logger.warning(f"⚠️ 실패한 서버 삭제 실패: {e}")
+                # 1. DB에서 실패한 서버 객체 삭제
+                server = Server.query.filter_by(name=server_config['name']).first()
+                if server:
+                    db.session.delete(server)
+                    db.session.commit()
+                    logger.info(f"🗑️ 실패한 서버 DB 객체 삭제: {server_config['name']}")
+                
+                # 2. Terraform에서 서버 설정 삭제 (부분적으로 생성된 경우)
+                try:
+                    from app.services.terraform_service import TerraformService
+                    terraform_service = TerraformService()
+                    terraform_service.delete_server_config(server_config['name'])
+                    logger.info(f"🗑️ 실패한 서버 Terraform 설정 삭제: {server_config['name']}")
+                except Exception as terraform_error:
+                    logger.warning(f"⚠️ Terraform 설정 삭제 실패: {terraform_error}")
+                
+                # 3. Proxmox에서 부분적으로 생성된 VM 삭제
+                try:
+                    proxmox_service = ProxmoxService()
+                    if proxmox_service.delete_server(server_config['name']):
+                        logger.info(f"🗑️ 실패한 서버 Proxmox VM 삭제 완료: {server_config['name']}")
+                except Exception as proxmox_error:
+                    logger.warning(f"⚠️ Proxmox VM 삭제 실패: {proxmox_error}")
+                    
+            except Exception as cleanup_error:
+                logger.error(f"❌ 실패한 서버 정리 중 오류: {cleanup_error}")
             
             # 실패 알림 생성
             notification = Notification(
@@ -240,6 +261,14 @@ def create_server_async(self, server_config):
             # 실패한 작업 정리
             server.status = 'failed'
             db.session.commit()
+            
+            # 4. Celery Task 결과 정리 (Redis에서 제거)
+            try:
+                from app.celery_app import celery_app
+                celery_app.control.revoke(task_id, terminate=True)
+                logger.info(f"🗑️ 실패한 Task ID 정리: {task_id}")
+            except Exception as task_cleanup_error:
+                logger.warning(f"⚠️ Task ID 정리 실패: {task_cleanup_error}")
             
             # Celery 작업 실패 처리
             raise Exception(f'서버 {server_config["name"]} 생성 실패 (최대 재시도 횟수 초과)')
@@ -430,6 +459,16 @@ def delete_server_async(self, server_name: str):
         
         if not apply_result:
             raise Exception(f'서버 {server_name} Terraform 적용 실패')
+        
+        # DB에서 서버 객체 삭제
+        try:
+            server = Server.query.filter_by(name=server_name).first()
+            if server:
+                db.session.delete(server)
+                db.session.commit()
+                logger.info(f"🗑️ 서버 DB 객체 삭제: {server_name}")
+        except Exception as db_error:
+            logger.warning(f"⚠️ DB 객체 삭제 실패: {db_error}")
         
         # 작업 완료
         self.update_state(
