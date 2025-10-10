@@ -120,7 +120,6 @@ def get_latest_notification():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/notifications/stream', methods=['GET'])
-@login_required
 def notification_stream():
     """Server-Sent Events를 통한 실시간 알림 스트림"""
     def event_stream():
