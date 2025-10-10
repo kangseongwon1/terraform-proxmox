@@ -30,6 +30,7 @@ def create_server_async(self, server_config):
         
         # terraform_service 변수 초기화
         terraform_service = None
+        print(f"🔧 TerraformService 클래스 확인: {TerraformService}")
         
         # 원격 서버 설정 확인 (단순화)
         if os.getenv('TERRAFORM_REMOTE_ENABLED', 'false').lower() == 'true':
