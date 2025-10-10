@@ -154,9 +154,9 @@ def get_task_status(task_id):
         }), 500
 
 
-@async_bp.route('/api/servers/<server_name>/delete/async', methods=['POST'])
+@async_bp.route('/api/servers/<server_name>/delete', methods=['POST'])
 @permission_required('delete_server')
-def delete_server_async_endpoint(server_name):
+def delete_server_endpoint(server_name):
     """비동기 서버 삭제"""
     try:
         # 서버 존재 확인
@@ -184,4 +184,100 @@ def delete_server_async_endpoint(server_name):
         return jsonify({
             'success': False,
             'error': f'서버 삭제 실패: {str(e)}'
+        }), 500
+
+@async_bp.route('/api/servers/<server_name>/start', methods=['POST'])
+@permission_required('start_server')
+def start_server_endpoint(server_name):
+    """비동기 서버 시작"""
+    try:
+        # 서버 존재 확인
+        server = Server.query.filter_by(name=server_name).first()
+        if not server:
+            return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
+        
+        logger.info(f"🚀 비동기 서버 시작 시작: {server_name}")
+        
+        # Celery 작업 시작
+        from app.tasks.server_tasks import start_server_async
+        task = start_server_async.delay(server_name)
+        
+        logger.info(f"✅ 서버 시작 작업 시작: {server_name} (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'서버 {server_name} 시작 작업이 시작되었습니다.',
+            'status': 'queued',
+            'task_id': task.id
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 서버 시작 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'서버 시작 실패: {str(e)}'
+        }), 500
+
+@async_bp.route('/api/servers/<server_name>/stop', methods=['POST'])
+@permission_required('stop_server')
+def stop_server_endpoint(server_name):
+    """비동기 서버 중지"""
+    try:
+        # 서버 존재 확인
+        server = Server.query.filter_by(name=server_name).first()
+        if not server:
+            return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
+        
+        logger.info(f"🚀 비동기 서버 중지 시작: {server_name}")
+        
+        # Celery 작업 시작
+        from app.tasks.server_tasks import stop_server_async
+        task = stop_server_async.delay(server_name)
+        
+        logger.info(f"✅ 서버 중지 작업 시작: {server_name} (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'서버 {server_name} 중지 작업이 시작되었습니다.',
+            'status': 'queued',
+            'task_id': task.id
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 서버 중지 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'서버 중지 실패: {str(e)}'
+        }), 500
+
+@async_bp.route('/api/servers/<server_name>/reboot', methods=['POST'])
+@permission_required('reboot_server')
+def reboot_server_endpoint(server_name):
+    """비동기 서버 재시작"""
+    try:
+        # 서버 존재 확인
+        server = Server.query.filter_by(name=server_name).first()
+        if not server:
+            return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
+        
+        logger.info(f"🚀 비동기 서버 재시작 시작: {server_name}")
+        
+        # Celery 작업 시작
+        from app.tasks.server_tasks import reboot_server_async
+        task = reboot_server_async.delay(server_name)
+        
+        logger.info(f"✅ 서버 재시작 작업 시작: {server_name} (Task ID: {task.id})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'서버 {server_name} 재시작 작업이 시작되었습니다.',
+            'status': 'queued',
+            'task_id': task.id
+        })
+        
+    except Exception as e:
+        logger.error(f"비동기 서버 재시작 실패: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'서버 재시작 실패: {str(e)}'
         }), 500

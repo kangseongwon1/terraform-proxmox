@@ -2259,12 +2259,16 @@ function initializeServerForm() {
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>시작 중...');
     $.post('/api/servers/' + name + '/start', function(res) {
       console.log('[instances.js] /api/servers/' + name + '/start 성공', res);
-      btn.prop('disabled', false).html(originalText);
-      // 즉시 상태 업데이트
-      setTimeout(function() {
-      loadActiveServers();
-      }, 1000); // 1초 후 상태 업데이트
-      addSystemNotification('success', '서버 시작', `${name} 서버가 시작되었습니다.`);
+      if (res.success) {
+        addSystemNotification('info', '서버 시작', `${name} 서버 시작 작업이 시작되었습니다.`);
+        // Task 폴링 시작
+        if (res.task_id) {
+          pollTaskStatus(res.task_id, 'server_start', name);
+        }
+      } else {
+        addSystemNotification('error', '서버 시작', `${name} 서버 시작 실패: ${res.error}`);
+        btn.prop('disabled', false).html(originalText);
+      }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/start 실패', xhr);
       btn.prop('disabled', false).html(originalText);
@@ -2291,12 +2295,16 @@ function initializeServerForm() {
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>중지 중...');
     $.post('/api/servers/' + name + '/stop', function(res) {
       console.log('[instances.js] /api/servers/' + name + '/stop 성공', res);
-      btn.prop('disabled', false).html(originalText);
-      // 즉시 상태 업데이트
-      setTimeout(function() {
-      loadActiveServers();
-      }, 1000); // 1초 후 상태 업데이트
-      addSystemNotification('success', '서버 중지', `${name} 서버가 중지되었습니다.`);
+      if (res.success) {
+        addSystemNotification('info', '서버 중지', `${name} 서버 중지 작업이 시작되었습니다.`);
+        // Task 폴링 시작
+        if (res.task_id) {
+          pollTaskStatus(res.task_id, 'server_stop', name);
+        }
+      } else {
+        addSystemNotification('error', '서버 중지', `${name} 서버 중지 실패: ${res.error}`);
+        btn.prop('disabled', false).html(originalText);
+      }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/stop 실패', xhr);
       btn.prop('disabled', false).html(originalText);
@@ -2323,24 +2331,28 @@ function initializeServerForm() {
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>리부팅 중...');
     $.post('/api/servers/' + name + '/reboot', function(res) {
       console.log('[instances.js] /api/servers/' + name + '/reboot 성공', res);
-      btn.prop('disabled', false).html(originalText);
-      // 즉시 상태 업데이트
-      setTimeout(function() {
-      loadActiveServers();
-      }, 2000); // 2초 후 상태 업데이트 (재부팅은 시간이 더 필요)
-      addSystemNotification('success', '서버 리부팅', `${name} 서버가 리부팅되었습니다.`);
+      if (res.success) {
+        addSystemNotification('info', '서버 재시작', `${name} 서버 재시작 작업이 시작되었습니다.`);
+        // Task 폴링 시작
+        if (res.task_id) {
+          pollTaskStatus(res.task_id, 'server_reboot', name);
+        }
+      } else {
+        addSystemNotification('error', '서버 재시작', `${name} 서버 재시작 실패: ${res.error}`);
+        btn.prop('disabled', false).html(originalText);
+      }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/reboot 실패', xhr);
       btn.prop('disabled', false).html(originalText);
       
       let errorMsg = xhr.statusText;
       if (xhr.status === 403) {
-        errorMsg = '권한이 없습니다. 서버 리부팅 권한이 필요합니다.';
+        errorMsg = '권한이 없습니다. 서버 재시작 권한이 필요합니다.';
       } else if (xhr.responseJSON?.error) {
         errorMsg = xhr.responseJSON.error;
       }
       
-      addSystemNotification('error', '서버 리부팅', `${name} 서버 리부팅 실패: ${errorMsg}`);
+      addSystemNotification('error', '서버 재시작', `${name} 서버 재시작 실패: ${errorMsg}`);
     });
   });
 
@@ -2355,11 +2367,17 @@ function initializeServerForm() {
     btn.closest('tr').addClass('table-warning');
     $.post('/api/servers/' + name + '/delete', function(res) {
       console.log('[instances.js] /api/servers/' + name + '/delete 성공', res);
-      // 삭제 완료 즉시 UI 업데이트
-      btn.closest('tr').fadeOut(300, function() {
-        $(this).remove();
-      });
-      addSystemNotification('success', '서버 삭제', `${name} 서버가 삭제되었습니다.`);
+      if (res.success) {
+        addSystemNotification('info', '서버 삭제', `${name} 서버 삭제 작업이 시작되었습니다.`);
+        // Task 폴링 시작
+        if (res.task_id) {
+          pollTaskStatus(res.task_id, 'server_delete', name);
+        }
+      } else {
+        addSystemNotification('error', '서버 삭제', `${name} 서버 삭제 실패: ${res.error}`);
+        btn.prop('disabled', false).html(originalText);
+        btn.closest('tr').removeClass('table-warning');
+      }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/delete 실패', xhr);
       btn.prop('disabled', false).html(originalText);

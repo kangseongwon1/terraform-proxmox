@@ -460,3 +460,202 @@ def delete_server_async(self, server_name: str):
             logger.error(f"알림 생성 실패: {notify_error}")
         
         raise Exception(f'서버 {server_name} 삭제 실패: {str(e)}')
+
+@celery_app.task(bind=True)
+def start_server_async(self, server_name: str):
+    """비동기 서버 시작"""
+    try:
+        logger.info(f"🚀 비동기 서버 시작 작업 시작: {server_name}")
+        
+        # ProxmoxService를 사용하여 서버 시작
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        # 서버 시작 실행
+        success = proxmox_service.start_server(server_name)
+        
+        if success:
+            # DB 상태 업데이트
+            from app.models.server import Server
+            from app import db
+            
+            server = Server.query.filter_by(name=server_name).first()
+            if server:
+                server.status = 'running'
+                db.session.commit()
+            
+            # 성공 알림 생성
+            from app.models.notification import Notification
+            notification = Notification(
+                type='server_start',
+                title='서버 시작 완료',
+                message=f'서버 {server_name}이 성공적으로 시작되었습니다.',
+                severity='success',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.info(f"✅ 비동기 서버 시작 완료: {server_name}")
+            return {
+                'success': True,
+                'message': f'서버 {server_name} 시작 완료'
+            }
+        else:
+            # 실패 알림 생성
+            from app.models.notification import Notification
+            notification = Notification(
+                type='server_start',
+                title='서버 시작 실패',
+                message=f'서버 {server_name} 시작에 실패했습니다.',
+                severity='error',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.error(f"❌ 비동기 서버 시작 실패: {server_name}")
+            return {
+                'success': False,
+                'error': f'서버 {server_name} 시작 실패',
+                'message': f'서버 {server_name} 시작 실패'
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ 비동기 서버 시작 실패: {server_name} - {str(e)}")
+        return {
+            'success': False,
+            'error': f'서버 시작 실패: {str(e)}',
+            'message': f'서버 {server_name} 시작 실패'
+        }
+
+@celery_app.task(bind=True)
+def stop_server_async(self, server_name: str):
+    """비동기 서버 중지"""
+    try:
+        logger.info(f"🚀 비동기 서버 중지 작업 시작: {server_name}")
+        
+        # ProxmoxService를 사용하여 서버 중지
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        # 서버 중지 실행
+        success = proxmox_service.stop_server(server_name)
+        
+        if success:
+            # DB 상태 업데이트
+            from app.models.server import Server
+            from app import db
+            
+            server = Server.query.filter_by(name=server_name).first()
+            if server:
+                server.status = 'stopped'
+                db.session.commit()
+            
+            # 성공 알림 생성
+            from app.models.notification import Notification
+            notification = Notification(
+                type='server_stop',
+                title='서버 중지 완료',
+                message=f'서버 {server_name}이 성공적으로 중지되었습니다.',
+                severity='success',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.info(f"✅ 비동기 서버 중지 완료: {server_name}")
+            return {
+                'success': True,
+                'message': f'서버 {server_name} 중지 완료'
+            }
+        else:
+            # 실패 알림 생성
+            from app.models.notification import Notification
+            notification = Notification(
+                type='server_stop',
+                title='서버 중지 실패',
+                message=f'서버 {server_name} 중지에 실패했습니다.',
+                severity='error',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.error(f"❌ 비동기 서버 중지 실패: {server_name}")
+            return {
+                'success': False,
+                'error': f'서버 {server_name} 중지 실패',
+                'message': f'서버 {server_name} 중지 실패'
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ 비동기 서버 중지 실패: {server_name} - {str(e)}")
+        return {
+            'success': False,
+            'error': f'서버 중지 실패: {str(e)}',
+            'message': f'서버 {server_name} 중지 실패'
+        }
+
+@celery_app.task(bind=True)
+def reboot_server_async(self, server_name: str):
+    """비동기 서버 재시작"""
+    try:
+        logger.info(f"🚀 비동기 서버 재시작 작업 시작: {server_name}")
+        
+        # ProxmoxService를 사용하여 서버 재시작
+        from app.services.proxmox_service import ProxmoxService
+        proxmox_service = ProxmoxService()
+        
+        # 서버 재시작 실행
+        success = proxmox_service.reboot_server(server_name)
+        
+        if success:
+            # 성공 알림 생성
+            from app.models.notification import Notification
+            from app import db
+            
+            notification = Notification(
+                type='server_reboot',
+                title='서버 재시작 완료',
+                message=f'서버 {server_name}이 성공적으로 재시작되었습니다.',
+                severity='success',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.info(f"✅ 비동기 서버 재시작 완료: {server_name}")
+            return {
+                'success': True,
+                'message': f'서버 {server_name} 재시작 완료'
+            }
+        else:
+            # 실패 알림 생성
+            from app.models.notification import Notification
+            from app import db
+            
+            notification = Notification(
+                type='server_reboot',
+                title='서버 재시작 실패',
+                message=f'서버 {server_name} 재시작에 실패했습니다.',
+                severity='error',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(notification)
+            db.session.commit()
+            
+            logger.error(f"❌ 비동기 서버 재시작 실패: {server_name}")
+            return {
+                'success': False,
+                'error': f'서버 {server_name} 재시작 실패',
+                'message': f'서버 {server_name} 재시작 실패'
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ 비동기 서버 재시작 실패: {server_name} - {str(e)}")
+        return {
+            'success': False,
+            'error': f'서버 재시작 실패: {str(e)}',
+            'message': f'서버 {server_name} 재시작 실패'
+        }
