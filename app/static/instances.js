@@ -1521,13 +1521,21 @@ $(function() {
   let activeTasks = {};
   function pollTaskStatus(task_id, type, name) {
     if (!task_id) return;
+    
+    // 이미 활성화된 task가 있으면 중복 방지
+    if (activeTasks[task_id]) {
+      console.log(`[instances.js] Task ${task_id} 이미 폴링 중, 중복 방지`);
+      return;
+    }
+    
     let progressNotified = false;
     let startTime = Date.now();
     
     // Task 설정 로드 후 폴링 시작
     loadTaskConfig().then(function(config) {
       const TIMEOUT = config.timeout * 1000; // 서버에서 가져온 타임아웃 (밀리초)
-      console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${config.timeout_hours}시간`);
+      const timeoutHours = Math.round(config.timeout / 3600 * 100) / 100; // 초를 시간으로 변환
+      console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${timeoutHours}시간`);
       
       activeTasks[task_id] = setInterval(function() {
         // 클라이언트 측 타임아웃 체크

@@ -8,6 +8,11 @@ from app.models import Server, Notification
 from app import db
 import logging
 import time
+import sys
+
+    
+# Terraform 서비스 초기화 (환경 변수 기반)
+import os
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # 디버깅을 위해 DEBUG 레벨로 설정
