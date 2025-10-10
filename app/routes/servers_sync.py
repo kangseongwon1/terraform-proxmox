@@ -194,39 +194,12 @@ def reboot_server(server_name):
         return jsonify(handle_server_error(e, "서버 재부팅")), 500
 
 
-@sync_bp.route('/api/servers/<server_name>/delete', methods=['POST'])
-@permission_required('manage_server')
-def delete_server(server_name):
-    """서버 삭제"""
-    try:
-        from app.services.proxmox_service import ProxmoxService
-        
-        server = get_server_by_name(server_name)
-        if not server:
-            return jsonify({'error': '서버를 찾을 수 없습니다.'}), 404
-        
-        proxmox_service = ProxmoxService()
-        result = proxmox_service.delete_vm(server_name)
-        
-        if result['success']:
-            # DB에서 서버 삭제
-            db.session.delete(server)
-            db.session.commit()
-            
-            create_notification(
-                notification_type='server_deleted',
-                title='서버 삭제',
-                message=f'서버 {server_name}이(가) 삭제되었습니다.',
-                severity='warning'
-            )
-            
-            return jsonify({'success': True, 'message': f'서버 {server_name}이(가) 삭제되었습니다.'})
-        else:
-            return jsonify({'error': result.get('message', '서버 삭제 실패')}), 500
-            
-    except Exception as e:
-        db.session.rollback()
-        return jsonify(handle_server_error(e, "서버 삭제")), 500
+# 동기 삭제 라우트는 비동기로 통일되어 제거됨
+# @sync_bp.route('/api/servers/<server_name>/delete', methods=['POST'])
+# @permission_required('manage_server')
+# def delete_server(server_name):
+#     """서버 삭제 - 비동기로 통일되어 제거됨"""
+#     pass
 
 
 @sync_bp.route('/api/proxmox_storage', methods=['GET'])
