@@ -22,25 +22,16 @@ services:
 
 
   celery-flower:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.celery
+    image: mher/flower:latest
     container_name: proxmox-celery-flower
     restart: unless-stopped
     depends_on:
       - redis
     ports:
       - "5555:5555"
-    volumes:
-      - ../:/app
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=0
-      - REDIS_ENABLED=true
-    working_dir: /app
-    command: celery -A app.celery_app flower --port=5555
+      - FLOWER_BROKER_API=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - FLOWER_PORT=5555
     networks:
       - proxmox_network
 

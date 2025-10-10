@@ -1632,13 +1632,8 @@ install_redis() {
         sleep 2
     done
 
-    # Celery 워커 확인
-    log_info "Celery 워커 상태 확인 중..."
-    if (cd redis && docker-compose ps) | grep -q "proxmox-celery-worker"; then
-        log_success "Celery 워커 컨테이너 실행 중"
-    else
-        log_warning "Celery 워커 컨테이너 실행 실패"
-    fi
+    # Celery 워커는 로컬에서 실행되므로 Docker 컨테이너 확인 제거
+    log_info "Celery 워커는 로컬에서 실행됩니다 (Docker 컨테이너 아님)"
 
     # Flower 확인
     log_info "Celery Flower 상태 확인 중..."
