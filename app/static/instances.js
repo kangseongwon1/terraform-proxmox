@@ -3415,34 +3415,99 @@ window.stopNotificationPolling = function() {
     }
   };
   
-  // 로그 클립보드 복사 함수
+  // 로그 클립보드 복사 함수 (호환성 개선)
   window.copyLogToClipboard = function() {
     const logContent = document.querySelector('#logModal pre').textContent;
-    navigator.clipboard.writeText(logContent).then(function() {
-      // 복사 성공 알림
-      const toast = `
-        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
-          <div class="d-flex">
-            <div class="toast-body">
-              <i class="fas fa-check me-1"></i>로그가 클립보드에 복사되었습니다.
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-          </div>
-        </div>
-      `;
-      
-      // 토스트 컨테이너가 없으면 생성
-      if (!$('#toastContainer').length) {
-        $('body').append('<div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>');
-      }
-      
-      $('#toastContainer').append(toast);
-      const toastElement = new bootstrap.Toast($('#toastContainer .toast').last()[0]);
-      toastElement.show();
-    }).catch(function(err) {
-      console.error('클립보드 복사 실패:', err);
-    });
+    
+    // 클립보드 API 지원 여부 확인
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      // 최신 클립보드 API 사용
+      navigator.clipboard.writeText(logContent).then(function() {
+        showSuccessToast('로그가 클립보드에 복사되었습니다.');
+      }).catch(function(err) {
+        console.error('클립보드 복사 실패:', err);
+        // 대안 방법 시도
+        fallbackCopyToClipboard(logContent);
+      });
+    } else {
+      // 대안 방법 사용
+      fallbackCopyToClipboard(logContent);
+    }
   };
+  
+  // 대안 클립보드 복사 방법
+  function fallbackCopyToClipboard(text) {
+    try {
+      // 텍스트 영역 생성
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      // 복사 실행
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        showSuccessToast('로그가 클립보드에 복사되었습니다.');
+      } else {
+        showErrorToast('클립보드 복사에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('대안 클립보드 복사 실패:', err);
+      showErrorToast('클립보드 복사에 실패했습니다.');
+    }
+  }
+  
+  // 성공 토스트 표시
+  function showSuccessToast(message) {
+    const toast = `
+      <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            <i class="fas fa-check me-1"></i>${message}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    `;
+    
+    // 토스트 컨테이너가 없으면 생성
+    if (!$('#toastContainer').length) {
+      $('body').append('<div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>');
+    }
+    
+    $('#toastContainer').append(toast);
+    const toastElement = new bootstrap.Toast($('#toastContainer .toast').last()[0]);
+    toastElement.show();
+  }
+  
+  // 오류 토스트 표시
+  function showErrorToast(message) {
+    const toast = `
+      <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            <i class="fas fa-exclamation-triangle me-1"></i>${message}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    `;
+    
+    // 토스트 컨테이너가 없으면 생성
+    if (!$('#toastContainer').length) {
+      $('body').append('<div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3"></div>');
+    }
+    
+    $('#toastContainer').append(toast);
+    const toastElement = new bootstrap.Toast($('#toastContainer .toast').last()[0]);
+    toastElement.show();
+  }
 
   // Ansible 역할 알림을 짧게 폴링해서 즉시 반영
   // - 역할 변경 API 성공 직후 15초 동안 2초 간격으로 서버 알림을 조회

@@ -4,6 +4,74 @@
 
 이 문서는 Terraform Proxmox Manager의 일상적인 운영 및 관리 방법을 설명합니다. 서버 생성부터 모니터링, 백업, 문제 해결까지 모든 운영 작업을 다룹니다.
 
+## 🔄 서비스 재시작 가이드
+
+### Celery 워커 재시작이 필요한 경우
+
+#### 1. 코드 변경 시 (항상 필요)
+```bash
+# Python 코드 수정 후
+sudo systemctl restart proxmox-manager
+pkill -f "celery.*worker"
+sleep 2
+nohup celery -A app.celery_app worker --loglevel=info --concurrency=2 > celery_worker.log 2>&1 &
+```
+
+**재시작이 필요한 파일들:**
+- `app/` 디렉토리 내 모든 Python 파일
+- `app/celery_app.py` (Celery 설정)
+- `app/tasks/` (Celery 작업)
+- `app/routes/` (API 엔드포인트)
+- `app/services/` (비즈니스 로직)
+- `requirements.txt` (의존성 변경)
+
+#### 2. 환경 설정 변경 시
+```bash
+# .env 파일 수정 후
+sudo systemctl restart proxmox-manager
+pkill -f "celery.*worker"
+sleep 2
+nohup celery -A app.celery_app worker --loglevel=info --concurrency=2 > celery_worker.log 2>&1 &
+```
+
+**재시작이 필요한 설정:**
+- Vault 설정 (VAULT_ADDR, VAULT_TOKEN)
+- Redis 설정 (REDIS_HOST, REDIS_PASSWORD)
+- Proxmox 설정 (PROXMOX_ENDPOINT, PROXMOX_USERNAME)
+
+#### 3. 시스템 재시작 시
+```bash
+# 서버 재부팅 후 자동으로 시작됨
+sudo systemctl status proxmox-manager
+sudo systemctl status celery-worker
+```
+
+### 서비스 상태 확인
+```bash
+# 모든 서비스 상태 확인
+sudo systemctl status proxmox-manager
+sudo systemctl status celery-worker
+sudo systemctl status redis
+
+# Celery 워커 프로세스 확인
+ps aux | grep celery
+
+# Redis 연결 확인
+redis-cli ping
+```
+
+### 로그 확인
+```bash
+# Flask 애플리케이션 로그
+sudo journalctl -u proxmox-manager -f
+
+# Celery 워커 로그
+tail -f celery_worker.log
+
+# Redis 로그
+docker logs proxmox-redis
+```
+
 ## 🖥️ 웹 인터페이스 사용법
 
 ### 1. 대시보드

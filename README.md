@@ -278,11 +278,6 @@ http://your-server-ip:5000
 
 이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
-## 📞 지원
-
-- **Issues**: [GitHub Issues](https://github.com/your-org/terraform-proxmox/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/terraform-proxmox/discussions)
-- **Wiki**: [GitHub Wiki](https://github.com/your-org/terraform-proxmox/wiki)
 
 ## 🏆 주요 특징
 
