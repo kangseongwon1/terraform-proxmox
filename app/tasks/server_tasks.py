@@ -202,7 +202,6 @@ def create_server_async(self, server_config):
                 
                 # 2. Terraform에서 서버 설정 삭제 (부분적으로 생성된 경우)
                 try:
-                    from app.services.terraform_service import TerraformService
                     terraform_service = TerraformService()
                     terraform_service.delete_server_config(server_config['name'])
                     logger.info(f"🗑️ 실패한 서버 Terraform 설정 삭제: {server_config['name']}")
@@ -407,7 +406,6 @@ def delete_server_async(self, server_name: str):
         )
         
         # TerraformService를 사용하여 서버 삭제
-        from app.services.terraform_service import TerraformService
         terraform_service = TerraformService()
         
         # terraform.tfvars.json에서 해당 서버 제거
