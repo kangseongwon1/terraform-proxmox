@@ -12,7 +12,7 @@ import sys
 import os
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBG)  # 디버깅을 위해 DEBUG 레벨로 설정
+logger.setLevel(logging.DEBUG)  # 디버깅을 위해 DEBUG 레벨로 설정
 
 @celery_app.task(bind=True)
 def create_server_async(self, server_config):
