@@ -300,7 +300,13 @@ def get_datastores():
                 db.session.add(db_datastore)
         
         db.session.commit()
-        logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
+        # 최초 로드 시에만 Proxmox에서 가져온 개수를 로그로 남기고,
+        # 이미 DB에 존재하던 경우에는 DB 기준 개수를 남긴다
+        try:
+            count_loaded = len(proxmox_datastores)  # 최초 로드 경로에서만 존재
+        except NameError:
+            count_loaded = len(db_datastores)
+        logger.info(f"🔧 {count_loaded}개 datastore를 DB에 저장 완료")
         
         # 저장된 datastore 다시 조회
         db_datastores = Datastore.query.filter_by(enabled=True).all()
