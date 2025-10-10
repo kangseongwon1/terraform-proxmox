@@ -28,6 +28,10 @@ class ProxmoxService:
         self.endpoint = current_app.config['PROXMOX_ENDPOINT']
         self.username = current_app.config['PROXMOX_USERNAME']
         self.password = current_app.config['PROXMOX_PASSWORD']
+        
+        # requests session 초기화
+        self.session = requests.Session()
+        self.session.verify = False  # SSL 인증서 검증 비활성화
     
     def get_server_info(self, server_name: str) -> Optional[Dict[str, Any]]:
         """서버 정보 조회"""
@@ -84,6 +88,8 @@ class ProxmoxService:
         try:
             # Proxmox API로 datastore 목록 가져오기
             url = f"{self.endpoint}/api2/json/storage"
+            print(f"🔧 Proxmox API 요청 URL: {url}")
+            print(f"🔧 Proxmox 엔드포인트: {self.endpoint}")
             response = self._make_request('GET', url)
             
             if response.status_code == 200:
