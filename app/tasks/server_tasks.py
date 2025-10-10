@@ -9,13 +9,10 @@ from app import db
 import logging
 import time
 import sys
-
-    
-# Terraform 서비스 초기화 (환경 변수 기반)
 import os
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # 디버깅을 위해 DEBUG 레벨로 설정
+logger.setLevel(logging.DEBG)  # 디버깅을 위해 DEBUG 레벨로 설정
 
 @celery_app.task(bind=True)
 def create_server_async(self, server_config):
@@ -29,9 +26,6 @@ def create_server_async(self, server_config):
             state='PROGRESS',
             meta={'current': 0, 'total': 100, 'status': '서버 생성 준비 중...'}
         )
-        
-        # Terraform 서비스 초기화 (환경 변수 기반)
-        import os
         
         # terraform_service 변수 초기화
         terraform_service = None
