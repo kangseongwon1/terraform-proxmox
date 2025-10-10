@@ -29,8 +29,10 @@ def create_server_async(self, server_config):
         # Terraform 서비스 초기화 (환경 변수 기반)
         import os
         
+        # terraform_service 변수 초기화
+        terraform_service = None
+        
         # 원격 서버 설정 확인 (단순화)
-        remote_config = None
         if os.getenv('TERRAFORM_REMOTE_ENABLED', 'false').lower() == 'true':
             remote_config = {
                 'host': os.getenv('TERRAFORM_REMOTE_HOST'),
