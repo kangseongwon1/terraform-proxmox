@@ -29,9 +29,23 @@ def create_server_async(self, server_config):
         
         # terraform_service 변수 초기화
         terraform_service = None
+        
+        # 함수 내부에서 직접 import 시도
+        try:
+            from app.services.terraform_service import TerraformService as LocalTerraformService
+            print(f"🔧 로컬 TerraformService import 성공: {LocalTerraformService}")
+            TerraformService = LocalTerraformService
+        except ImportError as e:
+            print(f"❌ 로컬 TerraformService import 실패: {e}")
+            # 전역 import 사용
+            print(f"🔧 전역 TerraformService 사용: {TerraformService}")
+        
         print(f"🔧 TerraformService 클래스 확인: {TerraformService}")
+        print(f"🔧 TerraformService 타입: {type(TerraformService)}")
         
         # 원격 서버 설정 확인 (단순화)
+        print(f"🔧 원격 서버 설정 확인: {os.getenv('TERRAFORM_REMOTE_ENABLED', 'false')}")
+        
         if os.getenv('TERRAFORM_REMOTE_ENABLED', 'false').lower() == 'true':
             remote_config = {
                 'host': os.getenv('TERRAFORM_REMOTE_HOST'),
