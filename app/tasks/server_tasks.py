@@ -3,7 +3,8 @@
 """
 from celery import current_task
 from app.celery_app import celery_app
-from app.services import ProxmoxService, TerraformService, AnsibleService
+from app.services import ProxmoxService, AnsibleService
+from app.services.terraform_service import TerraformService
 from app.models import Server, Notification
 from app import db
 import logging
