@@ -28,6 +28,7 @@ class ProxmoxService:
         self.endpoint = current_app.config['PROXMOX_ENDPOINT']
         self.username = current_app.config['PROXMOX_USERNAME']
         self.password = current_app.config['PROXMOX_PASSWORD']
+        self.node = current_app.config['PROXMOX_NODE']
         
         # requests session 초기화
         self.session = requests.Session()

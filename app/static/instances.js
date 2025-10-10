@@ -300,19 +300,56 @@ $(function() {
     'db': 'DB(MariaDB10.11)'
   };
   
-  // 시스템 알림 함수 (전역 함수 사용)
+  // 시스템 알림 함수 (전역 함수 우선, 없으면 로컬 처리)
   function addSystemNotification(type, title, message) {
     console.log(`[알림] ${type}: ${title} - ${message}`);
     
-    // 전역 알림 시스템 사용
+    // 전역 알림 시스템이 있으면 사용, 없으면 로컬 처리
     if (typeof window.addSystemNotification === 'function') {
       window.addSystemNotification(type, title, message);
+    } else {
+      // 로컬 알림 처리 (필요시 구현)
+      console.warn('전역 알림 시스템을 사용할 수 없습니다.');
     }
   }
   
   // 알림 모달 함수
   function alertModal(message) {
     alert(message);
+  }
+
+  // 서버 알림 가져오기 공통 함수 (중복 제거)
+  function fetchAndDisplayNotifications(severity = 'success', fallbackMessage = '') {
+    $.get('/notifications', { _ts: Date.now() })
+      .done(function(response) {
+        if (response.notifications && response.notifications.length > 0) {
+          const latestNotification = response.notifications[0];
+          const isDuplicate = window.systemNotifications.some(function(existing) {
+            return existing.title === latestNotification.title && existing.message === latestNotification.message;
+          });
+          
+          if (!isDuplicate) {
+            console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
+            window.addSystemNotification(
+              latestNotification.severity || severity,
+              latestNotification.title,
+              latestNotification.message,
+              latestNotification.details
+            );
+          } else {
+            console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
+          }
+        } else if (fallbackMessage) {
+          console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
+          addSystemNotification(severity, '작업 완료', fallbackMessage);
+        }
+      })
+      .fail(function() {
+        console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
+        if (fallbackMessage) {
+          addSystemNotification(severity, '작업 완료', fallbackMessage);
+        }
+      });
   }
   
   // 서버 생성 탭으로 전환
@@ -1568,42 +1605,22 @@ $(function() {
             addSystemNotification('info', type, `${name} ${type} 중...`);
             progressNotified = true;
           } else if (res.status === 'completed') {
-            // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/notifications', { _ts: Date.now() })
-              .done(function(response) {
-                if (response.notifications && response.notifications.length > 0) {
-                  // 가장 최근 알림을 찾아서 표시
-                  const latestNotification = response.notifications[0];
-                  const isDuplicate = window.systemNotifications.some(function(existing) {
-                    return existing.title === latestNotification.title && existing.message === latestNotification.message;
-                  });
-                  
-                  if (!isDuplicate) {
-                    window.addSystemNotification(
-                      latestNotification.severity || 'success',
-                      latestNotification.title,
-                      latestNotification.message,
-                      latestNotification.details
-                    );
-                  }
-                } else {
-                  // 서버 알림이 없으면 기본 알림 표시
-            addSystemNotification('success', type, `${name} ${type} 완료`);
-                }
-              })
-              .fail(function() {
-                // API 호출 실패 시 기본 알림 표시
-                addSystemNotification('success', type, `${name} ${type} 완료`);
-              });
+            // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+            fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
             
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
-            // 서버 생성 완료 시 SSE로 실시간 알림 수신
+            // 서버 생성 완료 시 SSE로 실시간 알림 수신 (폴링 제거)
             if (type === 'server_creation') {
               console.log(`🔄 서버 생성 완료, SSE로 실시간 알림 수신: ${task_id}`);
-              // SSE는 이미 연결되어 있어서 자동으로 알림을 받음
-              // 별도의 폴링이 필요 없음
+              // SSE가 실패한 경우에만 폴링 사용
+              setTimeout(function() {
+                if (!window.notificationEventSource || window.notificationEventSource.readyState === EventSource.CLOSED) {
+                  console.log(`⚠️ SSE 연결 실패, 폴링으로 알림 가져오기`);
+                  fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
+                }
+              }, 2000); // 2초 후 SSE 상태 확인
             }
             
             // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
@@ -1614,37 +1631,9 @@ $(function() {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
               
-              // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시
+              // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
               console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
-              $.get('/notifications', { _ts: Date.now() })
-                .done(function(response) {
-                  if (response.notifications && response.notifications.length > 0) {
-                    // 가장 최근 알림을 찾아서 표시
-                    const latestNotification = response.notifications[0];
-                    const isDuplicate = window.systemNotifications.some(function(existing) {
-                      return existing.title === latestNotification.title && existing.message === latestNotification.message;
-                    });
-                    
-                    if (!isDuplicate) {
-                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
-                      window.addSystemNotification(
-                        latestNotification.severity || 'success',
-                        latestNotification.title,
-                        latestNotification.message,
-                        latestNotification.details
-                      );
-                    } else {
-                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
-                    }
-                  } else {
-                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
-                    addSystemNotification('success', type, `${name} ${type} 완료`);
-                  }
-                })
-                .fail(function() {
-                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
-                  addSystemNotification('success', type, `${name} ${type} 완료`);
-                });
+              fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
             }
             
             // 일괄 역할 할당 완료 시 플래그 해제
@@ -1687,33 +1676,8 @@ $(function() {
             }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
             }
           } else if (res.status === 'failed') {
-            // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/notifications', { _ts: Date.now() })
-              .done(function(response) {
-                if (response.notifications && response.notifications.length > 0) {
-                  // 가장 최근 알림을 찾아서 표시
-                  const latestNotification = response.notifications[0];
-                  const isDuplicate = window.systemNotifications.some(function(existing) {
-                    return existing.title === latestNotification.title && existing.message === latestNotification.message;
-                  });
-                  
-                  if (!isDuplicate) {
-                    window.addSystemNotification(
-                      latestNotification.severity || 'error',
-                      latestNotification.title,
-                      latestNotification.message,
-                      latestNotification.details
-                    );
-                  }
-                } else {
-                  // 서버 알림이 없으면 기본 알림 표시
-            addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
-                }
-              })
-              .fail(function() {
-                // API 호출 실패 시 기본 알림 표시
-                addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
-              });
+            // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+            fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
             
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
@@ -1726,37 +1690,9 @@ $(function() {
                 btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
               }
               
-              // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시
+              // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
               console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
-              $.get('/notifications', { _ts: Date.now() })
-                .done(function(response) {
-                  if (response.notifications && response.notifications.length > 0) {
-                    // 가장 최근 알림을 찾아서 표시
-                    const latestNotification = response.notifications[0];
-                    const isDuplicate = window.systemNotifications.some(function(existing) {
-                      return existing.title === latestNotification.title && existing.message === latestNotification.message;
-                    });
-                    
-                    if (!isDuplicate) {
-                      console.log(`✅ 서버 알림 표시: ${latestNotification.title}`);
-                      window.addSystemNotification(
-                        latestNotification.severity || 'error',
-                        latestNotification.title,
-                        latestNotification.message,
-                        latestNotification.details
-                      );
-                    } else {
-                      console.log(`⚠️ 중복 알림 무시: ${latestNotification.title}`);
-                    }
-                  } else {
-                    console.log(`⚠️ 서버 알림이 없음, 기본 알림 표시`);
-                    addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
-                  }
-                })
-                .fail(function() {
-                  console.log(`❌ 서버 알림 가져오기 실패, 기본 알림 표시`);
-                  addSystemNotification('error', type, `${name} ${type} 실패: ${res.message}`);
-                });
+              fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
             }
             
             // 일괄 역할 할당 실패 시에도 플래그 해제
@@ -3708,16 +3644,16 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 // SSE (Server-Sent Events) 연결로 실시간 알림 수신
-let notificationEventSource = null;
+window.notificationEventSource = window.notificationEventSource || null;
 
 function initNotificationStream() {
-  if (notificationEventSource) {
-    notificationEventSource.close();
+  if (window.notificationEventSource) {
+    window.notificationEventSource.close();
   }
   
-  notificationEventSource = new EventSource('/notifications/stream');
+  window.notificationEventSource = new EventSource('/notifications/stream');
   
-  notificationEventSource.onmessage = function(event) {
+  window.notificationEventSource.onmessage = function(event) {
     try {
       const data = JSON.parse(event.data);
       
@@ -3743,7 +3679,7 @@ function initNotificationStream() {
     }
   };
   
-  notificationEventSource.onerror = function(event) {
+  window.notificationEventSource.onerror = function(event) {
     console.error('SSE 연결 오류:', event);
     // 5초 후 재연결 시도
     setTimeout(initNotificationStream, 5000);
