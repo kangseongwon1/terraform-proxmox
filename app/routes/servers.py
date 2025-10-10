@@ -45,7 +45,7 @@ def _remove_from_known_hosts(ip_address: str) -> bool:
             if result.returncode == 0:
                 logger.info(f"ssh-keygen으로 {ip_address} 제거 성공")
                 return True
-    else:
+            else:
                 logger.warning(f"ssh-keygen으로 {ip_address} 제거 실패: {result.stderr}")
                 return False
         except subprocess.TimeoutExpired:
