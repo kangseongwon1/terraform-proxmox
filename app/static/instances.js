@@ -1554,207 +1554,212 @@ $(function() {
     loadActiveServers();
   });
 
-  // 작업 상태 폴링 관리
-  let activeTasks = {};
-  function pollTaskStatus(task_id, type, name) {
-    if (!task_id) return;
+  // // 작업 상태 폴링 관리
+  // let activeTasks = {};
+  // function pollTaskStatus(task_id, type, name) {
+  //   if (!task_id) return;
     
-    // 이미 활성화된 task가 있으면 중복 방지
-    if (activeTasks[task_id]) {
-      console.log(`[instances.js] Task ${task_id} 이미 폴링 중, 중복 방지`);
-      return;
-    }
+  //   // 이미 활성화된 task가 있으면 중복 방지
+  //   if (activeTasks[task_id]) {
+  //     console.log(`[instances.js] Task ${task_id} 이미 폴링 중, 중복 방지`);
+  //     return;
+  //   }
     
-    let progressNotified = false;
-    let startTime = Date.now();
+  //   let progressNotified = false;
+  //   let startTime = Date.now();
     
-    // Task 설정 로드 후 폴링 시작
-    loadTaskConfig().then(function(config) {
-      const TIMEOUT = config.timeout * 1000; // 서버에서 가져온 타임아웃 (밀리초)
-      const timeoutHours = Math.round(config.timeout / 3600 * 100) / 100; // 초를 시간으로 변환
-      console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${timeoutHours}시간`);
+  //   // Task 설정 로드 후 폴링 시작
+  //   loadTaskConfig().then(function(config) {
+  //     const TIMEOUT = config.timeout * 1000; // 서버에서 가져온 타임아웃 (밀리초)
+  //     const timeoutHours = Math.round(config.timeout / 3600 * 100) / 100; // 초를 시간으로 변환
+  //     console.log(`[instances.js] Task 폴링 시작: ${task_id}, 타임아웃: ${timeoutHours}시간`);
       
-      activeTasks[task_id] = setInterval(function() {
-        // 클라이언트 측 타임아웃 체크
-        const elapsed = Date.now() - startTime;
-        if (elapsed > TIMEOUT) {
-          console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
-          addSystemNotification('error', type, `${name} ${type} 타임아웃 (${config.timeout_hours}시간 초과)`);
-          clearInterval(activeTasks[task_id]);
-          delete activeTasks[task_id];
+  //     activeTasks[task_id] = setInterval(function() {
+  //       // 클라이언트 측 타임아웃 체크
+  //       const elapsed = Date.now() - startTime;
+  //       if (elapsed > TIMEOUT) {
+  //         console.log(`⏰ 클라이언트 타임아웃: ${task_id}`);
+  //         addSystemNotification('error', type, `${name} ${type} 타임아웃 (${config.timeout_hours}시간 초과)`);
+  //         clearInterval(activeTasks[task_id]);
+  //         delete activeTasks[task_id];
           
-          // 일괄 작업 타임아웃 시에도 플래그 해제
-          if (type === 'bulk_server_action') {
-            isBulkOperationInProgress = false;
-            console.log('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
-            updateRefreshButtonState();
+  //         // 일괄 작업 타임아웃 시에도 플래그 해제
+  //         if (type === 'bulk_server_action') {
+  //           isBulkOperationInProgress = false;
+  //           console.log('[instances.js] 일괄 작업 타임아웃 - 자동 새로고침 재활성화');
+  //           updateRefreshButtonState();
             
-            // 모든 일괄 작업 타임아웃 시에도 서버 목록 새로고침
-            console.log('[instances.js] 일괄 작업 타임아웃 - 서버 목록 새로고침');
-            setTimeout(function() {
-              loadActiveServers();
-            }, 1000);
-          }
-          return;
-        }
+  //           // 모든 일괄 작업 타임아웃 시에도 서버 목록 새로고침
+  //           console.log('[instances.js] 일괄 작업 타임아웃 - 서버 목록 새로고침');
+  //           setTimeout(function() {
+  //             loadActiveServers();
+  //           }, 1000);
+  //         }
+  //         return;
+  //       }
         
-        $.get('/api/tasks/status', { task_id }, function(res) {
-          console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
+  //       $.get('/api/tasks/status', { task_id }, function(res) {
+  //         console.log(`🔍 Task 상태 조회: ${task_id} - ${res.status} - ${res.message}`);
           
-          if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
-            addSystemNotification('info', type, `${name} ${type} 중...`);
-            progressNotified = true;
-          } else if (res.status === 'completed') {
-            // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
-            fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
+  //         if ((res.status === 'running' || res.status === 'pending') && !progressNotified) {
+  //           addSystemNotification('info', type, `${name} ${type} 중...`);
+  //           progressNotified = true;
+  //         } else if (res.status === 'completed') {
+  //           // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+  //           fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
             
-            clearInterval(activeTasks[task_id]);
-            delete activeTasks[task_id];
+  //           clearInterval(activeTasks[task_id]);
+  //           delete activeTasks[task_id];
             
-            // 서버 생성 완료 시 SSE로 실시간 알림 수신 (폴링 제거)
-            if (type === 'server_creation') {
-              console.log(`🔄 서버 생성 완료, SSE로 실시간 알림 수신: ${task_id}`);
-              // SSE가 실패한 경우에만 폴링 사용
-              setTimeout(function() {
-                if (!window.notificationEventSource || window.notificationEventSource.readyState === EventSource.CLOSED) {
-                  console.log(`⚠️ SSE 연결 실패, 폴링으로 알림 가져오기`);
-                  fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
-                }
-              }, 2000); // 2초 후 SSE 상태 확인
-            }
+  //           // 서버 생성 완료 시 SSE로 실시간 알림 수신 (폴링 제거)
+  //           if (type === 'server_creation') {
+  //             console.log(`🔄 서버 생성 완료, SSE로 실시간 알림 수신: ${task_id}`);
+  //             // SSE가 실패한 경우에만 폴링 사용
+  //             setTimeout(function() {
+  //               if (!window.notificationEventSource || window.notificationEventSource.readyState === EventSource.CLOSED) {
+  //                 console.log(`⚠️ SSE 연결 실패, 폴링으로 알림 가져오기`);
+  //                 fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
+  //               }
+  //             }, 2000); // 2초 후 SSE 상태 확인
+  //           }
             
-            // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
-            if (type === 'ansible_role_install') {
-              console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
-              const btn = $(`.server-role-apply[data-server="${name}"]`);
-              if (btn.length) {
-                btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-              }
+  //           // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
+  //           if (type === 'ansible_role_install') {
+  //             console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
+  //             const btn = $(`.server-role-apply[data-server="${name}"]`);
+  //             if (btn.length) {
+  //               btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+  //             }
               
-              // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
-              console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
-              fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
-            }
+  //             // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+  //             console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
+  //             fetchAndDisplayNotifications('success', `${name} ${type} 완료`);
+  //           }
             
-            // 일괄 역할 할당 완료 시 플래그 해제
-            if (type === 'assign_roles_bulk') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 역할 할당 완료 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
-            }
+  //           // 일괄 역할 할당 완료 시 플래그 해제
+  //           if (type === 'assign_roles_bulk') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 역할 할당 완료 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
+  //           }
             
-            // 일괄 보안그룹 할당 완료 시 플래그 해제
-            if (type === 'assign_security_groups_bulk') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 보안그룹 할당 완료 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
-            }
+  //           // 일괄 보안그룹 할당 완료 시 플래그 해제
+  //           if (type === 'assign_security_groups_bulk') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 보안그룹 할당 완료 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
+  //           }
             
-            // 다중 서버 생성 완료 시 폼 복원
-            if (type === 'create_servers_bulk') {
-              console.log(`🔄 다중 서버 생성 완료, 폼 복원: ${task_id}`);
-              restoreServerForm();
-            }
+  //           // 다중 서버 생성 완료 시 폼 복원
+  //           if (type === 'create_servers_bulk') {
+  //             console.log(`🔄 다중 서버 생성 완료, 폼 복원: ${task_id}`);
+  //             restoreServerForm();
+  //           }
             
-            // 일괄 작업 완료 시 플래그 해제 및 상태 업데이트
-            if (type === 'bulk_server_action') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
+  //           // 일괄 작업 완료 시 플래그 해제 및 상태 업데이트
+  //           if (type === 'bulk_server_action') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 작업 완료 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
               
-              // 모든 일괄 작업 완료 시 서버 목록 새로고침
-              console.log('[instances.js] 일괄 작업 완료 - 서버 목록 새로고침');
-              console.log('[instances.js] 작업 정보:', { name, message: res.message });
-              setTimeout(function() {
-                loadActiveServers();
-              }, 1000); // 1초 후 새로고침
-            } else {
-              // 다른 작업들은 기존대로 새로고침
-            console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
-            setTimeout(function() {
-              loadActiveServers();
-            }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
-            }
-          } else if (res.status === 'failed') {
-            // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
-            fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
+  //             // 모든 일괄 작업 완료 시 서버 목록 새로고침
+  //             console.log('[instances.js] 일괄 작업 완료 - 서버 목록 새로고침');
+  //             console.log('[instances.js] 작업 정보:', { name, message: res.message });
+  //             setTimeout(function() {
+  //               loadActiveServers();
+  //             }, 1000); // 1초 후 새로고침
+  //           } else {
+  //             // 다른 작업들은 기존대로 새로고침
+  //           console.log(`🔄 ${type} 완료, 목록 새로고침: ${task_id}`);
+  //           setTimeout(function() {
+  //             loadActiveServers();
+  //           }, 2000); // 2초 후 새로고침 (서버 상태 안정화 대기)
+  //           }
+  //         } else if (res.status === 'failed') {
+  //           // 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+  //           fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
             
-            clearInterval(activeTasks[task_id]);
-            delete activeTasks[task_id];
+  //           clearInterval(activeTasks[task_id]);
+  //           delete activeTasks[task_id];
             
-            // 역할 설치 실패 시 버튼 상태 복원 및 서버 알림 가져오기
-            if (type === 'ansible_role_install') {
-              console.log(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
-              const btn = $(`.server-role-apply[data-server="${name}"]`);
-              if (btn.length) {
-                btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
-              }
+  //           // 역할 설치 실패 시 버튼 상태 복원 및 서버 알림 가져오기
+  //           if (type === 'ansible_role_install') {
+  //             console.log(`🔄 역할 설치 실패, 버튼 상태 복원: ${task_id}`);
+  //             const btn = $(`.server-role-apply[data-server="${name}"]`);
+  //             if (btn.length) {
+  //               btn.prop('disabled', false).html('<i class="fas fa-check"></i> <span>역할 적용</span>');
+  //             }
               
-              // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
-              console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
-              fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
-            }
+  //             // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시 (공통 함수 사용)
+  //             console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
+  //             fetchAndDisplayNotifications('error', `${name} ${type} 실패: ${res.message}`);
+  //           }
             
-            // 일괄 역할 할당 실패 시에도 플래그 해제
-            if (type === 'assign_roles_bulk') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 역할 할당 실패 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
-            }
+  //           // 일괄 역할 할당 실패 시에도 플래그 해제
+  //           if (type === 'assign_roles_bulk') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 역할 할당 실패 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
+  //           }
             
-            // 일괄 보안그룹 할당 실패 시에도 플래그 해제
-            if (type === 'assign_security_groups_bulk') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 보안그룹 할당 실패 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
-            }
+  //           // 일괄 보안그룹 할당 실패 시에도 플래그 해제
+  //           if (type === 'assign_security_groups_bulk') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 보안그룹 할당 실패 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
+  //           }
             
-            // 다중 서버 생성 실패 시 폼 복원
-            if (type === 'create_servers_bulk') {
-              console.log(`🔄 다중 서버 생성 실패, 폼 복원: ${task_id}`);
-              restoreServerForm();
-            }
+  //           // 다중 서버 생성 실패 시 폼 복원
+  //           if (type === 'create_servers_bulk') {
+  //             console.log(`🔄 다중 서버 생성 실패, 폼 복원: ${task_id}`);
+  //             restoreServerForm();
+  //           }
             
-            // 일괄 작업 실패 시에도 플래그 해제
-            if (type === 'bulk_server_action') {
-              isBulkOperationInProgress = false;
-              console.log('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
-              updateRefreshButtonState();
+  //           // 일괄 작업 실패 시에도 플래그 해제
+  //           if (type === 'bulk_server_action') {
+  //             isBulkOperationInProgress = false;
+  //             console.log('[instances.js] 일괄 작업 실패 - 자동 새로고침 재활성화');
+  //             updateRefreshButtonState();
               
-              // 모든 일괄 작업 실패 시에도 서버 목록 새로고침
-              console.log('[instances.js] 일괄 작업 실패 - 서버 목록 새로고침');
-              setTimeout(function() {
-                loadActiveServers();
-              }, 1000);
-            }
+  //             // 모든 일괄 작업 실패 시에도 서버 목록 새로고침
+  //             console.log('[instances.js] 일괄 작업 실패 - 서버 목록 새로고침');
+  //             setTimeout(function() {
+  //               loadActiveServers();
+  //             }, 1000);
+  //           }
             
-            // 실패 시에도 목록 새로고침 (DB 정리 확인)
-            console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
-            setTimeout(function() {
-              loadActiveServers();
-            }, 1000);
-          }
-        }).fail(function(xhr, status, error) {
-          console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
-          clearInterval(activeTasks[task_id]);
-          delete activeTasks[task_id];
+  //           // 실패 시에도 목록 새로고침 (DB 정리 확인)
+  //           console.log(`🔄 ${type} 실패, 목록 새로고침: ${task_id}`);
+  //           setTimeout(function() {
+  //             loadActiveServers();
+  //           }, 1000);
+  //         }
+  //       }).fail(function(xhr, status, error) {
+  //         console.log(`❌ Task 상태 조회 실패: ${task_id} - ${error}`);
+  //         clearInterval(activeTasks[task_id]);
+  //         delete activeTasks[task_id];
           
-          // 일괄 작업 AJAX 실패 시에도 플래그 해제
-          if (type === 'bulk_server_action') {
-            isBulkOperationInProgress = false;
-            console.log('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
-            updateRefreshButtonState();
+  //         // 일괄 작업 AJAX 실패 시에도 플래그 해제
+  //         if (type === 'bulk_server_action') {
+  //           isBulkOperationInProgress = false;
+  //           console.log('[instances.js] 일괄 작업 AJAX 실패 - 자동 새로고침 재활성화');
+  //           updateRefreshButtonState();
             
-            // 모든 일괄 작업 AJAX 실패 시에도 서버 목록 새로고침
-            console.log('[instances.js] 일괄 작업 AJAX 실패 - 서버 목록 새로고침');
-            setTimeout(function() {
-              loadActiveServers();
-            }, 1000);
-          }
-        });
-      }, config.polling_interval || 5000);
-    });
-  }
+  //           // 모든 일괄 작업 AJAX 실패 시에도 서버 목록 새로고침
+  //           console.log('[instances.js] 일괄 작업 AJAX 실패 - 서버 목록 새로고침');
+  //           setTimeout(function() {
+  //             loadActiveServers();
+  //           }, 1000);
+  //         }
+  //       });
+  //     }, config.polling_interval || 5000);
+  //   });
+  // }
+
+  // 작업 상태 폴링 제거: SSE만 사용
+  // pollTaskStatus는 더 이상 사용하지 않지만, 기존 호출부를 안전하게 무시하기 위해 no-op으로 유지
+  function pollTaskStatus() { /* SSE 전환으로 미사용 */ }
+
 
   // AJAX 전역 설정 - 세션 만료 처리
   $.ajaxSetup({

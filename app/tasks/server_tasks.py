@@ -437,6 +437,21 @@ def delete_server_async(self, server_name: str):
         
         logger.info(f"✅ 서버 삭제 성공: {server_name}")
         
+        # 성공 알림 생성 (SSE로 전달되어 UI에 즉시 표시)
+        try:
+            from app.models.notification import Notification
+            success_noti = Notification(
+                type='server_deletion',
+                title='서버 삭제 완료',
+                message=f'서버 {server_name}이 성공적으로 삭제되었습니다.',
+                severity='success',
+                details=f'서버명: {server_name}'
+            )
+            db.session.add(success_noti)
+            db.session.commit()
+        except Exception as notify_ok_error:
+            logger.warning(f"알림 생성 경고(성공): {notify_ok_error}")
+
         return {
             'success': True,
             'message': f'서버 {server_name} 삭제 완료',
