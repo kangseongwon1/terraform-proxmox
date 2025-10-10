@@ -72,34 +72,7 @@ def create_server_async(self, server_config):
             meta={'current': 60, 'total': 100, 'status': '서버 정보 저장 중...'}
         )
         
-        # disk 값 추출 (disks 배열에서 첫 번째 디스크 크기 사용)
-        disk_size = 20  # 기본값 20GB
-        
-        print(f"🔍 disk_size 추출 시작:")  # print로 강제 출력
-        print(f"  server_config keys: {list(server_config.keys())}")
-        print(f"  'disks' in server_config: {'disks' in server_config}")
-        logger.info(f"🔍 disk_size 추출 시작:")
-        logger.info(f"  server_config keys: {list(server_config.keys())}")
-        logger.info(f"  'disks' in server_config: {'disks' in server_config}")
-        
-        try:
-            if 'disks' in server_config:
-                logger.info(f"  disks 배열 존재: {server_config['disks']}")
-                logger.info(f"  disks 배열 길이: {len(server_config['disks'])}")
-                
-                if len(server_config['disks']) > 0:
-                    first_disk = server_config['disks'][0]
-                    logger.info(f"  첫 번째 디스크: {first_disk}")
-                    disk_size = first_disk.get('size', 20)
-                    logger.info(f"🔧 disk_size 추출: {disk_size}GB (disks 배열에서)")
-                else:
-                    logger.warning(f"⚠️ disks 배열이 비어있으므로 기본값 20GB 사용")
-            else:
-                logger.warning(f"⚠️ disks 키가 없으므로 기본값 20GB 사용")
-        except Exception as e:
-            logger.error(f"❌ disk_size 추출 실패: {e}")
-            logger.error(f"  server_config: {server_config}")
-            disk_size = 20
+        # disk_size는 DB에 저장하지 않음 (동적으로 변할 수 있음)
         
         # Server 객체 생성 (안전성 강화)
         print(f"🔍 Server 객체 생성 시작:")  # print로 강제 출력
@@ -114,7 +87,6 @@ def create_server_async(self, server_config):
         logger.info(f"  name: {server_config['name']}")
         logger.info(f"  cpu: {server_config['cpu']}")
         logger.info(f"  memory: {server_config['memory']}")
-        logger.info(f"  disk_size: {disk_size}")
         logger.info(f"  os_type: {server_config.get('os_type', 'ubuntu')}")
         logger.info(f"  role: {server_config.get('role', '')}")
         logger.info(f"  firewall_group: {server_config.get('firewall_group', '')}")
@@ -124,7 +96,6 @@ def create_server_async(self, server_config):
                 name=server_config['name'],
                 cpu=server_config['cpu'],
                 memory=server_config['memory'],
-                disk_size=disk_size,  # 필드명 변경: disk → disk_size
                 os_type=server_config.get('os_type', 'ubuntu'),
                 role=server_config.get('role', ''),
                 firewall_group=server_config.get('firewall_group', ''),
