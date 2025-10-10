@@ -300,7 +300,7 @@ def get_datastores():
                 db.session.add(db_datastore)
         
         db.session.commit()
-            logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
+        logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
         
         # 저장된 datastore 다시 조회
         db_datastores = Datastore.query.filter_by(enabled=True).all()
