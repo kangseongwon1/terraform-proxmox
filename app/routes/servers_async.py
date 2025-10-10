@@ -26,7 +26,7 @@ def create_server_async_endpoint():
         server_name = data.get('name')
         cpu = data.get('cpu', 2)
         memory = data.get('memory', 4)
-        os_type = data.get('os_type', 'ubuntu')
+        os_type = data.get('os_type', 'rocky')
         role = data.get('role', '')
         firewall_group = data.get('firewall_group', '')
         disks = data.get('disks', [])
