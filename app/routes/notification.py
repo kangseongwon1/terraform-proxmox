@@ -126,6 +126,7 @@ def notification_stream():
     def event_stream():
         user_id = current_user.id
         connection_id = f"{user_id}_{int(time.time() * 1000)}"
+        last_id = 0
         
         # 연결 등록
         sse_connections[user_id].append(connection_id)
@@ -138,6 +139,26 @@ def notification_stream():
             last_heartbeat = time.time()
             while True:
                 current_time = time.time()
+                
+                # 새로운 알림이 있는지 확인
+                notifications = Notification.query.filter(
+                    Notification.id > last_id
+                ).order_by(Notification.created_at.desc()).limit(10).all()
+                
+                if notifications:
+                    for notification in notifications:
+                        event_data = {
+                            'id': notification.id,
+                            'type': 'notification',
+                            'severity': notification.severity,
+                            'title': notification.title,
+                            'message': notification.message,
+                            'details': notification.details,
+                            'created_at': notification.created_at.isoformat()
+                        }
+                        
+                        yield f"data: {json.dumps(event_data)}\n\n"
+                        last_id = notification.id
                 
                 # 하트비트 전송
                 if current_time - last_heartbeat >= 30:

@@ -1599,6 +1599,13 @@ $(function() {
             clearInterval(activeTasks[task_id]);
             delete activeTasks[task_id];
             
+            // 서버 생성 완료 시 SSE로 실시간 알림 수신
+            if (type === 'server_creation') {
+              console.log(`🔄 서버 생성 완료, SSE로 실시간 알림 수신: ${task_id}`);
+              // SSE는 이미 연결되어 있어서 자동으로 알림을 받음
+              // 별도의 폴링이 필요 없음
+            }
+            
             // 역할 설치 완료 시 버튼 상태 복원 및 서버 알림 가져오기
             if (type === 'ansible_role_install') {
               console.log(`🔄 역할 설치 완료, 버튼 상태 복원: ${task_id}`);
@@ -3698,6 +3705,56 @@ window.addEventListener('unhandledrejection', function(event) {
   console.group('🚨 Promise Rejection 상세 정보');
   console.error('Reason:', reason);
   console.groupEnd();
+});
+
+// SSE (Server-Sent Events) 연결로 실시간 알림 수신
+let notificationEventSource = null;
+
+function initNotificationStream() {
+  if (notificationEventSource) {
+    notificationEventSource.close();
+  }
+  
+  notificationEventSource = new EventSource('/notifications/stream');
+  
+  notificationEventSource.onmessage = function(event) {
+    try {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'notification') {
+        console.log(`🔔 SSE로 실시간 알림 수신: ${data.title}`);
+        
+        // 중복 체크
+        const isDuplicate = window.systemNotifications.some(function(existing) {
+          return existing.title === data.title && existing.message === data.message;
+        });
+        
+        if (!isDuplicate) {
+          window.addSystemNotification(
+            data.severity || 'info',
+            data.title,
+            data.message,
+            data.details
+          );
+        }
+      }
+    } catch (error) {
+      console.error('SSE 알림 파싱 오류:', error);
+    }
+  };
+  
+  notificationEventSource.onerror = function(event) {
+    console.error('SSE 연결 오류:', event);
+    // 5초 후 재연결 시도
+    setTimeout(initNotificationStream, 5000);
+  };
+  
+  console.log('🔗 SSE 알림 스트림 연결됨');
+}
+
+// 페이지 로드 시 SSE 연결
+$(document).ready(function() {
+  initNotificationStream();
 });
 
 // AJAX 에러 전역 핸들러 (jQuery)
