@@ -1596,6 +1596,41 @@ class ProxmoxService:
             print(f"❌ VM '{vm_name}'에서 Security Group 제거 실패: {e}")
             return False
 
+    def delete_server(self, server_name: str) -> bool:
+        """서버 삭제 (Terraform 기반)
+        
+        이 메서드는 Terraform을 통해 서버를 삭제합니다.
+        Proxmox API를 직접 호출하지 않고 TerraformService를 사용합니다.
+        """
+        try:
+            print(f"🗑️ Terraform 기반 서버 삭제 시작: {server_name}")
+            
+            # TerraformService를 사용하여 서버 삭제
+            from app.services.terraform_service import TerraformService
+            terraform_service = TerraformService()
+            
+            # 1. terraform.tfvars.json에서 서버 설정 제거
+            print(f"🔧 terraform.tfvars.json에서 서버 설정 제거: {server_name}")
+            if not terraform_service.delete_server_config(server_name):
+                print(f"❌ 서버 설정 제거 실패: {server_name}")
+                return False
+            
+            # 2. Terraform apply로 실제 삭제 실행
+            print(f"🔧 Terraform apply로 서버 삭제 실행: {server_name}")
+            target = f'module.server["{server_name}"]'
+            apply_result = terraform_service.apply([target])
+            
+            if apply_result:
+                print(f"✅ Terraform으로 서버 삭제 성공: {server_name}")
+                return True
+            else:
+                print(f"❌ Terraform으로 서버 삭제 실패: {server_name}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 서버 삭제 중 오류: {server_name} - {str(e)}")
+            return False
+
     def _disable_vm_firewall(self, node: str, vmid: int, headers: Dict[str, str]) -> bool:
         """VM의 모든 네트워크 디바이스에서 Firewall 설정을 1→0으로 변경"""
         try:
