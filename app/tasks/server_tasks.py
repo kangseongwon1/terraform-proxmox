@@ -70,15 +70,12 @@ def create_server_async(self, server_config):
             meta={'current': 60, 'total': 100, 'status': '서버 정보 저장 중...'}
         )
         
-        # disk_size는 DB에 저장하지 않음 (동적으로 변할 수 있음)
-        
         # Server 객체 생성 (안전성 강화)
         print(f"🔍 Server 객체 생성 시작:")  # print로 강제 출력
         print(f"  name: {server_config['name']}")
         print(f"  cpu: {server_config['cpu']}")
         print(f"  memory: {server_config['memory']}")
-        print(f"  disk_size: {disk_size}")
-        print(f"  os_type: {server_config.get('os_type', 'ubuntu')}")
+        print(f"  os_type: {server_config.get('os_type', 'rocky')}")
         print(f"  role: {server_config.get('role', '')}")
         print(f"  firewall_group: {server_config.get('firewall_group', '')}")
         logger.info(f"🔍 Server 객체 생성 시작:")
@@ -102,11 +99,7 @@ def create_server_async(self, server_config):
             logger.info(f"✅ Server 객체 생성 성공: {server_config['name']}")
         except Exception as e:
             print(f"❌ Server 객체 생성 실패: {e}")  # print로 강제 출력
-            print(f"  disk_size 타입: {type(disk_size)}")
-            print(f"  disk_size 값: {disk_size}")
             logger.error(f"❌ Server 객체 생성 실패: {e}")
-            logger.error(f"  disk_size 타입: {type(disk_size)}")
-            logger.error(f"  disk_size 값: {disk_size}")
             raise Exception(f'Server 객체 생성 실패: {e}')
         
         db.session.add(server)
@@ -255,7 +248,6 @@ def create_server_async(self, server_config):
         logger.error(f"  name: {server_config.get('name', 'N/A')}")
         logger.error(f"  cpu: {server_config.get('cpu', 'N/A')}")
         logger.error(f"  memory: {server_config.get('memory', 'N/A')}")
-        logger.error(f"  disks: {server_config.get('disks', 'N/A')}")
         logger.error(f"  os_type: {server_config.get('os_type', 'N/A')}")
         logger.error(f"  role: {server_config.get('role', 'N/A')}")
         logger.error(f"  firewall_group: {server_config.get('firewall_group', 'N/A')}")
