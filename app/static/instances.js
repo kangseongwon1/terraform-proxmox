@@ -1569,7 +1569,7 @@ $(function() {
             progressNotified = true;
           } else if (res.status === 'completed') {
             // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/api/notifications', { _ts: Date.now() })
+            $.get('/notifications', { _ts: Date.now() })
               .done(function(response) {
                 if (response.notifications && response.notifications.length > 0) {
                   // 가장 최근 알림을 찾아서 표시
@@ -1616,7 +1616,7 @@ $(function() {
               
               // Ansible 완료 시 서버에서 생성된 알림을 가져와서 표시
               console.log(`🔍 Ansible 역할 설치 완료, 서버 알림 가져오기: ${name}`);
-              $.get('/api/notifications', { _ts: Date.now() })
+              $.get('/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
                     // 가장 최근 알림을 찾아서 표시
@@ -1688,7 +1688,7 @@ $(function() {
             }
           } else if (res.status === 'failed') {
             // 서버에서 생성된 알림을 가져와서 표시
-            $.get('/api/notifications', { _ts: Date.now() })
+            $.get('/notifications', { _ts: Date.now() })
               .done(function(response) {
                 if (response.notifications && response.notifications.length > 0) {
                   // 가장 최근 알림을 찾아서 표시
@@ -1728,7 +1728,7 @@ $(function() {
               
               // Ansible 실패 시 서버에서 생성된 알림을 가져와서 표시
               console.log(`🔍 Ansible 역할 설치 실패, 서버 알림 가져오기: ${name}`);
-              $.get('/api/notifications', { _ts: Date.now() })
+              $.get('/notifications', { _ts: Date.now() })
                 .done(function(response) {
                   if (response.notifications && response.notifications.length > 0) {
                     // 가장 최근 알림을 찾아서 표시
@@ -2923,7 +2923,7 @@ function initializeServerForm() {
     e.preventDefault();
     const ok = await confirmModal('모든 알림을 삭제하시겠습니까?');
     if (!ok) return;
-    $.post('/api/notifications/clear-all', function(res) {
+    $.post('/notifications/clear-all', function(res) {
       window.systemNotifications = [];
       // 알림 드롭다운만 갱신(성공 알림은 띄우지 않음)
       if (typeof addSystemNotification === 'function') {
@@ -3164,7 +3164,7 @@ function initializeServerForm() {
 // 서버에서 알림 로드하는 함수 (페이지 로드 시에만 사용)
 window.loadNotifications = function() {
   console.log('[instances.js] 알림 로드 시작');
-  $.get('/api/notifications', { _ts: Date.now() })
+  $.get('/notifications', { _ts: Date.now() })
     .done(function(response) {
       console.log('[instances.js] 알림 로드 성공:', response);
       if (response.notifications && response.notifications.length > 0) {
@@ -3207,7 +3207,7 @@ window.startNotificationPolling = function() {
   
   window.notificationPollingInterval = setInterval(function() {
     // 최신 알림만 확인 (성능 최적화)
-    $.get('/api/notifications/latest', { _ts: Date.now() })
+    $.get('/notifications/latest', { _ts: Date.now() })
       .done(function(response) {
         if (response && response.success && response.notification) {
           const noti = response.notification;
@@ -3403,7 +3403,7 @@ window.stopNotificationPolling = function() {
   };
   // 알림 ID 기반 상세 로그 열기 (서버에서 안전하게 가져오기)
   window.openNotificationLog = function(notificationId){
-    $.get(`/api/notifications/${notificationId}`)
+    $.get(`/notifications/${notificationId}`)
       .done(function(res){
         if (res && res.success && res.notification){
           const n = res.notification;
@@ -3536,7 +3536,7 @@ window.stopNotificationPolling = function() {
       function tick(){
         if (Date.now() - start > MAX_DURATION_MS) return;
         // 경량 최신 알림 API로 교체: 서버명/타입 필터
-        $.get('/api/notifications/latest', { server: serverName, type: 'ansible_role', _ts: Date.now() })
+        $.get('/notifications/latest', { server: serverName, type: 'ansible_role', _ts: Date.now() })
           .done(function(response){
             if (!response || !response.success || !response.notification) return;
             const noti = response.notification;

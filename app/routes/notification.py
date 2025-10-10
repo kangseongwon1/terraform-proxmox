@@ -14,7 +14,7 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-bp = Blueprint('notification', __name__, url_prefix='/api')
+bp = Blueprint('notification', __name__)
 
 # SSE 연결 관리
 sse_connections = defaultdict(list)
