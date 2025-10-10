@@ -2272,7 +2272,7 @@ function initializeServerForm() {
         }
       } else {
         addSystemNotification('error', '서버 시작', `${name} 서버 시작 실패: ${res.error}`);
-        btn.prop('disabled', false).html(originalText);
+      btn.prop('disabled', false).html(originalText);
       }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/start 실패', xhr);
@@ -2308,7 +2308,7 @@ function initializeServerForm() {
         }
       } else {
         addSystemNotification('error', '서버 중지', `${name} 서버 중지 실패: ${res.error}`);
-        btn.prop('disabled', false).html(originalText);
+      btn.prop('disabled', false).html(originalText);
       }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/stop 실패', xhr);
@@ -2344,7 +2344,7 @@ function initializeServerForm() {
         }
       } else {
         addSystemNotification('error', '서버 재시작', `${name} 서버 재시작 실패: ${res.error}`);
-        btn.prop('disabled', false).html(originalText);
+      btn.prop('disabled', false).html(originalText);
       }
     }).fail(function(xhr){
       console.error('[instances.js] /api/servers/' + name + '/reboot 실패', xhr);
@@ -2375,7 +2375,7 @@ function initializeServerForm() {
       if (res.success) {
         addSystemNotification('info', '서버 삭제', `${name} 서버 삭제 작업이 시작되었습니다.`);
         // Task 폴링 시작
-        if (res.task_id) {
+      if (res.task_id) {
           pollTaskStatus(res.task_id, 'server_delete', name);
         }
       } else {

@@ -122,8 +122,11 @@ def get_latest_notification():
 @bp.route('/notifications/stream', methods=['GET'])
 def notification_stream():
     """Server-Sent Events를 통한 실시간 알림 스트림"""
+    from flask import stream_with_context
+    
     def event_stream():
-        user_id = current_user.id
+        # 로그인하지 않은 경우 기본 사용자 ID 사용
+        user_id = current_user.id if current_user.is_authenticated else 0
         connection_id = f"{user_id}_{int(time.time() * 1000)}"
         last_id = 0
         
@@ -131,15 +134,16 @@ def notification_stream():
         sse_connections[user_id].append(connection_id)
         
         try:
-            # 연결 확인 메시지
+            # 즉시 연결 확인 메시지 전송
+            yield ': ping\n\n'
             yield f"data: {json.dumps({'type': 'connected', 'connection_id': connection_id})}\n\n"
             
-            # 하트비트 (30초마다)
+            # 하트비트 (15초마다)
             last_heartbeat = time.time()
             while True:
                 current_time = time.time()
                 
-                # 새로운 알림이 있는지 확인
+                # 새로운 알림이 있는지 확인 (전체 사용자 공통 알림)
                 notifications = Notification.query.filter(
                     Notification.id > last_id
                 ).order_by(Notification.created_at.desc()).limit(10).all()
@@ -159,8 +163,9 @@ def notification_stream():
                         yield f"data: {json.dumps(event_data)}\n\n"
                         last_id = notification.id
                 
-                # 하트비트 전송
-                if current_time - last_heartbeat >= 30:
+                # 주기적 하트비트 전송
+                if current_time - last_heartbeat >= 15:
+                    yield ': ping\n\n'
                     yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': current_time})}\n\n"
                     last_heartbeat = current_time
                 
@@ -174,12 +179,16 @@ def notification_stream():
                     del sse_connections[user_id]
             logger.info(f"SSE 연결 종료: {connection_id}")
     
-    return Response(event_stream(), mimetype='text/event-stream', headers={
+    headers = {
+        'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',  # Nginx 버퍼링 방지
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Cache-Control'
-    })
+    }
+    
+    return Response(stream_with_context(event_stream()), headers=headers)
 
 def broadcast_notification(user_id: int, notification_data: dict):
     """특정 사용자에게 알림 브로드캐스트"""

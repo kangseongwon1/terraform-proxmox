@@ -45,7 +45,7 @@ def _remove_from_known_hosts(ip_address: str) -> bool:
             if result.returncode == 0:
                 logger.info(f"ssh-keygen으로 {ip_address} 제거 성공")
                 return True
-            else:
+    else:
                 logger.warning(f"ssh-keygen으로 {ip_address} 제거 실패: {result.stderr}")
                 return False
         except subprocess.TimeoutExpired:
@@ -299,7 +299,7 @@ def get_datastores():
                 )
                 db.session.add(db_datastore)
         
-            db.session.commit()
+        db.session.commit()
             logger.info(f"🔧 {len(proxmox_datastores)}개 datastore를 DB에 저장 완료")
         
         # 저장된 datastore 다시 조회
@@ -368,7 +368,7 @@ def get_datastores():
             })
         
         return jsonify({
-            'success': True,
+            'success': True, 
             'datastores': formatted_datastores,
             'default_hdd': hdd_datastore,
             'default_ssd': ssd_datastore
@@ -447,7 +447,7 @@ def refresh_datastores():
             'message': f'{len(proxmox_datastores)}개 datastore 정보를 새로고침했습니다.',
             'count': len(proxmox_datastores)
         })
-        
+    
     except Exception as e:
         logger.error(f"Datastore 새로고침 실패: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -495,7 +495,7 @@ def set_default_datastores():
         
     except Exception as e:
         logger.error(f"기본 datastore 설정 변경 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500    
+        return jsonify({'error': str(e)}), 500
 
 
 @bp.route('/api/proxmox_storage', methods=['GET'])
@@ -508,9 +508,9 @@ def proxmox_storage():
         storage_info = proxmox_service.get_storage_info()
         
         return jsonify({
-            'success': True,
+            'success': True, 
             'data': storage_info.get('data', [])  # storage 키 대신 data 키로 반환
         })
     except Exception as e:
         logger.error(f"스토리지 정보 조회 실패: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500    
